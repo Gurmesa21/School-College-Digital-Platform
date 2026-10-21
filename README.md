@@ -2,7 +2,7 @@
 
 > A configurable, multi-tenant digital experience platform for private schools, colleges, kindergartens, and TVET institutions.
 
-[![Project Status: Day 2 Multi-Tenant Foundation](https://img.shields.io/badge/Status-Day%202%20Multi--Tenant%20Foundation-blue.svg)](#)
+[![Project Status: Day 3 Auth & Tenant-Scoped RBAC](https://img.shields.io/badge/Status-Day%203%20Auth%20%26%20RBAC-blue.svg)](#)
 [![Architecture: Modular Monolith](https://img.shields.io/badge/Architecture-Modular%20Monolith-green.svg)](#)
 [![Vulnerabilities: 0](https://img.shields.io/badge/Vulnerabilities-0%20detected-brightgreen.svg)](#)
 [![Accessibility Target: WCAG 2.2 AA](https://img.shields.io/badge/A11y%20Target-WCAG%202.2%20AA-purple.svg)](#)
@@ -21,19 +21,22 @@ School_website/
 │   │   └── public/                  # Static public assets
 │   └── api/                         # Node.js + Express REST API (/api/v1)
 │       ├── src/config/              # Zod-validated environment configuration
-│       ├── src/middleware/          # Tenant resolver, error handling, request ID
-│       ├── src/repositories/        # Tenant repository (Prisma & InMemory implementations)
-│       ├── src/routes/              # Versioned API routes (/health, /tenant/current)
-│       └── tests/                   # Vitest integration tests (25 passing tests)
+│       ├── src/middleware/          # Tenant resolver, session resolver, RBAC guards, CSRF
+│       ├── src/repositories/        # Tenant & Auth repositories (Prisma & InMemory)
+│       ├── src/routes/              # Versioned API routes (/health, /auth, /tenant, /platform)
+│       ├── src/services/            # AuthService, PasswordService, TokenService, EmailService
+│       └── tests/                   # Vitest automated test suites (50 passing tests)
 ├── packages/
 │   ├── db/                          # Prisma ORM schema, migrations, seed script
-│   │   ├── prisma/schema.prisma     # Multi-tenant schema (Tenant, TenantDomain)
-│   │   ├── prisma/migrations/       # Controlled database migrations
-│   │   └── prisma/seed.ts           # Idempotent development seed script
+│   │   ├── prisma/schema.prisma     # Identity, membership, role, permission, session schema
+│   │   ├── prisma/migrations/       # Controlled database migrations (2 applied SQL migrations)
+│   │   └── prisma/seed.ts           # Idempotent development seed script (tenants, roles, perms)
 │   └── shared/                      # Shared TypeScript interfaces & Zod schemas
-│       └── src/index.ts             # Hostname normalizer, DTOs, repository interfaces
+│       └── src/index.ts             # Hostname normalizer, permissions, DTOs, response envelopes
 ├── docs/
-│   └── architecture/                # Architecture Decision Records (ADRs)
+│   ├── architecture/                # Architecture Decision Records (ADR-001)
+│   └── project-management/
+│       └── reports/                 # Durable daily implementation reports & index
 ├── .env.example                     # Sanitized environment configuration template
 ├── .gitignore                       # Multi-tier exclusion rules (ignores .env*, tracks .env.example)
 ├── package.json                     # Root monorepo manifest and orchestration scripts
@@ -71,7 +74,7 @@ Configure your local database credentials in `DATABASE_URL` within `.env.local` 
 *(Note: `.env*` files are strictly excluded from source control by `.gitignore`; `.env.example` remains tracked).*
 
 ### 3. Database Schema Validation & Migration
-Validate the schema, create the typed Prisma client, and apply migrations:
+Validate the schema, create the typed Prisma client, and inspect migrations:
 
 ```bash
 # Validate schema syntax
@@ -85,17 +88,18 @@ npm run prisma:migrate
 ```
 
 ### 4. Idempotent Development Seeding
-Populate the database with representative multi-tenant institutions:
+Populate the database with representative multi-tenant institutions, system permissions, and baseline roles:
 
 ```bash
 npm run db:seed
 ```
 
-The seed script creates the following development tenants:
+The seed script creates the following development tenants and system roles:
 * **Kindergarten:** `Little Explorers Kindergarten` (`kindergarten.localhost`)
 * **Secondary School:** `Greenwood Secondary School` (`secondary.localhost`, `greenwood.localhost`)
 * **TVET College:** `Summit TVET & Vocational Institute` (`tvet.localhost`)
 * **Suspended Institution:** `Heritage Academy (Suspended)` (`suspended.localhost`)
+* **Roles Registered:** `SUPER_ADMIN`, `TENANT_ADMIN`, `PRINCIPAL`, `ADMISSIONS_OFFICER`, `STAFF` with least-privilege permission bundles.
 
 *Safety Note:* The seed script is strictly forbidden from running when `NODE_ENV === 'production'`.
 
@@ -108,12 +112,13 @@ npm run dev
 
 * **Frontend Web Application:** [http://localhost:3000](http://localhost:3000)
 * **REST API Service:** [http://localhost:4000/api/v1/health](http://localhost:4000/api/v1/health)
-* **Current Resolved Tenant Probe:** [http://secondary.localhost:4000/api/v1/tenant/current](http://secondary.localhost:4000/api/v1/tenant/current)
+* **Resolved Tenant Diagnostic:** [http://secondary.localhost:4000/api/v1/tenant/current](http://secondary.localhost:4000/api/v1/tenant/current)
 
 ---
 
-## 4. Multi-Tenant Resolution Architecture
+## 4. Multi-Tenant Resolution & Server-Side RBAC Architecture
 
+### 4.1 Tenancy Resolution Flow
 Tenant resolution is enforced centrally in the API request pipeline (`apps/api/src/middleware/tenantResolver.ts`) in accordance with SRS Section 11.2 and `BR-001`.
 
 ```text
@@ -123,7 +128,7 @@ Incoming HTTP Request
 Extract Hostname (Host or X-Forwarded-Host if TRUST_PROXY=true)
        │
        ▼
-Deterministic Normalization: lowercase, strip port (:3000), strip trailing dot
+Deterministic Normalization: lowercase, strip port (:4000), strip trailing dot
        │
        ▼
 Is Loopback Host + Client IP AND ALLOW_DEV_TENANT_OVERRIDE=true AND ?tenant=<slug>?
@@ -139,22 +144,56 @@ Tenant Found?
                  └── PENDING   ──► Return HTTP 403 Institution Inactive
 ```
 
-### Key Security Guardrails
-1. **Client Headers Ignored:** Headers such as `x-tenant-id` or `x-tenant-slug` are strictly ignored and cannot override server-resolved context.
-2. **Loopback Dev Override Constraint:** Query parameter tenant selection (`?tenant=slug`) is allowed **only** when all of the following conditions are met:
-   * `ALLOW_DEV_TENANT_OVERRIDE=true` in environment configuration.
-   * `NODE_ENV` and `APP_ENV` are not `production` or `staging`.
-   * The request host is loopback (`localhost`, `127.0.0.1`, `::1`).
-   * The client connection IP is loopback (`127.0.0.1`, `::1`).
-3. **No Silent Fallback:** If an unmapped domain requests access or if the database is unreachable, the system fails closed (returning 404 or 503) and never silently serves another tenant's records.
-4. **Reverse Proxy Host Preservation:** When Next.js or a reverse proxy forwards requests to the Express API, it must preserve the original client `Host` header (e.g., `proxy_set_header Host $host;` in Nginx). If running behind a reverse proxy, set `TRUST_PROXY=true` in the API configuration to trust `X-Forwarded-Host`.
+### 4.2 Authentication & Session Lifecycle
+- **Password Security:** Salted and hashed using `bcrypt` (12 rounds) with constant-time dummy comparisons to eliminate user enumeration and timing side channels.
+- **Session Tokens:** 32-byte (256-bit) cryptographically random tokens (`TokenService.generateRandomToken()`).
+- **Token Persistence:** Only SHA-256 hashes of session tokens are persisted to PostgreSQL (`Session.tokenHash`). Raw tokens are never logged or stored in plain text.
+- **Cookie Security:** Issued over HTTP-only cookies (`school_session`) with `SameSite=Lax`, `Path=/`, and `Secure` flag enabled in production.
+- **CSRF Defense:** Origin validation middleware enforces that cookie-authenticated mutating requests (POST, PUT, PATCH, DELETE) match trusted origins.
+- **Revocation:** Explicit sign-out sets `revokedAt = now()` in the database and clears the client cookie. Deactivated accounts immediately invalidate active sessions.
+
+### 4.3 Password Reset & Email Verification Workflows
+- **Non-Disclosing Enumeration Protection:** `POST /api/v1/auth/password-reset/request` returns identical generic success responses regardless of whether the submitted email address exists.
+- **Single-Use & Expiry:** Password reset tokens expire after 60 minutes and email verification tokens expire after 24 hours. Once used, `usedAt` is stamped and subsequent reuse attempts return 400 `INVALID_RESET_TOKEN`.
+- **Session Termination:** Completing a password reset automatically revokes all existing sessions across all devices for that user.
+
+### 4.4 Tenant-Scoped RBAC & Isolation
+- **Distinct Concepts:** A `User` account is distinct from a `Membership` in a `Tenant`. Disabling a membership in Tenant A does not deactivate unrelated memberships in Tenant B.
+- **Tenant Context Verification:** `requireTenantMembership` validates that `req.user` holds an `ACTIVE` membership specifically within `req.tenant.id`.
+- **Cross-Tenant Attack Prevention:** A user holding administrator permissions in Tenant A is rejected with 403 `TENANT_MEMBERSHIP_REQUIRED` when attempting to access Tenant B. Host header modifications or client headers (`x-tenant-id`) cannot grant access to another tenant.
+- **Least-Privilege RBAC:** `requirePermission(code)` evaluates user permissions derived from assigned roles. Operations are guarded before any business logic executes.
+- **Platform Separation:** Privileged platform operations (`/api/v1/platform/*`) require `isSuperAdmin === true`. Ordinary tenant roles cannot invoke platform routes.
 
 ---
 
-## 5. Operational Health: Liveness vs. Readiness
+## 5. Automated Testing Suite
 
-* **Liveness Probe (`GET /health` and `GET /api/v1/health`):** Mounted explicitly outside tenant resolution. Confirms the Node.js/Express event loop is responsive and healthy. Does not require tenant context or database access.
-* **Readiness Probe:** Evaluates database connectivity and dependency readiness. Liveness probes intentionally avoid falsely asserting database readiness.
+The platform includes 50 automated tests in Vitest executed with Supertest and isolated repository mocks:
+
+```bash
+# Run all automated tests
+npm test
+```
+
+### Test Coverage Areas
+1. **Health Probes (`tests/health.test.ts` - 5 tests):** Liveness probes, JSON format, error handling, port configuration validation.
+2. **Tenant Resolver (`tests/tenantResolver.test.ts` - 20 tests):** Hostname normalization, IPv4/IPv6 handling, domain mapping, inactive tenant fail-closed, loopback dev override rules, production security trace, database failure 503 handling.
+3. **Auth & RBAC Suite (`tests/authAndRbac.test.ts` - 25 tests):**
+   - Valid credentials establish HTTP-only session.
+   - Invalid credentials rejected without disclosing sensitive details.
+   - Sign-out revokes session and clears cookie.
+   - Expired sessions rejected.
+   - Password reset tokens expire and cannot be reused.
+   - Reset requests do not disclose whether account exists.
+   - Email verification token validated and consumed safely.
+   - Unauthenticated requests rejected.
+   - Permitted tenant action succeeds.
+   - Missing permission rejected with 403.
+   - Cross-tenant access strictly prevented.
+   - Suspended membership denied access.
+   - Ordinary tenant admins cannot invoke platform operations.
+   - CSRF origin validation on cookie-authenticated requests.
+   - Absence of sensitive values in error responses.
 
 ---
 
@@ -163,10 +202,20 @@ Tenant Found?
 | Command | Description |
 | :--- | :--- |
 | `npm run build` | Builds all packages (`shared`, `db`, `api`, `web`) in dependency order |
-| `npm run test` | Executes the automated Vitest test suites (25 unit and integration tests) |
+| `npm run test` | Executes the automated Vitest test suites (50 unit and integration tests) |
 | `npm run typecheck` | Runs TypeScript strict type checking across all workspaces |
 | `npm run lint` | Runs linter checks across all workspaces |
 | `npm run prisma:validate` | Validates the multi-tenant Prisma database schema |
 | `npm run prisma:generate` | Generates the typed Prisma client |
 | `npm run prisma:migrate` | Applies schema migrations to PostgreSQL |
-| `npm run db:seed` | Seeds idempotent development multi-tenant records |
+| `npm run db:seed` | Seeds idempotent development multi-tenant and RBAC records |
+
+---
+
+## 7. Project Management & Durable Implementation Reports
+
+All daily implementation reports are tracked in Git under `docs/project-management/reports/`:
+- [`docs/project-management/reports/INDEX.md`](./docs/project-management/reports/INDEX.md)
+- [`docs/project-management/reports/DAY-01-IMPLEMENTATION-REPORT.md`](./docs/project-management/reports/DAY-01-IMPLEMENTATION-REPORT.md)
+- [`docs/project-management/reports/DAY-02-IMPLEMENTATION-REPORT.md`](./docs/project-management/reports/DAY-02-IMPLEMENTATION-REPORT.md)
+- [`docs/project-management/reports/DAY-03-IMPLEMENTATION-REPORT.md`](./docs/project-management/reports/DAY-03-IMPLEMENTATION-REPORT.md)

@@ -69,6 +69,116 @@ export const DEVELOPMENT_SEED_TENANTS: SeedTenantData[] = [
   },
 ];
 
+export const SYSTEM_PERMISSIONS: Array<{ code: string; category: string; description: string }> = [
+  // Platform operations
+  { code: 'platform:access', category: 'platform', description: 'Access platform administration operations' },
+  { code: 'platform:tenants:manage', category: 'platform', description: 'Create, update, or suspend tenant accounts' },
+
+  // Tenant Settings
+  { code: 'tenant:profile:read', category: 'tenant_settings', description: 'View institution profile and configurations' },
+  { code: 'tenant:profile:update', category: 'tenant_settings', description: 'Update institution profile and configurations' },
+  { code: 'tenant:branding:update', category: 'tenant_settings', description: 'Update institution visual identity and branding' },
+
+  // Users and Access
+  { code: 'users:read', category: 'users_and_access', description: 'List institutional members and users' },
+  { code: 'users:invite', category: 'users_and_access', description: 'Invite new institutional staff members' },
+  { code: 'users:manage', category: 'users_and_access', description: 'Deactivate or adjust user membership' },
+  { code: 'roles:read', category: 'users_and_access', description: 'View tenant role and permission assignments' },
+  { code: 'roles:assign', category: 'users_and_access', description: 'Assign roles to institutional members' },
+
+  // CMS & Content
+  { code: 'cms:pages:read', category: 'cms', description: 'View unpublished and draft CMS content' },
+  { code: 'cms:pages:write', category: 'cms', description: 'Create and edit CMS content drafts' },
+  { code: 'cms:pages:publish', category: 'cms', description: 'Publish CMS pages to the public website' },
+
+  // Admissions
+  { code: 'admissions:read', category: 'admissions', description: 'View admissions enquiries and applications' },
+  { code: 'admissions:review', category: 'admissions', description: 'Review and update admission applicant statuses' },
+  { code: 'admissions:manage', category: 'admissions', description: 'Configure admission cycles and decision forms' },
+
+  // Analytics
+  { code: 'analytics:view', category: 'analytics', description: 'View institution traffic and admissions analytics' },
+
+  // Audit
+  { code: 'audit:read', category: 'audit', description: 'View immutable administrative audit history' },
+];
+
+export const SYSTEM_ROLES: Array<{
+  name: string;
+  displayName: string;
+  description: string;
+  isSystem: boolean;
+  permissions: string[];
+}> = [
+  {
+    name: 'SUPER_ADMIN',
+    displayName: 'Platform Super Administrator',
+    description: 'Global operations, tenant lifecycle, and service-level platform administration',
+    isSystem: true,
+    permissions: ['platform:access', 'platform:tenants:manage', 'audit:read'],
+  },
+  {
+    name: 'TENANT_ADMIN',
+    displayName: 'Institutional Administrator',
+    description: 'Full institutional management for a single institution site',
+    isSystem: true,
+    permissions: [
+      'tenant:profile:read',
+      'tenant:profile:update',
+      'tenant:branding:update',
+      'users:read',
+      'users:invite',
+      'users:manage',
+      'roles:read',
+      'roles:assign',
+      'cms:pages:read',
+      'cms:pages:write',
+      'cms:pages:publish',
+      'admissions:read',
+      'admissions:review',
+      'admissions:manage',
+      'analytics:view',
+      'audit:read',
+    ],
+  },
+  {
+    name: 'PRINCIPAL',
+    displayName: 'Principal / Academic Leadership',
+    description: 'Academic oversight, admissions decisioning, and published content review',
+    isSystem: true,
+    permissions: [
+      'tenant:profile:read',
+      'cms:pages:read',
+      'cms:pages:write',
+      'cms:pages:publish',
+      'admissions:read',
+      'admissions:review',
+      'analytics:view',
+    ],
+  },
+  {
+    name: 'ADMISSIONS_OFFICER',
+    displayName: 'Admissions Officer',
+    description: 'Review admissions enquiries, documents, and application reviews',
+    isSystem: true,
+    permissions: [
+      'admissions:read',
+      'admissions:review',
+      'admissions:manage',
+    ],
+  },
+  {
+    name: 'STAFF',
+    displayName: 'Staff / Educator',
+    description: 'Author institutional drafts and view staff-facing updates',
+    isSystem: true,
+    permissions: [
+      'cms:pages:read',
+      'cms:pages:write',
+    ],
+  },
+];
+
 export async function seedDevelopmentData(): Promise<void> {
   // Safety guard: Never run development seed in production
   if (process.env.NODE_ENV === 'production') {
@@ -77,6 +187,7 @@ export async function seedDevelopmentData(): Promise<void> {
 
   console.log('[Seed] Seeding development multi-tenant baseline data...');
 
+  // 1. Seed baseline tenants and domains
   for (const tenantData of DEVELOPMENT_SEED_TENANTS) {
     const tenant = await prisma.tenant.upsert({
       where: { slug: tenantData.slug },
@@ -120,7 +231,82 @@ export async function seedDevelopmentData(): Promise<void> {
     }
   }
 
-  console.log('[Seed] Development multi-tenant seed completed idempotently.');
+  // 2. Seed system permissions idempotently
+  console.log('[Seed] Registering system permissions...');
+  const permissionMap = new Map<string, string>();
+  for (const perm of SYSTEM_PERMISSIONS) {
+    const record = await prisma.permission.upsert({
+      where: { code: perm.code },
+      update: {
+        category: perm.category,
+        description: perm.description,
+      },
+      create: {
+        code: perm.code,
+        category: perm.category,
+        description: perm.description,
+      },
+    });
+    permissionMap.set(perm.code, record.id);
+  }
+  console.log(`[Seed] Synced ${permissionMap.size} system permissions.`);
+
+  // 3. Seed system roles and their permission assignments
+  console.log('[Seed] Registering system roles and permissions...');
+  for (const roleDef of SYSTEM_ROLES) {
+    // Locate existing system role or create
+    const existing = await prisma.role.findFirst({
+      where: { name: roleDef.name, tenantId: null },
+    });
+
+    let roleId: string;
+    if (existing) {
+      const updated = await prisma.role.update({
+        where: { id: existing.id },
+        data: {
+          displayName: roleDef.displayName,
+          description: roleDef.description,
+          isSystem: roleDef.isSystem,
+        },
+      });
+      roleId = updated.id;
+    } else {
+      const created = await prisma.role.create({
+        data: {
+          name: roleDef.name,
+          displayName: roleDef.displayName,
+          description: roleDef.description,
+          isSystem: roleDef.isSystem,
+          tenantId: null,
+        },
+      });
+      roleId = created.id;
+    }
+
+    // Connect permissions to role
+    for (const permCode of roleDef.permissions) {
+      const permId = permissionMap.get(permCode);
+      if (permId) {
+        await prisma.rolePermission.upsert({
+          where: {
+            roleId_permissionId: {
+              roleId,
+              permissionId: permId,
+            },
+          },
+          update: {},
+          create: {
+            roleId,
+            permissionId: permId,
+          },
+        });
+      }
+    }
+
+    console.log(`[Seed] Synced System Role: ${roleDef.name} (${roleDef.displayName}) with ${roleDef.permissions.length} permissions.`);
+  }
+
+  console.log('[Seed] Development multi-tenant and RBAC seed completed idempotently.');
 }
 
 // Direct execution guard

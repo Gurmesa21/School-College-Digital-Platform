@@ -57,6 +57,98 @@ export const InstitutionTypeEnum = z.enum([
 export type InstitutionType = z.infer<typeof InstitutionTypeEnum>;
 
 /**
+ * User Account Status Enum
+ */
+export const UserStatusEnum = z.enum(['ACTIVE', 'SUSPENDED', 'PENDING_VERIFICATION']);
+export type UserStatus = z.infer<typeof UserStatusEnum>;
+
+/**
+ * Tenant Membership Status Enum
+ */
+export const MembershipStatusEnum = z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']);
+export type MembershipStatus = z.infer<typeof MembershipStatusEnum>;
+
+/**
+ * Standard Platform & Tenant Permissions (SRS Section 4.1 & 6)
+ */
+export const PERMISSIONS = {
+  // Platform operations (Super Administrator only)
+  PLATFORM_ACCESS: 'platform:access',
+  PLATFORM_TENANTS_MANAGE: 'platform:tenants:manage',
+
+  // Tenant profile and institutional settings
+  TENANT_PROFILE_READ: 'tenant:profile:read',
+  TENANT_PROFILE_UPDATE: 'tenant:profile:update',
+  TENANT_BRANDING_UPDATE: 'tenant:branding:update',
+
+  // Users and Access
+  USERS_READ: 'users:read',
+  USERS_INVITE: 'users:invite',
+  USERS_MANAGE: 'users:manage',
+  ROLES_READ: 'roles:read',
+  ROLES_ASSIGN: 'roles:assign',
+
+  // CMS & Content
+  CMS_PAGES_READ: 'cms:pages:read',
+  CMS_PAGES_WRITE: 'cms:pages:write',
+  CMS_PAGES_PUBLISH: 'cms:pages:publish',
+
+  // Admissions
+  ADMISSIONS_READ: 'admissions:read',
+  ADMISSIONS_REVIEW: 'admissions:review',
+  ADMISSIONS_MANAGE: 'admissions:manage',
+
+  // Analytics
+  ANALYTICS_VIEW: 'analytics:view',
+
+  // Audit
+  AUDIT_READ: 'audit:read',
+} as const;
+
+export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+/**
+ * Sanitized user identity model (excludes password hashes)
+ */
+export interface AuthUser {
+  id: string;
+  email: string;
+  status: UserStatus;
+  firstName: string | null;
+  lastName: string | null;
+  emailVerifiedAt: string | null;
+  isSuperAdmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Authenticated session representation
+ */
+export interface AuthSession {
+  id: string;
+  userId: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+/**
+ * Tenant-scoped membership representation
+ */
+export interface AuthMembership {
+  id: string;
+  userId: string;
+  tenantId: string;
+  status: MembershipStatus;
+  roles: Array<{
+    id: string;
+    name: string;
+    displayName: string;
+    permissions: PermissionCode[];
+  }>;
+}
+
+/**
  * Validation schema for Health Check response
  */
 export const HealthStatusSchema = z.object({
@@ -137,4 +229,47 @@ export function normalizeHostname(rawInput: string): string {
   }
 
   return cleaned.toLowerCase().trim();
+}
+
+/**
+ * Deterministically normalizes an email address
+ */
+export function normalizeEmail(rawEmail: string): string {
+  if (!rawEmail || typeof rawEmail !== 'string') {
+    return '';
+  }
+  return rawEmail.trim().toLowerCase();
+}
+
+/**
+ * DTO Schemas for Authentication & Session Endpoints
+ */
+export const SignInSchema = z.object({
+  email: z.string().email('Invalid email address format'),
+  password: z.string().min(1, 'Password is required'),
+});
+export type SignInDto = z.infer<typeof SignInSchema>;
+
+export const PasswordResetRequestSchema = z.object({
+  email: z.string().email('Invalid email address format'),
+});
+export type PasswordResetRequestDto = z.infer<typeof PasswordResetRequestSchema>;
+
+export const PasswordResetConfirmSchema = z.object({
+  token: z.string().min(16, 'Reset token is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters long'),
+});
+export type PasswordResetConfirmDto = z.infer<typeof PasswordResetConfirmSchema>;
+
+export const EmailVerificationSchema = z.object({
+  token: z.string().min(16, 'Verification token is required'),
+});
+export type EmailVerificationDto = z.infer<typeof EmailVerificationSchema>;
+
+/**
+ * Email Delivery Service Interface
+ */
+export interface IEmailService {
+  sendPasswordResetEmail(toEmail: string, resetToken: string, tenantName?: string): Promise<void>;
+  sendEmailVerificationEmail(toEmail: string, verificationToken: string, tenantName?: string): Promise<void>;
 }

@@ -1,21 +1,36 @@
 import express, { Express } from 'express';
 import cors from 'cors';
-import { ITenantRepository } from '@school/shared';
+import cookieParser from 'cookie-parser';
+import { ITenantRepository, IEmailService } from '@school/shared';
 import { config as defaultEnvConfig, EnvConfig } from './config/env.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { createTenantResolver } from './middleware/tenantResolver.js';
+import { createSessionResolver, createOriginGuard } from './middleware/authMiddleware.js';
+import { IAuthRepository, PrismaAuthRepository } from './repositories/authRepository.js';
+import { AuthService } from './services/authService.js';
+import { InMemoryEmailService } from './services/emailService.js';
 import { healthRouter } from './routes/health.js';
-import { tenantRouter } from './routes/tenant.js';
+import { createTenantRouter } from './routes/tenant.js';
+import { createAuthRouter } from './routes/auth.js';
+import { createPlatformRouter } from './routes/platform.js';
 
 export interface AppOptions {
   repository?: ITenantRepository;
+  authRepository?: IAuthRepository;
+  emailService?: IEmailService;
+  authService?: AuthService;
   envConfig?: EnvConfig;
 }
 
 export function createApp(options: AppOptions = {}): Express {
   const app = express();
   const envConfig = options.envConfig || defaultEnvConfig;
+
+  // Repositories and Services
+  const authRepository = options.authRepository || new PrismaAuthRepository();
+  const emailService = options.emailService || new InMemoryEmailService();
+  const authService = options.authService || new AuthService(authRepository, emailService);
 
   // Basic Express configuration
   if (envConfig.TRUST_PROXY) {
@@ -24,6 +39,7 @@ export function createApp(options: AppOptions = {}): Express {
 
   // Middleware pipeline
   app.use(express.json());
+  app.use(cookieParser());
   app.use(requestIdMiddleware);
 
   // Development CORS restricted to local frontend
@@ -36,6 +52,12 @@ export function createApp(options: AppOptions = {}): Express {
     })
   );
 
+  // Cookie and CSRF protection
+  app.use(createOriginGuard(envConfig));
+
+  // Global session resolution (attaches req.user & req.session if valid token is provided)
+  app.use(createSessionResolver(authService));
+
   // --- Operational Health Probes (Explicitly Outside Tenant Resolution) ---
   app.use('/', healthRouter);
 
@@ -43,8 +65,15 @@ export function createApp(options: AppOptions = {}): Express {
   const v1Router = express.Router();
   v1Router.use('/', healthRouter);
 
-  // --- Tenant-Scoped Domain Boundary ---
+  // --- Authentication Routes (/api/v1/auth) ---
+  v1Router.use('/auth', createAuthRouter(authService, envConfig));
+
+  // --- Platform-Level Operations (/api/v1/platform) ---
+  v1Router.use('/platform', createPlatformRouter());
+
+  // --- Tenant-Scoped Domain Boundary (/api/v1/tenant) ---
   const tenantResolver = createTenantResolver(options.repository, envConfig);
+  const tenantRouter = createTenantRouter(authRepository);
   v1Router.use('/tenant', tenantResolver, tenantRouter);
 
   app.use(envConfig.API_PREFIX, v1Router);

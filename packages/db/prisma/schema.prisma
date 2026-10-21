@@ -20,6 +20,18 @@ enum InstitutionType {
   TVET_TRAINING_CENTRE
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
 model Tenant {
   id              String          @id @default(cuid())
   slug            String          @unique
@@ -35,6 +47,8 @@ model Tenant {
   updatedAt       DateTime        @updatedAt
 
   domains         TenantDomain[]
+  memberships     Membership[]
+  roles           Role[]
 
   @@index([slug])
   @@index([status])
@@ -55,4 +69,160 @@ model TenantDomain {
   @@index([hostname])
   @@index([isVerified])
   @@map("tenant_domains")
+}
+
+model User {
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  passwordHash            String
+  status                  UserStatus               @default(ACTIVE)
+  firstName               String?
+  lastName                String?
+  emailVerifiedAt         DateTime?
+  isSuperAdmin            Boolean                  @default(false)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+
+  memberships             Membership[]
+  sessions                Session[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+model Membership {
+  id         String           @id @default(cuid())
+  userId     String
+  tenantId   String
+  status     MembershipStatus @default(ACTIVE)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roles      MembershipRole[]
+
+  @@unique([userId, tenantId])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([status])
+  @@map("memberships")
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  tenantId    String?
+  name        String
+  displayName String
+  description String?
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  memberships MembershipRole[]
+
+  @@index([tenantId])
+  @@index([name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  category    String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  roles       RolePermission[]
+
+  @@index([code])
+  @@index([category])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  assignedAt   DateTime   @default(now())
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model MembershipRole {
+  membershipId String
+  roleId       String
+  assignedAt   DateTime   @default(now())
+
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([membershipId, roleId])
+  @@index([membershipId])
+  @@index([roleId])
+  @@map("membership_roles")
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  userAgent  String?
+  ipAddress  String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
 }
