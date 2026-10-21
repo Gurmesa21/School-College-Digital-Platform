@@ -19,7 +19,9 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "prisma:validate": "npm run prisma:validate --workspace=@school/db",
-    "prisma:generate": "npm run prisma:generate --workspace=@school/db"
+    "prisma:generate": "npm run prisma:generate --workspace=@school/db",
+    "prisma:migrate": "npm run prisma:migrate --workspace=@school/db",
+    "db:seed": "npm run db:seed --workspace=@school/db"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

@@ -26,6 +26,11 @@ model Tenant {
   name            String
   institutionType InstitutionType @default(PRIMARY_SECONDARY)
   status          TenantStatus    @default(ACTIVE)
+  timezone        String          @default("UTC")
+  defaultLocale   String          @default("en")
+  contactEmail    String?
+  contactPhone    String?
+  address         String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -48,5 +53,6 @@ model TenantDomain {
 
   @@index([tenantId])
   @@index([hostname])
+  @@index([isVerified])
   @@map("tenant_domains")
 }

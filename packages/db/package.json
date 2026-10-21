@@ -8,13 +8,19 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "prisma:validate": "prisma validate",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0"
   },
   "devDependencies": {
     "prisma": "^5.22.0",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }
 }
