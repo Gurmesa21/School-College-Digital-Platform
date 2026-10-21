@@ -53,6 +53,11 @@ Inspection of GitHub Actions runs via the GitHub API (`https://api.github.com/re
    - *Root Cause*: Running `apps/api` standalone (`node apps/api/dist/server.js`) without a configured database failed during runtime tenant domain lookups (`Environment variable not found: DATABASE_URL`).
    - *Fix*: Updated `apps/api/src/server.ts` to detect placeholder/unconfigured database URLs and initialize development in-memory repositories (`InMemoryTenantRepository`, `InMemoryAuthRepository`, `InMemoryAuditRepository`) pre-seeded with baseline tenants (`oxford`, `greenwood`) and administrator credentials. When real credentials are provided or running in CI, it uses Prisma.
 
+5. **Lexicographical Migration Execution Order in PostgreSQL**:
+   - *Error*: In CI run 39646643819, Step 8 `Deploy Database Migrations` failed during `prisma migrate deploy`.
+   - *Root Cause*: Migration directories were named with date prefixes without sequential timestamps: `20261021_init_auth_rbac`, `20261021_init_tenancy`, `20261021_user_admin_and_audit`. Prisma executes migrations in strict alphabetical order. Because `'init_auth_rbac'` alphabetically precedes `'init_tenancy'`, Prisma attempted to run the auth/RBAC migration first, which referenced the non-existent `"tenants"` foreign key table created in the tenancy migration.
+   - *Fix*: Renamed migration directories with sequential 14-digit timestamps: `20261021010000_init_tenancy`, `20261021020000_init_auth_rbac`, and `20261021030000_user_admin_and_audit`, ensuring correct dependency creation order.
+
 ---
 
 ## 3. Files Created, Modified, or Deleted
@@ -60,6 +65,9 @@ Inspection of GitHub Actions runs via the GitHub API (`https://api.github.com/re
 | File Path | Action | Description of Change |
 |---|---|---|
 | `.github/workflows/ci.yml` | Modified | Fixed `DATABASE_URL`, standardized Prisma scripts (`prisma:validate`, `prisma:generate`, `prisma:migrate`, `db:seed`), and configured Playwright E2E execution |
+| `packages/db/prisma/migrations/20261021010000_init_tenancy` | Renamed | Renamed from `20261021_init_tenancy` to guarantee 1st execution order |
+| `packages/db/prisma/migrations/20261021020000_init_auth_rbac` | Renamed | Renamed from `20261021_init_auth_rbac` to guarantee 2nd execution order |
+| `packages/db/prisma/migrations/20261021030000_user_admin_and_audit` | Renamed | Renamed from `20261021_user_admin_and_audit` to guarantee 3rd execution order |
 | `package.json` | Modified | Added root `prisma.schema` and `prisma.seed` mappings; added `test:smoke` and `test:e2e` scripts; added `@playwright/test` devDependency |
 | `package-lock.json` | Modified | Synchronized lockfile for `@playwright/test` (0 audit vulnerabilities) |
 | `apps/api/src/server.ts` | Modified | Added development in-memory fallback when `DATABASE_URL` is placeholder or unconfigured |
