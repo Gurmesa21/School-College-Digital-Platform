@@ -5,7 +5,7 @@ export const healthRouter = Router();
 
 const startTime = Date.now();
 
-healthRouter.get('/health', (req: Request, res: Response) => {
+healthRouter.get(['/health', '/healthz'], (req: Request, res: Response) => {
   const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000);
   const healthData: HealthStatus = {
     status: 'healthy',

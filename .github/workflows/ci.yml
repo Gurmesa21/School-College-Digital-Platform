@@ -37,7 +37,7 @@ jobs:
 
     env:
       APP_ENV: test
-      DATABASE_URL: DATABASE_URL="postgresql://postgres:postgres_password_placeholder@localhost:5432/school_platform_dev?schema=public"
+      DATABASE_URL: postgresql://dev_user:dev_password@localhost:5432/gurmesa_test_db?schema=public
       AUTH_SECRET: 'dummy-secret-for-ci-tests-1234567890'
       AUTH_TRUST_HOST: 'true'
       AUTH_URL: 'http://localhost:3000'
@@ -50,15 +50,26 @@ jobs:
       with:
         node-version: '20'
         cache: 'npm'
-    - run: npm ci
-    - run: npx prisma generate
-    - run: npx prisma migrate deploy
-    - run: npx prisma db seed
-    - run: npm run lint
-    - run: npm run typecheck
-    - run: npm run test
-    - run: npm run build
+    - name: Clean Dependency Installation
+      run: npm ci
+    - name: Validate Prisma Schema
+      run: npm run prisma:validate
+    - name: Generate Prisma Client
+      run: npm run prisma:generate
+    - name: Deploy Database Migrations
+      run: npm run prisma:migrate
+    - name: Seed Database
+      run: npm run db:seed
+    - name: Run Linter
+      run: npm run lint
+    - name: Check TypeScript Types
+      run: npm run typecheck
+    - name: Run Automated Tests
+      run: npm run test
+    - name: Build Monorepo Workspaces
+      run: npm run build
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps chromium
-    - name: Run Playwright tests
+    - name: Run Playwright E2E Tests
       run: npx playwright test --project=chromium --max-failures=5
+

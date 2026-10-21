@@ -21,9 +21,16 @@
     "prisma:validate": "npm run prisma:validate --workspace=@school/db",
     "prisma:generate": "npm run prisma:generate --workspace=@school/db",
     "prisma:migrate": "npm run prisma:migrate --workspace=@school/db",
-    "db:seed": "npm run db:seed --workspace=@school/db"
+    "db:seed": "npm run db:seed --workspace=@school/db",
+    "test:smoke": "node scripts/smokeTest.mjs",
+    "test:e2e": "playwright test"
+  },
+  "prisma": {
+    "schema": "packages/db/prisma/schema.prisma",
+    "seed": "npm run db:seed --workspace=@school/db"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "concurrently": "^9.1.2",
     "typescript": "^5.8.2"
   }
