@@ -28,6 +28,17 @@ export interface ApiErrorResponse {
 }
 
 /**
+ * Paginated Data Envelope
+ */
+export interface PaginatedData<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+/**
  * Health Check Response Interface
  */
 export interface HealthStatus {
@@ -67,6 +78,18 @@ export type UserStatus = z.infer<typeof UserStatusEnum>;
  */
 export const MembershipStatusEnum = z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']);
 export type MembershipStatus = z.infer<typeof MembershipStatusEnum>;
+
+/**
+ * Invitation Status Enum
+ */
+export const InvitationStatusEnum = z.enum(['PENDING', 'ACCEPTED', 'REVOKED', 'EXPIRED']);
+export type InvitationStatus = z.infer<typeof InvitationStatusEnum>;
+
+/**
+ * Audit Outcome Enum
+ */
+export const AuditOutcomeEnum = z.enum(['SUCCESS', 'DENIED', 'FAILED']);
+export type AuditOutcome = z.infer<typeof AuditOutcomeEnum>;
 
 /**
  * Standard Platform & Tenant Permissions (SRS Section 4.1 & 6)
@@ -149,6 +172,61 @@ export interface AuthMembership {
 }
 
 /**
+ * Tenant Member representation for admin user management
+ */
+export interface TenantMemberDto {
+  membershipId: string;
+  userId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  status: MembershipStatus;
+  joinedAt: string;
+  updatedAt: string;
+  roles: Array<{
+    id: string;
+    name: string;
+    displayName: string;
+  }>;
+}
+
+/**
+ * Tenant Invitation representation for admin user management
+ */
+export interface TenantInvitationDto {
+  id: string;
+  email: string;
+  status: InvitationStatus;
+  roleIds: string[];
+  roleNames?: string[];
+  expiresAt: string;
+  sentAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  inviterEmail?: string;
+}
+
+/**
+ * Audit Log representation
+ */
+export interface AuditLogDto {
+  id: string;
+  tenantId: string | null;
+  actorId: string | null;
+  actorEmail: string | null;
+  actorType: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  outcome: AuditOutcome;
+  requestId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+/**
  * Validation schema for Health Check response
  */
 export const HealthStatusSchema = z.object({
@@ -185,13 +263,7 @@ export interface ITenantRepository {
 }
 
 /**
- * Deterministically normalizes a raw hostname string:
- * 1. Trims leading and trailing whitespace
- * 2. Strips leading protocols (http://, https://) if present
- * 3. Strips trailing paths or queries if present
- * 4. Extracts hostname portion before port number (supports IPv4, IPv6, domains)
- * 5. Removes trailing dots (.) if present (FQDN format)
- * 6. Converts to lowercase
+ * Deterministically normalizes a raw hostname string
  */
 export function normalizeHostname(rawInput: string): string {
   if (!rawInput || typeof rawInput !== 'string') {
@@ -267,9 +339,62 @@ export const EmailVerificationSchema = z.object({
 export type EmailVerificationDto = z.infer<typeof EmailVerificationSchema>;
 
 /**
+ * DTO Schemas for User Administration & Invitations (Day 4)
+ */
+export const CreateInvitationSchema = z.object({
+  email: z.string().email('Invalid email address format'),
+  roleIds: z.array(z.string().min(1)).min(1, 'At least one role must be specified'),
+});
+export type CreateInvitationDto = z.infer<typeof CreateInvitationSchema>;
+
+export const AcceptInvitationSchema = z.object({
+  token: z.string().min(16, 'Invitation token is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters long').optional(),
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
+});
+export type AcceptInvitationDto = z.infer<typeof AcceptInvitationSchema>;
+
+export const UpdateMembershipRolesSchema = z.object({
+  roleIds: z.array(z.string().min(1)).min(1, 'At least one role must be assigned'),
+});
+export type UpdateMembershipRolesDto = z.infer<typeof UpdateMembershipRolesSchema>;
+
+export const UpdateMembershipStatusSchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']),
+  reason: z.string().max(500).optional(),
+});
+export type UpdateMembershipStatusDto = z.infer<typeof UpdateMembershipStatusSchema>;
+
+export const PaginationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  status: z.string().optional(),
+  role: z.string().optional(),
+});
+export type PaginationQueryDto = z.infer<typeof PaginationQuerySchema>;
+
+export const AuditLogQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  action: z.string().optional(),
+  entityType: z.string().optional(),
+  actorId: z.string().optional(),
+  outcome: z.enum(['SUCCESS', 'DENIED', 'FAILED']).optional(),
+});
+export type AuditLogQueryDto = z.infer<typeof AuditLogQuerySchema>;
+
+/**
  * Email Delivery Service Interface
  */
 export interface IEmailService {
   sendPasswordResetEmail(toEmail: string, resetToken: string, tenantName?: string): Promise<void>;
   sendEmailVerificationEmail(toEmail: string, verificationToken: string, tenantName?: string): Promise<void>;
+  sendInvitationEmail(
+    toEmail: string,
+    invitationToken: string,
+    tenantName: string,
+    inviterName?: string
+  ): Promise<void>;
 }

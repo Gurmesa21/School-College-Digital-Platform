@@ -59,11 +59,16 @@ export default function HomePage() {
           <div className="card">
             <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Institutional Administration</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '1rem' }}>
-              Protected administration workspace for CMS editing, user RBAC, branding, and academic management.
+              Protected administration workspace for user administration, invitations, RBAC roles, and audit trail inspection.
             </p>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Route namespace: <code>/admin (Protected space)</code>
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Route namespace: <code>/admin</code>
+              </span>
+              <a href="/admin" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
+                Open Admin Console &rarr;
+              </a>
+            </div>
           </div>
         </div>
       </section>

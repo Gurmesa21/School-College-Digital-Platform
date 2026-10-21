@@ -8,13 +8,16 @@ import {
   PasswordResetRequestSchema,
   PasswordResetConfirmSchema,
   EmailVerificationSchema,
+  AcceptInvitationSchema,
 } from '@school/shared';
 import { AuthService } from '../services/authService.js';
+import { UserAdminService } from '../services/userAdminService.js';
 import { SESSION_COOKIE_NAME, requireAuth } from '../middleware/authMiddleware.js';
 import { EnvConfig, config as defaultEnvConfig } from '../config/env.js';
 
 export function createAuthRouter(
   authService: AuthService,
+  userAdminService?: UserAdminService,
   envConfig: EnvConfig = defaultEnvConfig
 ): Router {
   const router = Router();
@@ -293,6 +296,74 @@ export function createAuthRouter(
         error: {
           code: err.code || 'INVALID_VERIFICATION_TOKEN',
           message: err.message || 'Invalid or expired email verification token.',
+          requestId,
+          timestamp: new Date().toISOString(),
+        },
+      };
+      res.status(statusCode).json(errorResponse);
+    }
+  });
+
+  /**
+   * POST /api/v1/auth/invitations/accept
+   * Consumes a single-use invitation token, creates/activates user account, and establishes tenant membership
+   */
+  router.post('/invitations/accept', async (req: Request, res: Response): Promise<void> => {
+    const requestId = req.id || 'unknown';
+
+    if (!userAdminService) {
+      const errorResponse: ApiErrorResponse = {
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Invitation acceptance service not configured.',
+          requestId,
+          timestamp: new Date().toISOString(),
+        },
+      };
+      res.status(503).json(errorResponse);
+      return;
+    }
+
+    const parsed = AcceptInvitationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const errorResponse: ApiErrorResponse = {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid invitation acceptance payload.',
+          details: parsed.error.flatten(),
+          requestId,
+          timestamp: new Date().toISOString(),
+        },
+      };
+      res.status(400).json(errorResponse);
+      return;
+    }
+
+    try {
+      const result = await userAdminService.acceptInvitation(parsed.data, {
+        requestId,
+        ipAddress: req.ip || req.socket.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+
+      const response: ApiResponse<{ message: string; email: string }> = {
+        success: true,
+        data: result,
+        meta: {
+          requestId,
+          timestamp: new Date().toISOString(),
+        },
+      };
+      res.status(200).json(response);
+    } catch (err: any) {
+      const statusCode = err.statusCode || 400;
+      const errorResponse: ApiErrorResponse = {
+        success: false,
+        error: {
+          code: err.code || 'INVALID_INVITATION_TOKEN',
+          message: err.message || 'Failed to accept institutional invitation.',
           requestId,
           timestamp: new Date().toISOString(),
         },

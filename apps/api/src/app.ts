@@ -8,18 +8,23 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { createTenantResolver } from './middleware/tenantResolver.js';
 import { createSessionResolver, createOriginGuard } from './middleware/authMiddleware.js';
 import { IAuthRepository, PrismaAuthRepository } from './repositories/authRepository.js';
+import { IAuditRepository, PrismaAuditRepository } from './repositories/auditRepository.js';
 import { AuthService } from './services/authService.js';
+import { UserAdminService } from './services/userAdminService.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { healthRouter } from './routes/health.js';
 import { createTenantRouter } from './routes/tenant.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createPlatformRouter } from './routes/platform.js';
+import { createUserAdminRouter } from './routes/userAdmin.js';
 
 export interface AppOptions {
   repository?: ITenantRepository;
   authRepository?: IAuthRepository;
+  auditRepository?: IAuditRepository;
   emailService?: IEmailService;
   authService?: AuthService;
+  userAdminService?: UserAdminService;
   envConfig?: EnvConfig;
 }
 
@@ -29,8 +34,12 @@ export function createApp(options: AppOptions = {}): Express {
 
   // Repositories and Services
   const authRepository = options.authRepository || new PrismaAuthRepository();
+  const auditRepository = options.auditRepository || new PrismaAuditRepository();
   const emailService = options.emailService || new InMemoryEmailService();
   const authService = options.authService || new AuthService(authRepository, emailService);
+  const userAdminService =
+    options.userAdminService ||
+    new UserAdminService(authRepository, auditRepository, emailService);
 
   // Basic Express configuration
   if (envConfig.TRUST_PROXY) {
@@ -66,14 +75,17 @@ export function createApp(options: AppOptions = {}): Express {
   v1Router.use('/', healthRouter);
 
   // --- Authentication Routes (/api/v1/auth) ---
-  v1Router.use('/auth', createAuthRouter(authService, envConfig));
+  v1Router.use('/auth', createAuthRouter(authService, userAdminService, envConfig));
 
   // --- Platform-Level Operations (/api/v1/platform) ---
-  v1Router.use('/platform', createPlatformRouter());
+  v1Router.use('/platform', createPlatformRouter(auditRepository));
 
   // --- Tenant-Scoped Domain Boundary (/api/v1/tenant) ---
   const tenantResolver = createTenantResolver(options.repository, envConfig);
+  const userAdminRouter = createUserAdminRouter(userAdminService, authRepository, auditRepository);
   const tenantRouter = createTenantRouter(authRepository);
+
+  v1Router.use('/tenant/admin', tenantResolver, userAdminRouter);
   v1Router.use('/tenant', tenantResolver, tenantRouter);
 
   app.use(envConfig.API_PREFIX, v1Router);

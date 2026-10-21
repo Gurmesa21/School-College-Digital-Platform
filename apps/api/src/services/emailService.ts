@@ -2,9 +2,10 @@ import { IEmailService } from '@school/shared';
 
 export interface DispatchedEmail {
   toEmail: string;
-  type: 'PASSWORD_RESET' | 'EMAIL_VERIFICATION';
+  type: 'PASSWORD_RESET' | 'EMAIL_VERIFICATION' | 'INVITATION';
   token: string;
   tenantName?: string;
+  inviterName?: string;
   dispatchedAt: Date;
 }
 
@@ -30,6 +31,22 @@ export class InMemoryEmailService implements IEmailService {
       type: 'EMAIL_VERIFICATION',
       token: verificationToken,
       tenantName,
+      dispatchedAt: new Date(),
+    });
+  }
+
+  public async sendInvitationEmail(
+    toEmail: string,
+    invitationToken: string,
+    tenantName: string,
+    inviterName?: string
+  ): Promise<void> {
+    this.dispatchedEmails.push({
+      toEmail,
+      type: 'INVITATION',
+      token: invitationToken,
+      tenantName,
+      inviterName,
       dispatchedAt: new Date(),
     });
   }
