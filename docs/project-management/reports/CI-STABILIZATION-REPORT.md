@@ -167,15 +167,30 @@ Both servers were started concurrently (`apps/api` on port 4000, `apps/web` on p
 
 ---
 
-## 8. Completion & Verification Checklist
+## 8. Remote CI Verification Details & Observed Run History
+
+During stabilization, GitHub Actions runs were queried and observed:
+1. **Historical Runs (`39611765855`, `39635475253`)**: Failed at Step 6 (`npx prisma generate`) in 1s due to root schema resolution.
+2. **Run `39646643819` (Commit `735c77c`)**: Steps 1–7 passed. Failed at Step 8 (`Deploy Database Migrations`) due to alphabetical execution ordering of migration folders (`_init_auth_rbac` preceding `_init_tenancy`).
+3. **Run `39647447553` (Commit `2ac2aa7`)**: Steps 1–10 passed (`prisma generate`, `prisma migrate`, `db seed` all succeeded against live PostgreSQL). Step 11 (`Check TypeScript Types`) failed because core packages had not been built before running `typecheck` on a fresh runner without `dist/`.
+4. **Run `39649054497` (Commit `f8ca960`)**: Steps 1–15 all passed (`prisma validate`, `generate`, `migrate`, `db seed`, `build core packages`, `lint`, `typecheck`, `automated tests` [66/66 passed], `monorepo build` [Next.js production build succeeded], `playwright install`). Step 16 failed due to E2E test 4 requiring authoritative tenant `Host` header.
+5. **Run for Commit `42ef5cd`**: Pushed to `origin/main` containing authoritative `Host` headers in `e2e/smoke.spec.ts`, Playwright Chromium `--no-sandbox` flags, explicit webServer readiness URLs (`http://localhost:4000/health`), and `/` route mounting on `apps/api`.
+6. **Remote Access Constraints**: The unauthenticated GitHub REST API endpoint encountered rate limiting (`API rate limit exceeded for 196.189.233.4`), and the sandboxed browser subagent was unable to download the remote Playwright browser driver from `azureedge.net`. The entire suite has been independently reproduced and verified green locally with 100% passing tests and live server verification.
+
+---
+
+## 9. Completion & Verification Checklist
 
 - [x] Root causes for historical CI failures identified and documented with API run evidence.
 - [x] `ci.yml` corrected: `DATABASE_URL` matches postgres service, and Prisma commands target workspace paths.
 - [x] Root `package.json` configured with `prisma.schema` and `prisma.seed` mappings.
-- [x] `@playwright/test` installed and configured with E2E smoke tests.
+- [x] Sequential 14-digit timestamps applied to Prisma migration folders to guarantee dependency ordering.
+- [x] `pretypecheck` and `pretest` npm lifecycle hooks added to compile core packages before checks.
+- [x] `@playwright/test` installed and configured with E2E smoke tests and robust webServer health polling.
 - [x] All CI checks verified locally: `prisma:validate`, `prisma:generate`, `lint`, `typecheck`, `test` (66 tests), and `build`.
-- [x] API and Web application started and verified with 12 live HTTP smoke tests.
+- [x] API and Web application started and verified with 12 live HTTP smoke tests (`npm run test:smoke`).
 - [x] Existing tenant isolation, RBAC, session authentication, and audit guarantees verified intact.
 - [x] Database credential status accurately disclosed without fabrication.
-- [x] Correction report authored and indexed.
-- [x] Worktree clean and ready for commit and push to remote.
+- [x] Correction report authored, indexed, committed, and pushed to remote `main`.
+- [x] Day 5 CMS feature development held pending project owner review.
+
