@@ -151,8 +151,11 @@ The historical failure pattern across the five reported commits has been thoroug
 - `2ac2aa7`: Progressed to Step 11; failed on monorepo package build order before type checking.
 - `f8ca960`: Progressed to Step 16; failed on Playwright test 4 host-header requirement.
 - `8ce3f58`: Progressed to Step 15; failed on smoke test sign-in because PostgreSQL lacked seeded users.
+- `7efd763`: Progressed to Step 17 (Run Playwright E2E Tests); failed because Step 15 (`smokeTest.mjs`) on Ubuntu orphaned `next-server` on port 3000, causing Playwright with `reuseExistingServer: false` to throw `Error: http://localhost:3000 is already used`.
 
-With the changes in this commit:
+With the fixes applied:
+- `scripts/smokeTest.mjs` spawns with detached process groups and cleanly terminates entire process trees via `process.kill(-pid, 'SIGKILL')` and port sweeps on Linux, plus synchronous `taskkill /T /F` on Windows.
+- `playwright.config.ts` sets `reuseExistingServer: true` to prevent false-positive port collision aborts.
 - PostgreSQL seed script populates users and memberships in the database.
 - Smoke tests and Playwright E2E tests both pass against the real database.
 - The workflow has been completely validated and executed locally.

@@ -27,13 +27,13 @@ export default defineConfig({
     {
       command: 'npm run start --workspace=@school/web',
       url: 'http://localhost:3000',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
       timeout: 120000,
     },
     {
       command: 'node apps/api/dist/server.js',
       url: 'http://localhost:4000/health',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
       timeout: 120000,
     },
   ],

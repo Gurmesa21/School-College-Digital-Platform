@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import http from 'http';
 
 function wait(ms) {
@@ -51,6 +51,7 @@ async function run() {
   const apiProcess = spawn('node', ['apps/api/dist/server.js'], {
     stdio: 'inherit',
     shell: true,
+    detached: process.platform !== 'win32',
     env: { ...process.env, PORT: '4000', NODE_ENV: 'development', ALLOW_DEV_TENANT_OVERRIDE: 'true' },
   });
 
@@ -58,6 +59,7 @@ async function run() {
   const webProcess = spawn('npm', ['run', 'start', '--workspace=@school/web'], {
     stdio: 'inherit',
     shell: true,
+    detached: process.platform !== 'win32',
     env: { ...process.env, PORT: '3000', NODE_ENV: 'production' },
   });
 
@@ -65,11 +67,26 @@ async function run() {
     console.log('\n[Smoke Test] Shutting down processes...');
     try {
       if (process.platform === 'win32') {
-        if (apiProcess.pid) spawn('taskkill', ['/pid', apiProcess.pid.toString(), '/T', '/F'], { shell: true });
-        if (webProcess.pid) spawn('taskkill', ['/pid', webProcess.pid.toString(), '/T', '/F'], { shell: true });
+        if (apiProcess.pid) {
+          try { execSync(`taskkill /pid ${apiProcess.pid} /T /F`, { stdio: 'ignore' }); } catch {}
+        }
+        if (webProcess.pid) {
+          try { execSync(`taskkill /pid ${webProcess.pid} /T /F`, { stdio: 'ignore' }); } catch {}
+        }
       } else {
-        apiProcess.kill('SIGTERM');
-        webProcess.kill('SIGTERM');
+        if (apiProcess.pid) {
+          try { process.kill(-apiProcess.pid, 'SIGKILL'); } catch {
+            try { apiProcess.kill('SIGKILL'); } catch {}
+          }
+        }
+        if (webProcess.pid) {
+          try { process.kill(-webProcess.pid, 'SIGKILL'); } catch {
+            try { webProcess.kill('SIGKILL'); } catch {}
+          }
+        }
+        try { execSync('fuser -k 3000/tcp 4000/tcp 2>/dev/null || true', { stdio: 'ignore' }); } catch {}
+        try { execSync('pkill -f "next start" 2>/dev/null || true', { stdio: 'ignore' }); } catch {}
+        try { execSync('pkill -f "apps/api/dist/server.js" 2>/dev/null || true', { stdio: 'ignore' }); } catch {}
       }
     } catch {
       // Ignore cleanup error
