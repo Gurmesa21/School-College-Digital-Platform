@@ -1,0 +1,52 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum TenantStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum InstitutionType {
+  KINDERGARTEN
+  PRIMARY_SECONDARY
+  COLLEGE
+  TVET_TRAINING_CENTRE
+}
+
+model Tenant {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  name            String
+  institutionType InstitutionType @default(PRIMARY_SECONDARY)
+  status          TenantStatus    @default(ACTIVE)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  domains         TenantDomain[]
+
+  @@index([slug])
+  @@index([status])
+  @@map("tenants")
+}
+
+model TenantDomain {
+  id         String   @id @default(cuid())
+  hostname   String   @unique
+  isPrimary  Boolean  @default(false)
+  isVerified Boolean  @default(true)
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([hostname])
+  @@map("tenant_domains")
+}

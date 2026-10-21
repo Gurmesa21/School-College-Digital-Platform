@@ -1,0 +1,28 @@
+{
+  "name": "school-platform-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"API,WEB\" -c \"cyan,magenta\" \"npm run dev --workspace=@school/api\" \"npm run dev --workspace=@school/web\"",
+    "dev:api": "npm run dev --workspace=@school/api",
+    "dev:web": "npm run dev --workspace=@school/web",
+    "build": "npm run build --workspace=@school/shared && npm run build --workspace=@school/db && npm run build --workspace=@school/api && npm run build --workspace=@school/web",
+    "build:shared": "npm run build --workspace=@school/shared",
+    "build:db": "npm run build --workspace=@school/db",
+    "build:api": "npm run build --workspace=@school/api",
+    "build:web": "npm run build --workspace=@school/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "prisma:validate": "npm run prisma:validate --workspace=@school/db",
+    "prisma:generate": "npm run prisma:generate --workspace=@school/db"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.2"
+  }
+}
