@@ -63,6 +63,11 @@ Inspection of GitHub Actions runs via the GitHub API (`https://api.github.com/re
    - *Root Cause*: In this npm workspaces monorepo, `@school/shared` and `@school/db` export `./dist/index.js` and `./dist/index.d.ts`. In clean CI runners, `dist/` does not exist because it is ignored by Git. Running `npm run typecheck` before compiling core packages caused the compiler to fail resolving `@school/shared` and `@school/db`.
    - *Fix*: Added an explicit `Build Core Packages` step (`npm run build:shared && npm run build:db`) in `ci.yml` before lint and typecheck, and added `pretypecheck` and `pretest` lifecycle hooks in `package.json` to ensure clean local runs also build dependencies automatically.
 
+7. **Host-Header Tenant Resolution and WebServer Readiness in Playwright E2E**:
+   - *Error*: In CI run 39649054497, Step 16 `Run Playwright E2E Tests` failed during E2E verification.
+   - *Root Cause*: Two compounding factors: (1) In `e2e/smoke.spec.ts`, test 4 sent `x-tenant-id: oxford` without setting `Host: secondary.localhost`. In PostgreSQL (live CI DB), `localhost:4000` is not mapped in `TenantDomain`, and `tenantResolver` intentionally ignores `x-tenant-id` to prevent header spoofing, returning 404 instead of reaching `requireAuth` (401). (2) `playwright.config.ts` used port numbers rather than health probe URLs (`url: 'http://localhost:4000/health'`), and needed Chromium `--no-sandbox` container arguments.
+   - *Fix*: Updated `e2e/smoke.spec.ts` to supply authoritative `Host: secondary.localhost` for tenant-scoped tests, added negative assertion verifying `x-tenant-id` spoofing is rejected, mounted `/` on `apps/api` health router, added `--no-sandbox` to Playwright Chromium launch options, and integrated `npm run test:smoke` into the workflow.
+
 ---
 
 ## 3. Files Created, Modified, or Deleted

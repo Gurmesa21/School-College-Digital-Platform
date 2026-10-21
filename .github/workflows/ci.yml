@@ -70,6 +70,8 @@ jobs:
       run: npm run test
     - name: Build Monorepo Workspaces
       run: npm run build
+    - name: Run Monorepo Smoke Verification
+      run: npm run test:smoke
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps chromium
     - name: Run Playwright E2E Tests

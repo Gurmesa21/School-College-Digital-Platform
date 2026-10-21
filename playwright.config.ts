@@ -14,21 +14,26 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        },
+      },
     },
   ],
   webServer: [
     {
       command: 'npm run start --workspace=@school/web',
-      port: 3000,
+      url: 'http://localhost:3000',
       reuseExistingServer: !process.env.CI,
-      timeout: 60000,
+      timeout: 120000,
     },
     {
       command: 'node apps/api/dist/server.js',
-      port: 4000,
+      url: 'http://localhost:4000/health',
       reuseExistingServer: !process.env.CI,
-      timeout: 60000,
+      timeout: 120000,
     },
   ],
 });

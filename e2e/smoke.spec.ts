@@ -60,7 +60,7 @@ test.describe('Platform E2E Smoke & Health Verification', () => {
   test('4. Protected Tenant Administration API rejects unauthenticated requests', async ({ request }) => {
     const res = await request.get('http://localhost:4000/api/v1/tenant/admin/users', {
       headers: {
-        'x-tenant-id': 'oxford',
+        Host: 'secondary.localhost',
       },
     });
     expect(res.status()).toBe(401);
@@ -69,7 +69,20 @@ test.describe('Platform E2E Smoke & Health Verification', () => {
     expect(body.error.code).toBe('AUTHENTICATION_REQUIRED');
   });
 
-  test('5. Protected Platform Administration API rejects non-super-admin requests', async ({ request }) => {
+  test('5. Tenant header spoofing is rejected (x-tenant-id cannot bypass host resolution)', async ({ request }) => {
+    const res = await request.get('http://localhost:4000/api/v1/tenant/admin/users', {
+      headers: {
+        'x-tenant-id': 'unauthorized-tenant',
+        Host: 'unregistered.localhost',
+      },
+    });
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('TENANT_NOT_FOUND');
+  });
+
+  test('6. Protected Platform Administration API rejects non-super-admin requests', async ({ request }) => {
     const res = await request.get('http://localhost:4000/api/v1/platform/audit');
     expect(res.status()).toBe(401);
     const body = await res.json();
