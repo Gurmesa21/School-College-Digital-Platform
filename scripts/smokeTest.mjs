@@ -182,7 +182,7 @@ async function run() {
     console.log('Testing 10: GET http://localhost:4000/api/v1/tenant/admin/users with session cookie');
     const authAdmin = await fetchUrl('http://localhost:4000/api/v1/tenant/admin/users', {
       headers: {
-        'x-tenant-id': 'oxford',
+        Host: 'oxford.localhost:4000',
         Cookie: cookieString,
       },
     });
@@ -195,12 +195,12 @@ async function run() {
     console.log('Testing 11a: Verification that x-tenant-id header cannot override server-side host tenant');
     const spoofHeaderRes = await fetchUrl('http://localhost:4000/api/v1/tenant/admin/users', {
       headers: {
-        Host: 'localhost:4000',
+        Host: 'oxford.localhost:4000',
         'x-tenant-id': 'greenwood', // Attempt to spoof Greenwood via header
         Cookie: cookieString,
       },
     });
-    // Because header is safely ignored, tenant remains localhost (oxford), so oxford admin succeeds (200), not spoofed to Greenwood
+    // Because header is safely ignored, tenant remains oxford, so oxford admin succeeds (200), not spoofed to Greenwood
     const pass11a = spoofHeaderRes.status === 200;
     testCases.push({ name: 'Header Spoofing Guard (x-tenant-id safely ignored)', status: spoofHeaderRes.status, pass: pass11a });
     console.log(`  -> Status: ${spoofHeaderRes.status}, Header safely ignored: ${pass11a}`);
@@ -222,7 +222,7 @@ async function run() {
     console.log('Testing 12: GET http://localhost:4000/api/v1/tenant/admin/audit with session cookie');
     const auditRes = await fetchUrl('http://localhost:4000/api/v1/tenant/admin/audit', {
       headers: {
-        'x-tenant-id': 'oxford',
+        Host: 'oxford.localhost:4000',
         Cookie: cookieString,
       },
     });

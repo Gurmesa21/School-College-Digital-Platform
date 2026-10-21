@@ -1,4 +1,5 @@
-import { PrismaClient, InstitutionType, TenantStatus } from '@prisma/client';
+import { PrismaClient, InstitutionType, TenantStatus, UserStatus, MembershipStatus } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,20 @@ export interface SeedTenantData {
 }
 
 export const DEVELOPMENT_SEED_TENANTS: SeedTenantData[] = [
+  {
+    slug: 'oxford',
+    name: 'Oxford International School',
+    institutionType: InstitutionType.PRIMARY_SECONDARY,
+    status: TenantStatus.ACTIVE,
+    timezone: 'UTC',
+    defaultLocale: 'en',
+    contactEmail: 'admin@oxford.school.example',
+    domains: [
+      { hostname: 'oxford.localhost', isPrimary: true, isVerified: true },
+      { hostname: 'oxford.local', isPrimary: false, isVerified: true },
+      { hostname: 'localhost', isPrimary: false, isVerified: true },
+    ],
+  },
   {
     slug: 'little-explorers-kindergarten',
     name: 'Little Explorers Kindergarten',
@@ -306,7 +321,201 @@ export async function seedDevelopmentData(): Promise<void> {
     console.log(`[Seed] Synced System Role: ${roleDef.name} (${roleDef.displayName}) with ${roleDef.permissions.length} permissions.`);
   }
 
-  console.log('[Seed] Development multi-tenant and RBAC seed completed idempotently.');
+  // 4. Seed development users and tenant memberships
+  console.log('[Seed] Seeding development administrative and staff users...');
+  const defaultPasswordHash = await bcrypt.hash('AdminPassword123!', 10);
+  const superAdminPasswordHash = await bcrypt.hash('SuperAdminPassword123!', 10);
+
+  // Platform Super Administrator
+  await prisma.user.upsert({
+    where: { email: 'superadmin@schoolplatform.example' },
+    update: {
+      passwordHash: superAdminPasswordHash,
+      isSuperAdmin: true,
+      status: UserStatus.ACTIVE,
+      firstName: 'Platform',
+      lastName: 'SuperAdmin',
+      emailVerifiedAt: new Date(),
+    },
+    create: {
+      email: 'superadmin@schoolplatform.example',
+      passwordHash: superAdminPasswordHash,
+      isSuperAdmin: true,
+      status: UserStatus.ACTIVE,
+      firstName: 'Platform',
+      lastName: 'SuperAdmin',
+      emailVerifiedAt: new Date(),
+    },
+  });
+  console.log('  -> Seeded User: superadmin@schoolplatform.example (SUPER_ADMIN)');
+
+  const tenantAdminRole = await prisma.role.findFirst({
+    where: { name: 'TENANT_ADMIN', tenantId: null },
+  });
+
+  const staffRole = await prisma.role.findFirst({
+    where: { name: 'STAFF', tenantId: null },
+  });
+
+  // Oxford Administrator
+  const oxfordTenant = await prisma.tenant.findUnique({ where: { slug: 'oxford' } });
+  if (oxfordTenant && tenantAdminRole) {
+    const oxfordUser = await prisma.user.upsert({
+      where: { email: 'admin@oxford.edu' },
+      update: {
+        passwordHash: defaultPasswordHash,
+        status: UserStatus.ACTIVE,
+        firstName: 'Oxford',
+        lastName: 'Admin',
+        emailVerifiedAt: new Date(),
+      },
+      create: {
+        email: 'admin@oxford.edu',
+        passwordHash: defaultPasswordHash,
+        status: UserStatus.ACTIVE,
+        firstName: 'Oxford',
+        lastName: 'Admin',
+        emailVerifiedAt: new Date(),
+      },
+    });
+
+    const oxfordMembership = await prisma.membership.upsert({
+      where: {
+        userId_tenantId: {
+          userId: oxfordUser.id,
+          tenantId: oxfordTenant.id,
+        },
+      },
+      update: { status: MembershipStatus.ACTIVE },
+      create: {
+        userId: oxfordUser.id,
+        tenantId: oxfordTenant.id,
+        status: MembershipStatus.ACTIVE,
+      },
+    });
+
+    await prisma.membershipRole.upsert({
+      where: {
+        membershipId_roleId: {
+          membershipId: oxfordMembership.id,
+          roleId: tenantAdminRole.id,
+        },
+      },
+      update: {},
+      create: {
+        membershipId: oxfordMembership.id,
+        roleId: tenantAdminRole.id,
+      },
+    });
+    console.log('  -> Seeded User: admin@oxford.edu -> Oxford Administrator');
+  }
+
+  // Greenwood Administrator
+  const greenwoodTenant = await prisma.tenant.findUnique({ where: { slug: 'greenwood-secondary-school' } });
+  if (greenwoodTenant && tenantAdminRole) {
+    const greenwoodUser = await prisma.user.upsert({
+      where: { email: 'admin@greenwood.school.example' },
+      update: {
+        passwordHash: defaultPasswordHash,
+        status: UserStatus.ACTIVE,
+        firstName: 'Greenwood',
+        lastName: 'Admin',
+        emailVerifiedAt: new Date(),
+      },
+      create: {
+        email: 'admin@greenwood.school.example',
+        passwordHash: defaultPasswordHash,
+        status: UserStatus.ACTIVE,
+        firstName: 'Greenwood',
+        lastName: 'Admin',
+        emailVerifiedAt: new Date(),
+      },
+    });
+
+    const greenwoodMembership = await prisma.membership.upsert({
+      where: {
+        userId_tenantId: {
+          userId: greenwoodUser.id,
+          tenantId: greenwoodTenant.id,
+        },
+      },
+      update: { status: MembershipStatus.ACTIVE },
+      create: {
+        userId: greenwoodUser.id,
+        tenantId: greenwoodTenant.id,
+        status: MembershipStatus.ACTIVE,
+      },
+    });
+
+    await prisma.membershipRole.upsert({
+      where: {
+        membershipId_roleId: {
+          membershipId: greenwoodMembership.id,
+          roleId: tenantAdminRole.id,
+        },
+      },
+      update: {},
+      create: {
+        membershipId: greenwoodMembership.id,
+        roleId: tenantAdminRole.id,
+      },
+    });
+    console.log('  -> Seeded User: admin@greenwood.school.example -> Greenwood Administrator');
+
+    // Greenwood Staff
+    if (staffRole) {
+      const staffUser = await prisma.user.upsert({
+        where: { email: 'staff@greenwood.school.example' },
+        update: {
+          passwordHash: defaultPasswordHash,
+          status: UserStatus.ACTIVE,
+          firstName: 'Greenwood',
+          lastName: 'Teacher',
+          emailVerifiedAt: new Date(),
+        },
+        create: {
+          email: 'staff@greenwood.school.example',
+          passwordHash: defaultPasswordHash,
+          status: UserStatus.ACTIVE,
+          firstName: 'Greenwood',
+          lastName: 'Teacher',
+          emailVerifiedAt: new Date(),
+        },
+      });
+
+      const staffMembership = await prisma.membership.upsert({
+        where: {
+          userId_tenantId: {
+            userId: staffUser.id,
+            tenantId: greenwoodTenant.id,
+          },
+        },
+        update: { status: MembershipStatus.ACTIVE },
+        create: {
+          userId: staffUser.id,
+          tenantId: greenwoodTenant.id,
+          status: MembershipStatus.ACTIVE,
+        },
+      });
+
+      await prisma.membershipRole.upsert({
+        where: {
+          membershipId_roleId: {
+            membershipId: staffMembership.id,
+            roleId: staffRole.id,
+          },
+        },
+        update: {},
+        create: {
+          membershipId: staffMembership.id,
+          roleId: staffRole.id,
+        },
+      });
+      console.log('  -> Seeded User: staff@greenwood.school.example -> Greenwood Staff');
+    }
+  }
+
+  console.log('[Seed] Development multi-tenant, RBAC, and user seed completed idempotently.');
 }
 
 // Direct execution guard
