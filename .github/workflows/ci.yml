@@ -60,6 +60,8 @@ jobs:
       run: npm run prisma:migrate
     - name: Seed Database
       run: npm run db:seed
+    - name: Build Core Packages
+      run: npm run build:shared && npm run build:db
     - name: Run Linter
       run: npm run lint
     - name: Check TypeScript Types

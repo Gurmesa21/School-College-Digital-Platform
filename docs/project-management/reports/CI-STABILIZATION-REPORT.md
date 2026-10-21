@@ -58,6 +58,11 @@ Inspection of GitHub Actions runs via the GitHub API (`https://api.github.com/re
    - *Root Cause*: Migration directories were named with date prefixes without sequential timestamps: `20261021_init_auth_rbac`, `20261021_init_tenancy`, `20261021_user_admin_and_audit`. Prisma executes migrations in strict alphabetical order. Because `'init_auth_rbac'` alphabetically precedes `'init_tenancy'`, Prisma attempted to run the auth/RBAC migration first, which referenced the non-existent `"tenants"` foreign key table created in the tenancy migration.
    - *Fix*: Renamed migration directories with sequential 14-digit timestamps: `20261021010000_init_tenancy`, `20261021020000_init_auth_rbac`, and `20261021030000_user_admin_and_audit`, ensuring correct dependency creation order.
 
+6. **Core Monorepo Package Build Order Before Typecheck & Test**:
+   - *Error*: In CI run 39647447553, Step 11 `Check TypeScript Types` failed (`Cannot find module '@school/db' or its corresponding type declarations`, `Cannot find module '@school/shared' or its corresponding type declarations`).
+   - *Root Cause*: In this npm workspaces monorepo, `@school/shared` and `@school/db` export `./dist/index.js` and `./dist/index.d.ts`. In clean CI runners, `dist/` does not exist because it is ignored by Git. Running `npm run typecheck` before compiling core packages caused the compiler to fail resolving `@school/shared` and `@school/db`.
+   - *Fix*: Added an explicit `Build Core Packages` step (`npm run build:shared && npm run build:db`) in `ci.yml` before lint and typecheck, and added `pretypecheck` and `pretest` lifecycle hooks in `package.json` to ensure clean local runs also build dependencies automatically.
+
 ---
 
 ## 3. Files Created, Modified, or Deleted
