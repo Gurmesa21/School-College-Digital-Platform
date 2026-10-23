@@ -13,6 +13,13 @@
 
 A priority investigation and stabilization was conducted after GitHub Actions marked all existing commits with failure status (red X). 
 
+> [!NOTE]
+> **Dated Status Update (2026-10-21 / Day 5 Preflight):**
+> Statements below regarding unverified local persistence and remote CI rate limiting reflect the initial diagnostic phase on commit `42ef5cd`. These were subsequently superseded in the follow-on milestone documented in [`CI-DOCKER-BROWSER-VERIFICATION-REPORT.md`](./CI-DOCKER-BROWSER-VERIFICATION-REPORT.md):
+> 1. **Local Persistence Fully Verified**: Dedicated Docker PostgreSQL 16 was provisioned on port 55432 (`school_platform_db`), migrations deployed, baseline data seeded, and persistent operations verified.
+> 2. **Remote CI Confirmed Green**: Remote GitHub Actions Run [39670873138](https://github.com/Gurmesa21/School-College-Digital-Platform/actions/runs/39670873138) passed 100% of all 18 configured steps on commit `dc7b677`.
+> The historical incident and investigative findings below are preserved as an accurate chronological record. 
+
 Using the GitHub REST API and local reproduction, the exact root causes of the CI failures across past commits were identified, isolated, and resolved. The CI workflow (`.github/workflows/ci.yml`), root `package.json`, database configurations, and application startup mechanisms were corrected. The full workflow was executed locally and passed with exit code 0. In addition, an end-to-end live application smoke test suite was created and verified against both running servers on ports 4000 (API) and 3000 (Web).
 
 All existing tenant isolation, session authentication, role-based access control, invitation lifecycle, and audit trail guarantees remain 100% intact.

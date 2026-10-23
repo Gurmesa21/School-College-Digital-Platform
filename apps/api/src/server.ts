@@ -4,6 +4,7 @@ import { config } from './config/env.js';
 import { InMemoryTenantRepository } from './repositories/tenantRepository.js';
 import { InMemoryAuthRepository } from './repositories/authRepository.js';
 import { InMemoryAuditRepository } from './repositories/auditRepository.js';
+import { InMemoryCmsRepository } from './repositories/cmsRepository.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { PERMISSIONS } from '@school/shared';
 
@@ -116,10 +117,59 @@ async function startServer() {
     });
     await authRepo.assignRoleToMembership(membership.id, adminRole.id);
 
+    const cmsRepo = new InMemoryCmsRepository();
+    // Seed initial published page for Oxford
+    const welcomePage = await cmsRepo.createPage('tenant_oxford', adminUser.id, {
+      title: 'Welcome to Oxford International School',
+      slug: 'welcome',
+      summary: 'A leading international day and boarding school providing world-class education.',
+      seoTitle: 'Welcome | Oxford International School',
+      seoDescription: 'Discover our world-class educational programmes and vibrant learning community.',
+      canonicalUrl: 'http://oxford.localhost:3000/welcome',
+      sections: [
+        {
+          sectionType: 'HERO',
+          sortOrder: 0,
+          isVisible: true,
+          config: {
+            headline: 'Empowering Minds, Shaping Global Leaders',
+            subheadline: 'Excellence in international education since 1995.',
+            ctaText: 'Explore Programmes',
+            ctaLink: '/programmes',
+            bgImageUrl: '',
+          },
+        },
+        {
+          sectionType: 'TEXT_CONTENT',
+          sortOrder: 1,
+          isVisible: true,
+          config: {
+            body: 'Welcome to Oxford International School. Our comprehensive curriculum blends academic rigour with character development, preparing students for success in an interconnected world.',
+            alignment: 'left',
+          },
+        },
+        {
+          sectionType: 'FEATURE_GRID',
+          sortOrder: 2,
+          isVisible: true,
+          config: {
+            title: 'Why Choose Oxford International School',
+            items: [
+              { title: 'Global Curriculum', description: 'Internationally recognized qualifications accepted worldwide.', icon: 'globe' },
+              { title: 'Dedicated Faculty', description: 'Experienced educators passionate about student growth.', icon: 'users' },
+              { title: 'State-of-the-Art Labs', description: 'Modern science, robotics, and media laboratories.', icon: 'desktop' },
+            ],
+          },
+        },
+      ],
+    });
+    await cmsRepo.publishPage('tenant_oxford', welcomePage.id, adminUser.id);
+
     app = createApp({
       repository: tenantRepo,
       authRepository: authRepo,
       auditRepository: auditRepo,
+      cmsRepository: cmsRepo,
       emailService,
     });
   } else {

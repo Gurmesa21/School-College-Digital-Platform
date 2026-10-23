@@ -398,3 +398,193 @@ export interface IEmailService {
     inviterName?: string
   ): Promise<void>;
 }
+
+/**
+ * CMS Page Publication Status Enum (SRS Section 8.2)
+ */
+export const PageStatusEnum = z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
+export type PageStatus = z.infer<typeof PageStatusEnum>;
+
+/**
+ * Allowlisted Page Section Types (SRS Section 8.1 & 8.3)
+ */
+export const SectionTypeEnum = z.enum(['HERO', 'TEXT_CONTENT', 'IMAGE_MEDIA', 'FEATURE_GRID']);
+export type SectionType = z.infer<typeof SectionTypeEnum>;
+
+/**
+ * Validated Section Configurations (Prevents arbitrary unsafe executable markup)
+ */
+export const HeroSectionConfigSchema = z.object({
+  headline: z.string().min(1, 'Headline is required').max(200),
+  subheadline: z.string().max(500).optional().default(''),
+  ctaText: z.string().max(100).optional().default(''),
+  ctaLink: z.string().max(200).optional().default(''),
+  bgImageUrl: z.string().max(1000).optional().default(''),
+});
+export type HeroSectionConfig = z.infer<typeof HeroSectionConfigSchema>;
+
+export const TextContentSectionConfigSchema = z.object({
+  body: z.string().min(1, 'Content body is required').max(50000),
+  alignment: z.enum(['left', 'center', 'right']).optional().default('left'),
+});
+export type TextContentSectionConfig = z.infer<typeof TextContentSectionConfigSchema>;
+
+export const ImageMediaSectionConfigSchema = z.object({
+  imageUrl: z.string().min(1, 'Image URL is required').max(1000),
+  altText: z.string().min(1, 'Alt text is required for accessibility (WCAG 2.2 AA)').max(300),
+  caption: z.string().max(500).optional().default(''),
+});
+export type ImageMediaSectionConfig = z.infer<typeof ImageMediaSectionConfigSchema>;
+
+export const FeatureItemSchema = z.object({
+  title: z.string().min(1, 'Feature title is required').max(150),
+  description: z.string().min(1, 'Feature description is required').max(500),
+  icon: z.string().max(50).optional().default('check'),
+});
+export type FeatureItem = z.infer<typeof FeatureItemSchema>;
+
+export const FeatureGridSectionConfigSchema = z.object({
+  title: z.string().max(200).optional().default(''),
+  items: z.array(FeatureItemSchema).min(1, 'At least one feature item is required').max(12),
+});
+export type FeatureGridSectionConfig = z.infer<typeof FeatureGridSectionConfigSchema>;
+
+/**
+ * Generic Section Input Schema for API requests
+ */
+export const SectionInputSchema = z.object({
+  id: z.string().optional(),
+  sectionType: SectionTypeEnum,
+  sortOrder: z.number().int().nonnegative().default(0),
+  isVisible: z.boolean().default(true),
+  config: z.record(z.unknown()),
+});
+export type SectionInputDto = z.infer<typeof SectionInputSchema>;
+
+/**
+ * Validates a section config against its specific allowlisted schema
+ */
+export function validateSectionConfig(sectionType: SectionType, rawConfig: unknown): Record<string, unknown> {
+  switch (sectionType) {
+    case 'HERO':
+      return HeroSectionConfigSchema.parse(rawConfig);
+    case 'TEXT_CONTENT':
+      return TextContentSectionConfigSchema.parse(rawConfig);
+    case 'IMAGE_MEDIA':
+      return ImageMediaSectionConfigSchema.parse(rawConfig);
+    case 'FEATURE_GRID':
+      return FeatureGridSectionConfigSchema.parse(rawConfig);
+    default:
+      throw new Error(`Unsupported section type: ${sectionType}`);
+  }
+}
+
+/**
+ * CMS Page DTOs and Request Schemas
+ */
+const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export const CreatePageSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(200),
+  slug: z.string().min(1, 'Slug is required').max(100).regex(slugRegex, 'Slug must consist of lowercase alphanumeric characters separated by hyphens (e.g. "about-us")'),
+  summary: z.string().max(500).optional().nullable(),
+  seoTitle: z.string().max(200).optional().nullable(),
+  seoDescription: z.string().max(500).optional().nullable(),
+  canonicalUrl: z.string().max(500).optional().nullable(),
+  scheduledPublishAt: z.string().datetime().optional().nullable(),
+  expiresAt: z.string().datetime().optional().nullable(),
+  sections: z.array(SectionInputSchema).default([]),
+});
+export type CreatePageDto = z.infer<typeof CreatePageSchema>;
+
+export const UpdatePageSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(200).optional(),
+  slug: z.string().min(1, 'Slug is required').max(100).regex(slugRegex, 'Slug must consist of lowercase alphanumeric characters separated by hyphens (e.g. "about-us")').optional(),
+  summary: z.string().max(500).optional().nullable(),
+  seoTitle: z.string().max(200).optional().nullable(),
+  seoDescription: z.string().max(500).optional().nullable(),
+  canonicalUrl: z.string().max(500).optional().nullable(),
+  scheduledPublishAt: z.string().datetime().optional().nullable(),
+  expiresAt: z.string().datetime().optional().nullable(),
+  version: z.number().int().positive('Version is required for optimistic concurrency').optional(),
+  sections: z.array(SectionInputSchema).optional(),
+});
+export type UpdatePageDto = z.infer<typeof UpdatePageSchema>;
+
+export const PublishPageSchema = z.object({
+  scheduledPublishAt: z.string().datetime().optional().nullable(),
+});
+export type PublishPageDto = z.infer<typeof PublishPageSchema>;
+
+export const PageQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: PageStatusEnum.optional(),
+  search: z.string().max(100).optional(),
+});
+export type PageQueryDto = z.infer<typeof PageQuerySchema>;
+
+export interface PageSectionDto {
+  id: string;
+  pageId?: string;
+  sectionType: SectionType;
+  sortOrder: number;
+  isVisible: boolean;
+  config: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PageDto {
+  id: string;
+  tenantId: string;
+  title: string;
+  slug: string;
+  summary: string | null;
+  status: PageStatus;
+  authorId: string | null;
+  lastEditorId: string | null;
+  publishedAt: string | null;
+  scheduledPublishAt: string | null;
+  archivedAt: string | null;
+  expiresAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  sectionsCount?: number;
+}
+
+export interface PageDetailDto extends PageDto {
+  seoTitle: string | null;
+  seoDescription: string | null;
+  canonicalUrl: string | null;
+  sections: PageSectionDto[];
+  author?: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+  lastEditor?: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+}
+
+export interface PublicPageDto {
+  title: string;
+  slug: string;
+  summary: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  canonicalUrl: string | null;
+  publishedAt: string;
+  sections: Array<{
+    id: string;
+    sectionType: SectionType;
+    sortOrder: number;
+    config: Record<string, unknown>;
+  }>;
+}

@@ -45,6 +45,19 @@ enum AuditOutcome {
   FAILED
 }
 
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SectionType {
+  HERO
+  TEXT_CONTENT
+  IMAGE_MEDIA
+  FEATURE_GRID
+}
+
 model Tenant {
   id              String          @id @default(cuid())
   slug            String          @unique
@@ -64,6 +77,7 @@ model Tenant {
   roles           Role[]
   invitations     TenantInvitation[]
   auditLogs       AuditLog[]
+  pages           Page[]
 
   @@index([slug])
   @@index([status])
@@ -104,6 +118,8 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   sentInvitations         TenantInvitation[]       @relation("SentInvitations")
   auditLogs               AuditLog[]               @relation("ActorAuditLogs")
+  authoredPages           Page[]                   @relation("PageAuthor")
+  editedPages             Page[]                   @relation("PageEditor")
 
   @@index([email])
   @@index([status])
@@ -294,4 +310,52 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model Page {
+  id                 String        @id @default(cuid())
+  tenantId           String
+  title              String
+  slug               String
+  summary            String?
+  status             PageStatus    @default(DRAFT)
+  authorId           String?
+  lastEditorId       String?
+  publishedAt        DateTime?
+  scheduledPublishAt DateTime?
+  archivedAt         DateTime?
+  expiresAt          DateTime?
+  seoTitle           String?
+  seoDescription     String?
+  canonicalUrl       String?
+  version            Int           @default(1)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  tenant             Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  author             User?         @relation("PageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  lastEditor         User?         @relation("PageEditor", fields: [lastEditorId], references: [id], onDelete: SetNull)
+  sections           PageSection[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@index([status, publishedAt])
+  @@index([scheduledPublishAt])
+  @@map("pages")
+}
+
+model PageSection {
+  id          String      @id @default(cuid())
+  pageId      String
+  sectionType SectionType
+  sortOrder   Int         @default(0)
+  isVisible   Boolean     @default(true)
+  config      Json
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  page        Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, sortOrder])
+  @@map("page_sections")
 }

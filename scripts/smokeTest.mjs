@@ -248,6 +248,40 @@ async function run() {
     testCases.push({ name: 'Admin Reads Tenant Audit Trail (200)', status: auditRes.status, pass: pass12 });
     console.log(`  -> Status: ${auditRes.status}, Audit Count: ${auditJson.data?.items?.length}, Pass: ${pass12}`);
 
+    // Test 13: Public Seeded CMS Page Retrieval
+    console.log('Testing 13: GET http://localhost:4000/api/v1/tenant/public/pages/welcome');
+    const cmsPublicRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/pages/welcome', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+      },
+    });
+    const cmsPublicJson = JSON.parse(cmsPublicRes.body);
+    const pass13 = cmsPublicRes.status === 200 && cmsPublicJson.success === true && cmsPublicJson.data?.slug === 'welcome';
+    testCases.push({ name: 'Public CMS Page Served for Eligible Published Content (200)', status: cmsPublicRes.status, pass: pass13 });
+    console.log(`  -> Status: ${cmsPublicRes.status}, Slug: ${cmsPublicJson.data?.slug}, Sections: ${cmsPublicJson.data?.sections?.length}, Pass: ${pass13}`);
+
+    // Test 14: Draft Page Isolation - Drafts are NOT returned publicly (404)
+    console.log('Testing 14: GET http://localhost:4000/api/v1/tenant/public/pages/about-us-draft');
+    const draftRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/pages/about-us-draft', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+      },
+    });
+    const pass14 = draftRes.status === 404;
+    testCases.push({ name: 'Draft Page Isolation from Anonymous Delivery (404)', status: draftRes.status, pass: pass14 });
+    console.log(`  -> Status: ${draftRes.status}, Draft Protected: ${pass14}`);
+
+    // Test 15: Frontend SSR CMS Page Rendering
+    console.log('Testing 15: GET http://localhost:3000/welcome');
+    const webCmsPage = await fetchUrl('http://localhost:3000/welcome', {
+      headers: {
+        Host: 'localhost:3000',
+      },
+    });
+    const pass15 = webCmsPage.status === 200 && (webCmsPage.body.includes('Oxford') || webCmsPage.body.includes('Welcome'));
+    testCases.push({ name: 'Frontend SSR Renders Persisted CMS Page (/welcome)', status: webCmsPage.status, pass: pass15 });
+    console.log(`  -> Status: ${webCmsPage.status}, Renders CMS Content: ${pass15}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');

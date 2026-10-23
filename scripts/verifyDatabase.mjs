@@ -13,6 +13,8 @@ async function main() {
   const membershipsCount = await prisma.membership.count();
   const invitationsCount = await prisma.tenantInvitation.count();
   const auditLogsCount = await prisma.auditLog.count();
+  const pagesCount = await prisma.page.count();
+  const pageSectionsCount = await prisma.pageSection.count();
 
   console.log('[DB Verification] Table Record Counts:');
   console.log(`  - tenants: ${tenantsCount}`);
@@ -23,6 +25,8 @@ async function main() {
   console.log(`  - memberships: ${membershipsCount}`);
   console.log(`  - tenant_invitations: ${invitationsCount}`);
   console.log(`  - audit_logs: ${auditLogsCount}`);
+  console.log(`  - pages: ${pagesCount}`);
+  console.log(`  - page_sections: ${pageSectionsCount}`);
 
   const users = await prisma.user.findMany({
     select: {

@@ -1,4 +1,4 @@
-import { PrismaClient, InstitutionType, TenantStatus, UserStatus, MembershipStatus } from '@prisma/client';
+import { PrismaClient, InstitutionType, TenantStatus, UserStatus, MembershipStatus, PageStatus, SectionType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -515,7 +515,119 @@ export async function seedDevelopmentData(): Promise<void> {
     }
   }
 
-  console.log('[Seed] Development multi-tenant, RBAC, and user seed completed idempotently.');
+  // 5. Seed baseline CMS pages for development
+  console.log('[Seed] Seeding baseline CMS pages...');
+  if (oxfordTenant) {
+    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@oxford.edu' } });
+
+    // 1. Published Welcome Page
+    const welcomePage = await prisma.page.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId: oxfordTenant.id,
+          slug: 'welcome',
+        },
+      },
+      update: {
+        title: 'Welcome to Oxford International School',
+        summary: 'A premier educational institution offering British and International curricula from Kindergarten to Year 13.',
+        status: PageStatus.PUBLISHED,
+        publishedAt: new Date('2026-01-01T00:00:00Z'),
+        seoTitle: 'Welcome | Oxford International School',
+        seoDescription: 'Empowering minds, shaping global leaders. Discover Oxford International School programs and admissions.',
+        canonicalUrl: 'http://oxford.localhost:3000/welcome',
+        authorId: adminUser?.id,
+        lastEditorId: adminUser?.id,
+      },
+      create: {
+        tenantId: oxfordTenant.id,
+        slug: 'welcome',
+        title: 'Welcome to Oxford International School',
+        summary: 'A premier educational institution offering British and International curricula from Kindergarten to Year 13.',
+        status: PageStatus.PUBLISHED,
+        publishedAt: new Date('2026-01-01T00:00:00Z'),
+        seoTitle: 'Welcome | Oxford International School',
+        seoDescription: 'Empowering minds, shaping global leaders. Discover Oxford International School programs and admissions.',
+        canonicalUrl: 'http://oxford.localhost:3000/welcome',
+        authorId: adminUser?.id,
+        lastEditorId: adminUser?.id,
+        version: 1,
+      },
+    });
+
+    // Remove existing sections and recreate idempotently
+    await prisma.pageSection.deleteMany({ where: { pageId: welcomePage.id } });
+    await prisma.pageSection.createMany({
+      data: [
+        {
+          pageId: welcomePage.id,
+          sectionType: SectionType.HERO,
+          sortOrder: 0,
+          isVisible: true,
+          config: {
+            headline: 'Empowering Minds, Shaping Global Leaders',
+            subheadline: 'Excellence in international education, holistic development, and digital innovation since 1995.',
+            ctaText: 'Explore Academic Catalog',
+            ctaLink: '/programmes',
+            bgImageUrl: '',
+          },
+        },
+        {
+          pageId: welcomePage.id,
+          sectionType: SectionType.TEXT_CONTENT,
+          sortOrder: 1,
+          isVisible: true,
+          config: {
+            body: 'At Oxford International School, we foster curiosity, resilience, and compassion. Our international faculty guides learners through a rigorous, inquiry-based curriculum complemented by rich arts, athletics, and STEM programs.',
+            alignment: 'left',
+          },
+        },
+        {
+          pageId: welcomePage.id,
+          sectionType: SectionType.FEATURE_GRID,
+          sortOrder: 2,
+          isVisible: true,
+          config: {
+            title: 'Our Educational Pillars',
+            items: [
+              { title: 'Global Standards', description: 'Dual accredited qualifications preparing students for top universities worldwide.', icon: 'globe' },
+              { title: 'Inquiry-Based Learning', description: 'Hands-on experiential learning promoting critical thinking and innovation.', icon: 'lightbulb' },
+              { title: 'Inclusive Community', description: 'Vibrant multicultural student body representing over 40 nationalities.', icon: 'users' },
+            ],
+          },
+        },
+      ],
+    });
+    console.log('  -> Seeded CMS Page: "welcome" (PUBLISHED) with 3 sections for Oxford');
+
+    // 2. Draft Page (About Us)
+    await prisma.page.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId: oxfordTenant.id,
+          slug: 'about-us-draft',
+        },
+      },
+      update: {
+        title: 'About Our Institution (Draft)',
+        summary: 'Institutional history, mission, leadership, and vision.',
+        status: PageStatus.DRAFT,
+      },
+      create: {
+        tenantId: oxfordTenant.id,
+        slug: 'about-us-draft',
+        title: 'About Our Institution (Draft)',
+        summary: 'Institutional history, mission, leadership, and vision.',
+        status: PageStatus.DRAFT,
+        authorId: adminUser?.id,
+        lastEditorId: adminUser?.id,
+        version: 1,
+      },
+    });
+    console.log('  -> Seeded CMS Page: "about-us-draft" (DRAFT) for Oxford');
+  }
+
+  console.log('[Seed] Development multi-tenant, RBAC, user, and CMS seed completed idempotently.');
 }
 
 // Direct execution guard

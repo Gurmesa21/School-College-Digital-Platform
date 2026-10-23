@@ -9,22 +9,28 @@ import { createTenantResolver } from './middleware/tenantResolver.js';
 import { createSessionResolver, createOriginGuard } from './middleware/authMiddleware.js';
 import { IAuthRepository, PrismaAuthRepository } from './repositories/authRepository.js';
 import { IAuditRepository, PrismaAuditRepository } from './repositories/auditRepository.js';
+import { ICmsRepository, PrismaCmsRepository } from './repositories/cmsRepository.js';
 import { AuthService } from './services/authService.js';
 import { UserAdminService } from './services/userAdminService.js';
+import { CmsService } from './services/cmsService.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { healthRouter } from './routes/health.js';
 import { createTenantRouter } from './routes/tenant.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createPlatformRouter } from './routes/platform.js';
 import { createUserAdminRouter } from './routes/userAdmin.js';
+import { createCmsAdminRouter } from './routes/cmsAdmin.js';
+import { createPublicContentRouter } from './routes/publicContent.js';
 
 export interface AppOptions {
   repository?: ITenantRepository;
   authRepository?: IAuthRepository;
   auditRepository?: IAuditRepository;
+  cmsRepository?: ICmsRepository;
   emailService?: IEmailService;
   authService?: AuthService;
   userAdminService?: UserAdminService;
+  cmsService?: CmsService;
   envConfig?: EnvConfig;
 }
 
@@ -35,11 +41,13 @@ export function createApp(options: AppOptions = {}): Express {
   // Repositories and Services
   const authRepository = options.authRepository || new PrismaAuthRepository();
   const auditRepository = options.auditRepository || new PrismaAuditRepository();
+  const cmsRepository = options.cmsRepository || new PrismaCmsRepository();
   const emailService = options.emailService || new InMemoryEmailService();
   const authService = options.authService || new AuthService(authRepository, emailService);
   const userAdminService =
     options.userAdminService ||
     new UserAdminService(authRepository, auditRepository, emailService);
+  const cmsService = options.cmsService || new CmsService(cmsRepository, auditRepository);
 
   // Basic Express configuration
   if (envConfig.TRUST_PROXY) {
@@ -83,9 +91,13 @@ export function createApp(options: AppOptions = {}): Express {
   // --- Tenant-Scoped Domain Boundary (/api/v1/tenant) ---
   const tenantResolver = createTenantResolver(options.repository, envConfig);
   const userAdminRouter = createUserAdminRouter(userAdminService, authRepository, auditRepository);
+  const cmsAdminRouter = createCmsAdminRouter(cmsService, authRepository);
+  const publicContentRouter = createPublicContentRouter(cmsService);
   const tenantRouter = createTenantRouter(authRepository);
 
   v1Router.use('/tenant/admin', tenantResolver, userAdminRouter);
+  v1Router.use('/tenant/cms/pages', tenantResolver, cmsAdminRouter);
+  v1Router.use('/tenant/public', tenantResolver, publicContentRouter);
   v1Router.use('/tenant', tenantResolver, tenantRouter);
 
   app.use(envConfig.API_PREFIX, v1Router);
