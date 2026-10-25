@@ -105,10 +105,50 @@ interface CmsPageItem {
 
 interface CmsSectionItem {
   id?: string;
-  sectionType: 'HERO' | 'TEXT_CONTENT' | 'IMAGE_MEDIA' | 'FEATURE_GRID';
+  sectionType:
+    | 'HERO'
+    | 'TEXT_CONTENT'
+    | 'IMAGE_MEDIA'
+    | 'FEATURE_GRID'
+    | 'ACCORDION'
+    | 'CTA_BANNER'
+    | 'STATS_COUNTER'
+    | 'TESTIMONIALS';
   sortOrder: number;
   isVisible: boolean;
+  reusableSectionId?: string | null;
+  reusableSection?: {
+    id: string;
+    name: string;
+    slug: string;
+    category?: string | null;
+  } | null;
   config: Record<string, any>;
+}
+
+interface ReusableSectionItem {
+  id: string;
+  tenantId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  sectionType:
+    | 'HERO'
+    | 'TEXT_CONTENT'
+    | 'IMAGE_MEDIA'
+    | 'FEATURE_GRID'
+    | 'ACCORDION'
+    | 'CTA_BANNER'
+    | 'STATS_COUNTER'
+    | 'TESTIMONIALS';
+  category?: string | null;
+  isGlobal: boolean;
+  config: Record<string, any>;
+  placementCount?: number;
+  author?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null;
+  lastEditor?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface NavigationItem {
@@ -196,9 +236,42 @@ interface FormSubmissionItem {
 }
 
 export default function TenantAdminPage() {
-  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'navigation' | 'media' | 'forms' | 'submissions'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'sections' | 'navigation' | 'media' | 'forms' | 'submissions'>('members');
   const [tenantSlug, setTenantSlug] = useState('oxford');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
+
+  // Day 8 Reusable Sections State
+  const [reusableSections, setReusableSections] = useState<ReusableSectionItem[]>([]);
+  const [sectionsLoading, setSectionsLoading] = useState(false);
+  const [sectionsError, setSectionsError] = useState<string | null>(null);
+  const [sectionSearchQuery, setSectionSearchQuery] = useState('');
+  const [sectionTypeFilter, setSectionTypeFilter] = useState('ALL');
+  const [sectionCategoryFilter, setSectionCategoryFilter] = useState('ALL');
+
+  // Reusable Section Builder Modal State
+  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [sectionFormName, setSectionFormName] = useState('');
+  const [sectionFormSlug, setSectionFormSlug] = useState('');
+  const [sectionFormDesc, setSectionFormDesc] = useState('');
+  const [sectionFormType, setSectionFormType] = useState<
+    'HERO' | 'TEXT_CONTENT' | 'IMAGE_MEDIA' | 'FEATURE_GRID' | 'ACCORDION' | 'CTA_BANNER' | 'STATS_COUNTER' | 'TESTIMONIALS'
+  >('CTA_BANNER');
+  const [sectionFormCategory, setSectionFormCategory] = useState('');
+  const [sectionFormIsGlobal, setSectionFormIsGlobal] = useState(false);
+  const [sectionFormConfig, setSectionFormConfig] = useState<Record<string, any>>({});
+  const [sectionSaving, setSectionSaving] = useState(false);
+  const [sectionModalError, setSectionModalError] = useState<string | null>(null);
+
+  // Reusable Section Insertion Modal (from Page Editor)
+  const [isInsertSectionModalOpen, setIsInsertSectionModalOpen] = useState(false);
+
+  // Placements Inspect Modal
+  const [placementsModalData, setPlacementsModalData] = useState<{
+    sectionName: string;
+    sectionSlug: string;
+    placements: Array<{ pageId: string; pageTitle: string; pageSlug: string; isPagePublished: boolean; isVisible: boolean }>;
+  } | null>(null);
 
   // Members state
   const [members, setMembers] = useState<UserMember[]>([]);
@@ -478,6 +551,45 @@ export default function TenantAdminPage() {
     }
   }, [apiBaseUrl, getHeaders]);
 
+  // 5b. Fetch Reusable CMS Sections
+  const fetchReusableSections = useCallback(
+    async (
+      categoryToFetch = sectionCategoryFilter,
+      typeToFetch = sectionTypeFilter,
+      queryToFetch = sectionSearchQuery
+    ) => {
+      setSectionsLoading(true);
+      setSectionsError(null);
+      try {
+        const params = new URLSearchParams({ page: '1', limit: '50' });
+        if (categoryToFetch && categoryToFetch !== 'ALL') params.append('category', categoryToFetch);
+        if (typeToFetch && typeToFetch !== 'ALL') params.append('sectionType', typeToFetch);
+        if (queryToFetch && queryToFetch.trim()) params.append('search', queryToFetch.trim());
+
+        const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/sections?${params.toString()}`, {
+          headers: getHeaders(),
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            throw new Error('Authentication required: Sign in with tenant administrator or editor permissions.');
+          }
+          throw new Error(`Failed to load reusable sections (HTTP ${res.status})`);
+        }
+        const data = await res.json();
+        if (data.success && data.data) {
+          setReusableSections(data.data.items || []);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error loading reusable sections';
+        setSectionsError(message);
+      } finally {
+        setSectionsLoading(false);
+      }
+    },
+    [apiBaseUrl, getHeaders, sectionCategoryFilter, sectionTypeFilter, sectionSearchQuery]
+  );
+
   // 6. Fetch Navigation Menu
   const fetchNavigation = useCallback(async (locationToFetch = navLocation) => {
     setNavLoading(true);
@@ -688,6 +800,9 @@ export default function TenantAdminPage() {
       fetchAuditLogs();
     } else if (activeTab === 'pages') {
       fetchPages();
+      fetchReusableSections();
+    } else if (activeTab === 'sections') {
+      fetchReusableSections(sectionCategoryFilter, sectionTypeFilter, sectionSearchQuery);
     } else if (activeTab === 'navigation') {
       fetchNavigation(navLocation);
       fetchPages();
@@ -698,7 +813,29 @@ export default function TenantAdminPage() {
     } else if (activeTab === 'submissions') {
       fetchSubmissions(submissionStatusFilter, submissionSearchQuery);
     }
-  }, [currentUser, activeTab, tenantSlug, navLocation, mediaCategoryFilter, mediaSearchQuery, submissionStatusFilter, submissionSearchQuery, fetchRoles, fetchMembers, fetchInvitations, fetchAuditLogs, fetchPages, fetchNavigation, fetchMediaAssets, fetchForms, fetchSubmissions]);
+  }, [
+    currentUser,
+    activeTab,
+    tenantSlug,
+    navLocation,
+    mediaCategoryFilter,
+    mediaSearchQuery,
+    submissionStatusFilter,
+    submissionSearchQuery,
+    sectionCategoryFilter,
+    sectionTypeFilter,
+    sectionSearchQuery,
+    fetchRoles,
+    fetchMembers,
+    fetchInvitations,
+    fetchAuditLogs,
+    fetchPages,
+    fetchReusableSections,
+    fetchNavigation,
+    fetchMediaAssets,
+    fetchForms,
+    fetchSubmissions,
+  ]);
 
   // CMS Page Action Handlers
   const handleOpenCreatePage = () => {
@@ -851,7 +988,17 @@ export default function TenantAdminPage() {
     }
   };
 
-  const handleAddSection = (type: 'HERO' | 'TEXT_CONTENT' | 'IMAGE_MEDIA' | 'FEATURE_GRID') => {
+  const handleAddSection = (
+    type:
+      | 'HERO'
+      | 'TEXT_CONTENT'
+      | 'IMAGE_MEDIA'
+      | 'FEATURE_GRID'
+      | 'ACCORDION'
+      | 'CTA_BANNER'
+      | 'STATS_COUNTER'
+      | 'TESTIMONIALS'
+  ) => {
     let defaultConfig: Record<string, any> = {};
     if (type === 'HERO') {
       defaultConfig = { headline: 'New Hero Headline', subheadline: '', ctaText: '', ctaLink: '' };
@@ -867,6 +1014,50 @@ export default function TenantAdminPage() {
           { title: 'Feature 2', description: 'Feature 2 details' },
         ],
       };
+    } else if (type === 'ACCORDION') {
+      defaultConfig = {
+        title: 'Frequently Asked Questions',
+        subtitle: 'Key information and answers',
+        items: [
+          { id: 'item-1', title: 'Question 1', content: 'Details and answers for question 1.', isOpenDefault: true },
+          { id: 'item-2', title: 'Question 2', content: 'Details and answers for question 2.', isOpenDefault: false },
+        ],
+        allowMultipleOpen: true,
+      };
+    } else if (type === 'CTA_BANNER') {
+      defaultConfig = {
+        headline: 'Discover Your Potential at Oxford',
+        subheadline: 'Apply now for the upcoming academic cohort or schedule a private campus tour.',
+        primaryButtonText: 'Apply Online',
+        primaryButtonUrl: '/admissions',
+        secondaryButtonText: 'Contact Admissions',
+        secondaryButtonUrl: '/contact',
+        theme: 'primary',
+        alignment: 'center',
+      };
+    } else if (type === 'STATS_COUNTER') {
+      defaultConfig = {
+        title: 'Oxford Academic Excellence in Numbers',
+        subtitle: 'Proven outcomes across all key academic metrics',
+        items: [
+          { value: '98%', label: 'Graduation Rate', suffix: '', description: 'Consistently achieved' },
+          { value: '15:1', label: 'Student-to-Teacher Ratio', suffix: '', description: 'Individual attention' },
+          { value: '45+', label: 'Clubs & Societies', suffix: '', description: 'Extracurricular activities' },
+        ],
+      };
+    } else if (type === 'TESTIMONIALS') {
+      defaultConfig = {
+        title: 'What Our Community Says',
+        subtitle: 'Reflections from students, alumni, and parents',
+        items: [
+          {
+            quote: 'Oxford gave me the confidence and academic foundation to pursue medicine at top universities.',
+            author: 'Eleanor Vance',
+            role: 'Alumna',
+            organization: 'Class of 2024',
+          },
+        ],
+      };
     }
 
     setFormSections((prev) => [
@@ -880,14 +1071,206 @@ export default function TenantAdminPage() {
     ]);
   };
 
+  const handleInsertReusableSection = (section: ReusableSectionItem) => {
+    setFormSections((prev) => [
+      ...prev,
+      {
+        sectionType: section.sectionType,
+        sortOrder: prev.length,
+        isVisible: true,
+        reusableSectionId: section.id,
+        reusableSection: {
+          id: section.id,
+          name: section.name,
+          slug: section.slug,
+          category: section.category,
+        },
+        config: section.config,
+      },
+    ]);
+    setIsInsertSectionModalOpen(false);
+    setGlobalNotice({
+      type: 'success',
+      message: `Inserted reusable section "${section.name}" into page layout.`,
+    });
+  };
+
+  const handleMoveSection = (idx: number, direction: 'up' | 'down') => {
+    setFormSections((prev) => {
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      const temp = next[idx];
+      next[idx] = next[targetIdx];
+      next[targetIdx] = temp;
+      return next.map((s, i) => ({ ...s, sortOrder: i }));
+    });
+  };
+
+  const handleToggleSectionVisibility = (idx: number) => {
+    setFormSections((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, isVisible: !s.isVisible } : s))
+    );
+  };
+
   const handleRemoveSection = (idx: number) => {
-    setFormSections((prev) => prev.filter((_, i) => i !== idx));
+    setFormSections((prev) =>
+      prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, sortOrder: i }))
+    );
   };
 
   const handleUpdateSectionConfig = (idx: number, key: string, value: any) => {
     setFormSections((prev) =>
       prev.map((sec, i) => (i === idx ? { ...sec, config: { ...sec.config, [key]: value } } : sec))
     );
+  };
+
+  // Day 8 Reusable Section CRUD Handlers
+  const handleOpenCreateSection = () => {
+    setEditingSectionId(null);
+    setSectionFormName('');
+    setSectionFormSlug('');
+    setSectionFormDesc('');
+    setSectionFormType('CTA_BANNER');
+    setSectionFormCategory('Admissions');
+    setSectionFormIsGlobal(false);
+    setSectionFormConfig({
+      headline: 'Join Oxford International Today',
+      subheadline: 'Book a campus tour or start your admissions application online.',
+      primaryButtonText: 'Apply Now',
+      primaryButtonUrl: '/admissions',
+      secondaryButtonText: 'Inquire',
+      secondaryButtonUrl: '/contact',
+      theme: 'primary',
+      alignment: 'center',
+    });
+    setSectionModalError(null);
+    setIsSectionModalOpen(true);
+  };
+
+  const handleOpenEditSection = (item: ReusableSectionItem) => {
+    setEditingSectionId(item.id);
+    setSectionFormName(item.name);
+    setSectionFormSlug(item.slug);
+    setSectionFormDesc(item.description || '');
+    setSectionFormType(item.sectionType);
+    setSectionFormCategory(item.category || '');
+    setSectionFormIsGlobal(item.isGlobal);
+    setSectionFormConfig(JSON.parse(JSON.stringify(item.config || {})));
+    setSectionModalError(null);
+    setIsSectionModalOpen(true);
+  };
+
+  const handleSaveReusableSection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sectionFormName.trim()) {
+      setSectionModalError('Section name is required.');
+      return;
+    }
+    if (!sectionFormSlug.trim()) {
+      setSectionModalError('Section slug is required.');
+      return;
+    }
+
+    setSectionSaving(true);
+    setSectionModalError(null);
+    try {
+      const payload = {
+        name: sectionFormName.trim(),
+        slug: sectionFormSlug.trim().toLowerCase(),
+        description: sectionFormDesc.trim() || null,
+        sectionType: sectionFormType,
+        category: sectionFormCategory.trim() || null,
+        isGlobal: sectionFormIsGlobal,
+        config: sectionFormConfig,
+      };
+
+      const url = editingSectionId
+        ? `${apiBaseUrl}/api/v1/tenant/cms/sections/${editingSectionId}`
+        : `${apiBaseUrl}/api/v1/tenant/cms/sections`;
+      const method = editingSectionId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to save reusable section');
+      }
+
+      setGlobalNotice({
+        type: 'success',
+        message: editingSectionId
+          ? `Reusable section "${sectionFormName}" updated. Live placements will update automatically.`
+          : `Reusable section "${sectionFormName}" created successfully.`,
+      });
+      setIsSectionModalOpen(false);
+      fetchReusableSections(sectionCategoryFilter, sectionTypeFilter, sectionSearchQuery);
+      if (activeTab === 'pages') {
+        fetchPages();
+      }
+    } catch (err: any) {
+      setSectionModalError(err.message || 'Error saving reusable section');
+    } finally {
+      setSectionSaving(false);
+    }
+  };
+
+  const handleDeleteReusableSection = async (item: ReusableSectionItem) => {
+    const confirmMsg = item.placementCount && item.placementCount > 0
+      ? `This section is placed on ${item.placementCount} page(s). Deleting it will detach it from those pages (they will remain intact without live library sync). Proceed?`
+      : `Are you sure you want to delete reusable section "${item.name}"?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setActionLoadingId(item.id);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/sections/${item.id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to delete reusable section');
+      }
+      setGlobalNotice({
+        type: 'success',
+        message: `Reusable section "${item.name}" deleted successfully.`,
+      });
+      fetchReusableSections(sectionCategoryFilter, sectionTypeFilter, sectionSearchQuery);
+    } catch (err: any) {
+      setGlobalNotice({ type: 'error', message: err.message || 'Error deleting section' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleViewPlacements = async (item: ReusableSectionItem) => {
+    setActionLoadingId(item.id);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/sections/${item.id}/placements`, {
+        headers: getHeaders(),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to fetch placements');
+      }
+      setPlacementsModalData({
+        sectionName: item.name,
+        sectionSlug: item.slug,
+        placements: data.data || [],
+      });
+    } catch (err: any) {
+      setGlobalNotice({ type: 'error', message: err.message || 'Error fetching placements' });
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
 
@@ -1418,6 +1801,15 @@ export default function TenantAdminPage() {
           role="tab"
         >
           Pages & CMS
+        </button>
+        <button
+          id="tab-sections-btn"
+          className={`tab-btn ${activeTab === 'sections' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sections')}
+          aria-selected={activeTab === 'sections'}
+          role="tab"
+        >
+          Reusable Sections
         </button>
         <button
           id="tab-navigation-btn"
@@ -2099,6 +2491,229 @@ export default function TenantAdminPage() {
                               </button>
                             </>
                           )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB: REUSABLE CMS SECTIONS & LAYOUTS (DAY 8) */}
+      {activeTab === 'sections' && (
+        <section aria-labelledby="sections-heading">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 id="sections-heading" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Reusable CMS Sections & Layout Library
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+                Create once, publish everywhere (CO-PE). Manage modular, standardized content sections and embed them across any number of institutional pages with synchronized layout updates.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                id="create-section-btn"
+                onClick={handleOpenCreateSection}
+                className="btn btn-primary btn-sm"
+              >
+                + New Reusable Section
+              </button>
+              <button
+                id="refresh-sections-btn"
+                onClick={() => fetchReusableSections(sectionCategoryFilter, sectionTypeFilter, sectionSearchQuery)}
+                className="btn btn-secondary btn-sm"
+                disabled={sectionsLoading}
+              >
+                {sectionsLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+
+          {/* Search and Category/Type Filters */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'center',
+              marginBottom: '1.25rem',
+              flexWrap: 'wrap',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              padding: '0.75rem 1rem',
+              borderRadius: '8px',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ flex: '1 1 220px' }}>
+              <label htmlFor="search-sections-input" className="sr-only">
+                Search Sections
+              </label>
+              <input
+                id="search-sections-input"
+                type="text"
+                placeholder="Search by name, slug, or keywords..."
+                value={sectionSearchQuery}
+                onChange={(e) => setSectionSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    fetchReusableSections(sectionCategoryFilter, sectionTypeFilter, sectionSearchQuery);
+                  }
+                }}
+                className="input"
+                style={{ padding: '0.4rem 0.75rem', fontSize: '0.88rem' }}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="filter-section-type-select" className="sr-only">
+                Filter by Type
+              </label>
+              <select
+                id="filter-section-type-select"
+                value={sectionTypeFilter}
+                onChange={(e) => {
+                  setSectionTypeFilter(e.target.value);
+                  fetchReusableSections(sectionCategoryFilter, e.target.value, sectionSearchQuery);
+                }}
+                className="select"
+                style={{ padding: '0.4rem 0.75rem', fontSize: '0.88rem' }}
+              >
+                <option value="ALL">All Section Types</option>
+                <option value="HERO">Hero Banner</option>
+                <option value="TEXT_CONTENT">Text Content</option>
+                <option value="IMAGE_MEDIA">Image Media</option>
+                <option value="FEATURE_GRID">Feature Grid</option>
+                <option value="ACCORDION">Accordion / FAQ</option>
+                <option value="CTA_BANNER">CTA Banner</option>
+                <option value="STATS_COUNTER">Stats Counter</option>
+                <option value="TESTIMONIALS">Testimonials</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="filter-section-category-select" className="sr-only">
+                Filter by Category
+              </label>
+              <select
+                id="filter-section-category-select"
+                value={sectionCategoryFilter}
+                onChange={(e) => {
+                  setSectionCategoryFilter(e.target.value);
+                  fetchReusableSections(e.target.value, sectionTypeFilter, sectionSearchQuery);
+                }}
+                className="select"
+                style={{ padding: '0.4rem 0.75rem', fontSize: '0.88rem' }}
+              >
+                <option value="ALL">All Categories</option>
+                <option value="Admissions">Admissions</option>
+                <option value="Academics">Academics</option>
+                <option value="Campus Life">Campus Life</option>
+                <option value="General">General</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              id="apply-sections-filter-btn"
+              onClick={() => fetchReusableSections(sectionCategoryFilter, sectionTypeFilter, sectionSearchQuery)}
+              className="btn btn-secondary btn-sm"
+            >
+              Filter
+            </button>
+          </div>
+
+          {sectionsError && (
+            <div className="alert alert-danger" style={{ marginBottom: '1.5rem' }} role="alert">
+              <strong>Error:</strong> {sectionsError}
+            </div>
+          )}
+
+          {sectionsLoading ? (
+            <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
+              Loading reusable section library...
+            </div>
+          ) : reusableSections.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: '#f8fafc' }}>
+                No Reusable Sections Found
+              </h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                Create your first reusable section to begin standardizing content components across pages.
+              </p>
+              <button onClick={handleOpenCreateSection} className="btn btn-primary btn-sm">
+                + Create Section
+              </button>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" aria-label="Reusable Sections Table">
+                <thead>
+                  <tr>
+                    <th scope="col">Name & Slug</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Category</th>
+                    <th scope="col">Placements</th>
+                    <th scope="col">Last Updated</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reusableSections.map((sec) => (
+                    <tr key={sec.id}>
+                      <td>
+                        <div style={{ fontWeight: 600, color: '#f8fafc' }}>{sec.name}</div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                          slug: <code>{sec.slug}</code>
+                          {sec.description && ` — ${sec.description}`}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge badge-reusable">{sec.sectionType}</span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {sec.category || 'General'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          id={`view-placements-${sec.id}`}
+                          onClick={() => handleViewPlacements(sec)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.15rem 0.5rem', fontSize: '0.78rem' }}
+                          title="Click to view pages embedding this section"
+                        >
+                          {sec.placementCount ?? 0} Page{(sec.placementCount ?? 0) === 1 ? '' : 's'}
+                        </button>
+                      </td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {new Date(sec.updatedAt).toLocaleDateString()}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            id={`edit-section-${sec.id}`}
+                            onClick={() => handleOpenEditSection(sec)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '0.2rem 0.6rem' }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            id={`delete-section-${sec.id}`}
+                            onClick={() => handleDeleteReusableSection(sec)}
+                            className="btn btn-danger btn-sm"
+                            style={{ padding: '0.2rem 0.6rem' }}
+                            disabled={actionLoadingId === sec.id}
+                          >
+                            {actionLoadingId === sec.id ? 'Deleting...' : 'Delete'}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -2947,6 +3562,50 @@ export default function TenantAdminPage() {
                     >
                       + Feature Grid
                     </button>
+                    <button
+                      type="button"
+                      id="add-accordion-btn"
+                      onClick={() => handleAddSection('ACCORDION')}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      + Accordion
+                    </button>
+                    <button
+                      type="button"
+                      id="add-cta-btn"
+                      onClick={() => handleAddSection('CTA_BANNER')}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      + CTA Banner
+                    </button>
+                    <button
+                      type="button"
+                      id="add-stats-btn"
+                      onClick={() => handleAddSection('STATS_COUNTER')}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      + Stats
+                    </button>
+                    <button
+                      type="button"
+                      id="add-testimonials-btn"
+                      onClick={() => handleAddSection('TESTIMONIALS')}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      + Testimonials
+                    </button>
+                    <button
+                      type="button"
+                      id="insert-reusable-section-btn"
+                      onClick={() => {
+                        fetchReusableSections();
+                        setIsInsertSectionModalOpen(true);
+                      }}
+                      className="btn btn-primary btn-sm"
+                      style={{ backgroundColor: '#7c3aed', borderColor: '#6d28d9' }}
+                    >
+                      + Insert Reusable Section
+                    </button>
                   </div>
                 </div>
 
@@ -2960,157 +3619,344 @@ export default function TenantAdminPage() {
                   <div
                     key={idx}
                     style={{
-                      background: 'rgba(30, 41, 59, 0.6)',
-                      border: '1px solid var(--border-subtle)',
+                      background: sec.reusableSectionId ? 'rgba(124, 58, 237, 0.08)' : 'rgba(30, 41, 59, 0.6)',
+                      border: sec.reusableSectionId ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid var(--border-subtle)',
                       borderRadius: '8px',
                       padding: '1rem',
                       marginBottom: '1rem',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <span className="badge badge-role" style={{ textTransform: 'uppercase' }}>
-                        {sec.sectionType} Section #{idx + 1}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSection(idx)}
-                        className="btn btn-danger btn-sm"
-                        style={{ padding: '0.15rem 0.5rem' }}
-                        aria-label={`Remove section ${idx + 1}`}
-                      >
-                        Remove
-                      </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {sec.reusableSectionId ? (
+                          <span className="badge badge-reusable">
+                            Reusable: {sec.reusableSection?.name || 'Synced Section'}
+                          </span>
+                        ) : (
+                          <span className="badge badge-inline" style={{ textTransform: 'uppercase' }}>
+                            Inline {sec.sectionType} #{idx + 1}
+                          </span>
+                        )}
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={sec.isVisible}
+                            onChange={() => handleToggleSectionVisibility(idx)}
+                          />
+                          Visible
+                        </label>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveSection(idx, 'up')}
+                          disabled={idx === 0}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.15rem 0.5rem', opacity: idx === 0 ? 0.4 : 1 }}
+                          aria-label={`Move section ${idx + 1} up`}
+                          title="Move section up"
+                        >
+                          &uarr; Up
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveSection(idx, 'down')}
+                          disabled={idx === formSections.length - 1}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.15rem 0.5rem', opacity: idx === formSections.length - 1 ? 0.4 : 1 }}
+                          aria-label={`Move section ${idx + 1} down`}
+                          title="Move section down"
+                        >
+                          &darr; Down
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSection(idx)}
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '0.15rem 0.5rem' }}
+                          aria-label={`Remove section ${idx + 1}`}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
 
-                    {sec.sectionType === 'HERO' && (
-                      <div className="grid">
-                        <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                          <label htmlFor={`hero-headline-${idx}`} className="form-label">Headline *</label>
-                          <input
-                            id={`hero-headline-${idx}`}
-                            type="text"
-                            value={sec.config.headline || ''}
-                            onChange={(e) => handleUpdateSectionConfig(idx, 'headline', e.target.value)}
-                            className="input"
-                            required
-                          />
-                        </div>
-                        <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                          <label htmlFor={`hero-subheadline-${idx}`} className="form-label">Subheadline</label>
-                          <input
-                            id={`hero-subheadline-${idx}`}
-                            type="text"
-                            value={sec.config.subheadline || ''}
-                            onChange={(e) => handleUpdateSectionConfig(idx, 'subheadline', e.target.value)}
-                            className="input"
-                          />
-                        </div>
-                        <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                          <label htmlFor={`hero-cta-text-${idx}`} className="form-label">CTA Button Label</label>
-                          <input
-                            id={`hero-cta-text-${idx}`}
-                            type="text"
-                            value={sec.config.ctaText || ''}
-                            onChange={(e) => handleUpdateSectionConfig(idx, 'ctaText', e.target.value)}
-                            className="input"
-                          />
-                        </div>
-                        <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                          <label htmlFor={`hero-cta-link-${idx}`} className="form-label">CTA Destination URL</label>
-                          <input
-                            id={`hero-cta-link-${idx}`}
-                            type="text"
-                            value={sec.config.ctaLink || ''}
-                            onChange={(e) => handleUpdateSectionConfig(idx, 'ctaLink', e.target.value)}
-                            className="input"
-                          />
+                    {sec.reusableSectionId ? (
+                      <div style={{ padding: '0.85rem 1rem', background: 'rgba(139, 92, 246, 0.12)', border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: '6px', fontSize: '0.88rem', color: '#f8fafc' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div>
+                            <strong>Centralized Reusable Section:</strong> <code>{sec.reusableSection?.slug || sec.reusableSectionId}</code>
+                            <div style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.2rem' }}>
+                              Type: {sec.sectionType} &bull; Category: {sec.reusableSection?.category || 'General'} &bull; Synchronized layout
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsPageEditorOpen(false);
+                              setActiveTab('sections');
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem' }}
+                          >
+                            Edit in Library &rarr;
+                          </button>
                         </div>
                       </div>
-                    )}
+                    ) : (
+                      <>
+                        {sec.sectionType === 'HERO' && (
+                          <div className="grid">
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label htmlFor={`hero-headline-${idx}`} className="form-label">Headline *</label>
+                              <input
+                                id={`hero-headline-${idx}`}
+                                type="text"
+                                value={sec.config.headline || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'headline', e.target.value)}
+                                className="input"
+                                required
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label htmlFor={`hero-subheadline-${idx}`} className="form-label">Subheadline</label>
+                              <input
+                                id={`hero-subheadline-${idx}`}
+                                type="text"
+                                value={sec.config.subheadline || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'subheadline', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label htmlFor={`hero-cta-text-${idx}`} className="form-label">CTA Button Label</label>
+                              <input
+                                id={`hero-cta-text-${idx}`}
+                                type="text"
+                                value={sec.config.ctaText || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'ctaText', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label htmlFor={`hero-cta-link-${idx}`} className="form-label">CTA Destination URL</label>
+                              <input
+                                id={`hero-cta-link-${idx}`}
+                                type="text"
+                                value={sec.config.ctaLink || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'ctaLink', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                          </div>
+                        )}
 
-                    {sec.sectionType === 'TEXT_CONTENT' && (
-                      <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                        <label htmlFor={`text-body-${idx}`} className="form-label">Content Body *</label>
-                        <textarea
-                          id={`text-body-${idx}`}
-                          value={sec.config.body || ''}
-                          onChange={(e) => handleUpdateSectionConfig(idx, 'body', e.target.value)}
-                          className="textarea"
-                          rows={4}
-                          required
-                        />
-                      </div>
-                    )}
-
-                    {sec.sectionType === 'IMAGE_MEDIA' && (
-                      <div className="grid">
-                        <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                          <label htmlFor={`image-url-${idx}`} className="form-label">Image URL *</label>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <input
-                              id={`image-url-${idx}`}
-                              type="text"
-                              value={sec.config.imageUrl || ''}
-                              onChange={(e) => handleUpdateSectionConfig(idx, 'imageUrl', e.target.value)}
-                              className="input"
-                              placeholder="https://..."
+                        {sec.sectionType === 'TEXT_CONTENT' && (
+                          <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                            <label htmlFor={`text-body-${idx}`} className="form-label">Content Body *</label>
+                            <textarea
+                              id={`text-body-${idx}`}
+                              value={sec.config.body || ''}
+                              onChange={(e) => handleUpdateSectionConfig(idx, 'body', e.target.value)}
+                              className="textarea"
+                              rows={4}
                               required
                             />
-                            <button
-                              id={`choose-media-btn-${idx}`}
-                              type="button"
-                              onClick={() => {
-                                setTargetSectionIndex(idx);
-                                fetchMediaAssets();
-                                setIsMediaPickerOpen(true);
-                              }}
-                              className="btn btn-secondary btn-sm"
-                              style={{ whiteSpace: 'nowrap' }}
-                            >
-                              Browse Media
-                            </button>
                           </div>
-                        </div>
-                        <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                          <label htmlFor={`image-alt-${idx}`} className="form-label">Accessible Alt Text * (WCAG 2.2 AA)</label>
-                          <input
-                            id={`image-alt-${idx}`}
-                            type="text"
-                            value={sec.config.altText || ''}
-                            onChange={(e) => handleUpdateSectionConfig(idx, 'altText', e.target.value)}
-                            className="input"
-                            placeholder="Describe image purpose"
-                            required
-                          />
-                        </div>
-                        <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                          <label htmlFor={`image-caption-${idx}`} className="form-label">Caption (Optional)</label>
-                          <input
-                            id={`image-caption-${idx}`}
-                            type="text"
-                            value={sec.config.caption || ''}
-                            onChange={(e) => handleUpdateSectionConfig(idx, 'caption', e.target.value)}
-                            className="input"
-                          />
-                        </div>
-                      </div>
-                    )}
+                        )}
 
-                    {sec.sectionType === 'FEATURE_GRID' && (
-                      <div>
-                        <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                          <label className="form-label">Section Heading</label>
-                          <input
-                            type="text"
-                            value={sec.config.title || ''}
-                            onChange={(e) => handleUpdateSectionConfig(idx, 'title', e.target.value)}
-                            className="input"
-                          />
-                        </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                          {sec.config.items?.length || 0} features configured.
-                        </p>
-                      </div>
+                        {sec.sectionType === 'IMAGE_MEDIA' && (
+                          <div className="grid">
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label htmlFor={`image-url-${idx}`} className="form-label">Image URL *</label>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                  id={`image-url-${idx}`}
+                                  type="text"
+                                  value={sec.config.imageUrl || ''}
+                                  onChange={(e) => handleUpdateSectionConfig(idx, 'imageUrl', e.target.value)}
+                                  className="input"
+                                  placeholder="https://..."
+                                  required
+                                />
+                                <button
+                                  id={`choose-media-btn-${idx}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetSectionIndex(idx);
+                                    fetchMediaAssets();
+                                    setIsMediaPickerOpen(true);
+                                  }}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ whiteSpace: 'nowrap' }}
+                                >
+                                  Browse Media
+                                </button>
+                              </div>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label htmlFor={`image-alt-${idx}`} className="form-label">Accessible Alt Text * (WCAG 2.2 AA)</label>
+                              <input
+                                id={`image-alt-${idx}`}
+                                type="text"
+                                value={sec.config.altText || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'altText', e.target.value)}
+                                className="input"
+                                placeholder="Describe image purpose"
+                                required
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label htmlFor={`image-caption-${idx}`} className="form-label">Caption (Optional)</label>
+                              <input
+                                id={`image-caption-${idx}`}
+                                type="text"
+                                value={sec.config.caption || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'caption', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {sec.sectionType === 'FEATURE_GRID' && (
+                          <div>
+                            <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                              <label className="form-label">Section Heading</label>
+                              <input
+                                type="text"
+                                value={sec.config.title || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'title', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                              {sec.config.items?.length || 0} features configured.
+                            </p>
+                          </div>
+                        )}
+
+                        {sec.sectionType === 'ACCORDION' && (
+                          <div className="grid">
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Accordion Title *</label>
+                              <input
+                                type="text"
+                                value={sec.config.title || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'title', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Subtitle</label>
+                              <input
+                                type="text"
+                                value={sec.config.subtitle || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'subtitle', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', gridColumn: '1 / -1' }}>
+                              {sec.config.items?.length || 0} accordion items configured.
+                            </p>
+                          </div>
+                        )}
+
+                        {sec.sectionType === 'CTA_BANNER' && (
+                          <div className="grid">
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Headline *</label>
+                              <input
+                                type="text"
+                                value={sec.config.headline || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'headline', e.target.value)}
+                                className="input"
+                                required
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Subheadline</label>
+                              <input
+                                type="text"
+                                value={sec.config.subheadline || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'subheadline', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Primary Button Text</label>
+                              <input
+                                type="text"
+                                value={sec.config.primaryButtonText || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'primaryButtonText', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Primary Button URL</label>
+                              <input
+                                type="text"
+                                value={sec.config.primaryButtonUrl || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'primaryButtonUrl', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {sec.sectionType === 'STATS_COUNTER' && (
+                          <div className="grid">
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Section Title</label>
+                              <input
+                                type="text"
+                                value={sec.config.title || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'title', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Subtitle</label>
+                              <input
+                                type="text"
+                                value={sec.config.subtitle || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'subtitle', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', gridColumn: '1 / -1' }}>
+                              {sec.config.items?.length || 0} stats counters configured.
+                            </p>
+                          </div>
+                        )}
+
+                        {sec.sectionType === 'TESTIMONIALS' && (
+                          <div className="grid">
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Section Title</label>
+                              <input
+                                type="text"
+                                value={sec.config.title || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'title', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                              <label className="form-label">Subtitle</label>
+                              <input
+                                type="text"
+                                value={sec.config.subtitle || ''}
+                                onChange={(e) => handleUpdateSectionConfig(idx, 'subtitle', e.target.value)}
+                                className="input"
+                              />
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', gridColumn: '1 / -1' }}>
+                              {sec.config.items?.length || 0} testimonials configured.
+                            </p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}
@@ -4088,6 +4934,865 @@ export default function TenantAdminPage() {
                 disabled={reviewSaving}
               >
                 {reviewSaving ? 'Saving...' : 'Save Decision'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DAY 8: REUSABLE SECTION MODAL */}
+      {isSectionModalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="section-modal-title">
+          <div className="modal-content" style={{ maxWidth: '780px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h2 id="section-modal-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                {editingSectionId ? `Edit Reusable Section: ${sectionFormName}` : 'Create Reusable CMS Section'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsSectionModalOpen(false)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+            </div>
+
+            {sectionModalError && (
+              <div className="alert alert-danger" style={{ margin: '1rem' }} role="alert">
+                <strong>Error: </strong> {sectionModalError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveReusableSection} noValidate style={{ padding: '1.25rem' }}>
+              <div className="grid">
+                <div className="form-group">
+                  <label htmlFor="section-name-input" className="form-label">
+                    Section Name *
+                  </label>
+                  <input
+                    id="section-name-input"
+                    type="text"
+                    value={sectionFormName}
+                    onChange={(e) => {
+                      setSectionFormName(e.target.value);
+                      if (!editingSectionId) {
+                        setSectionFormSlug(
+                          e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/(^-|-$)/g, '')
+                        );
+                      }
+                    }}
+                    className="input"
+                    placeholder="e.g. Campus Tour Call-To-Action"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="section-slug-input" className="form-label">
+                    Unique Slug * (lowercase, hyphens)
+                  </label>
+                  <input
+                    id="section-slug-input"
+                    type="text"
+                    value={sectionFormSlug}
+                    onChange={(e) => setSectionFormSlug(e.target.value.toLowerCase())}
+                    className="input"
+                    placeholder="e.g. campus-tour-cta"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid">
+                <div className="form-group">
+                  <label htmlFor="section-type-select" className="form-label">
+                    Section Type *
+                  </label>
+                  <select
+                    id="section-type-select"
+                    value={sectionFormType}
+                    onChange={(e) => {
+                      const newType = e.target.value as any;
+                      setSectionFormType(newType);
+                      // Reset to appropriate default config for selected type
+                      if (newType === 'CTA_BANNER') {
+                        setSectionFormConfig({
+                          headline: 'Experience Oxford First-Hand',
+                          subheadline: 'Schedule a guided tour or apply for the upcoming term.',
+                          primaryButtonText: 'Book a Campus Tour',
+                          primaryButtonUrl: '/contact',
+                          theme: 'primary',
+                          alignment: 'center',
+                        });
+                      } else if (newType === 'ACCORDION') {
+                        setSectionFormConfig({
+                          title: 'Frequently Asked Questions',
+                          subtitle: 'Admissions details and deadlines',
+                          items: [
+                            { id: '1', title: 'What is the application deadline?', content: 'January 15th for autumn enrollment.', isOpenDefault: true },
+                            { id: '2', title: 'Are scholarships available?', content: 'Yes, merit scholarships covering up to 50% tuition.', isOpenDefault: false },
+                          ],
+                          allowMultipleOpen: true,
+                        });
+                      } else if (newType === 'STATS_COUNTER') {
+                        setSectionFormConfig({
+                          title: 'Key Statistics',
+                          subtitle: 'Academic achievements',
+                          items: [
+                            { value: '98%', label: 'Graduation Rate', suffix: '', description: 'Consistently achieved' },
+                            { value: '15:1', label: 'Student-Teacher Ratio', suffix: '', description: 'Dedicated attention' },
+                          ],
+                        });
+                      } else if (newType === 'TESTIMONIALS') {
+                        setSectionFormConfig({
+                          title: 'Student Testimonials',
+                          subtitle: 'Voices from our campus community',
+                          items: [
+                            { quote: 'Oxford prepared me with world-class academic rigour.', author: 'Alex Morgan', role: 'Alumnus', organization: 'Class of 2024' },
+                          ],
+                        });
+                      } else if (newType === 'HERO') {
+                        setSectionFormConfig({
+                          headline: 'Welcome to Oxford',
+                          subheadline: 'Excellence in primary and secondary education.',
+                          ctaText: 'Explore Programmes',
+                          ctaLink: '/academics',
+                        });
+                      } else if (newType === 'TEXT_CONTENT') {
+                        setSectionFormConfig({
+                          body: 'Detailed institutional information and narrative.',
+                          alignment: 'left',
+                        });
+                      } else if (newType === 'IMAGE_MEDIA') {
+                        setSectionFormConfig({
+                          imageUrl: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1200&q=80',
+                          altText: 'Campus grounds and historic library building',
+                          caption: 'Historic Campus Quadrangle',
+                        });
+                      } else if (newType === 'FEATURE_GRID') {
+                        setSectionFormConfig({
+                          title: 'Core Pillars of Learning',
+                          items: [
+                            { title: 'STEM & Robotics Lab', description: 'Advanced robotics and coding curriculum.' },
+                            { title: 'Fine Arts Studio', description: 'Comprehensive performing and visual arts program.' },
+                          ],
+                        });
+                      }
+                    }}
+                    className="select"
+                    disabled={Boolean(editingSectionId)}
+                  >
+                    <option value="CTA_BANNER">CTA Banner</option>
+                    <option value="ACCORDION">Accordion / FAQ</option>
+                    <option value="STATS_COUNTER">Stats Counter</option>
+                    <option value="TESTIMONIALS">Testimonials</option>
+                    <option value="HERO">Hero Banner</option>
+                    <option value="TEXT_CONTENT">Text Content</option>
+                    <option value="IMAGE_MEDIA">Image Media</option>
+                    <option value="FEATURE_GRID">Feature Grid</option>
+                  </select>
+                  {editingSectionId && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Section type cannot be changed after creation.
+                    </span>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="section-category-input" className="form-label">
+                    Category Tag
+                  </label>
+                  <input
+                    id="section-category-input"
+                    type="text"
+                    value={sectionFormCategory}
+                    onChange={(e) => setSectionFormCategory(e.target.value)}
+                    className="input"
+                    placeholder="e.g. Admissions, Academics, Campus Life"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="section-desc-input" className="form-label">
+                  Description / Internal Notes
+                </label>
+                <textarea
+                  id="section-desc-input"
+                  value={sectionFormDesc}
+                  onChange={(e) => setSectionFormDesc(e.target.value)}
+                  className="textarea"
+                  rows={2}
+                  placeholder="Describe when and where this section should be used across pages..."
+                />
+              </div>
+
+              {/* Dynamic Type-Specific Configuration Builder */}
+              <div style={{ background: 'rgba(15, 23, 42, 0.45)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', color: 'var(--accent-primary)', marginBottom: '1rem' }}>
+                  Configuration for {sectionFormType}
+                </h3>
+
+                {sectionFormType === 'CTA_BANNER' && (
+                  <div className="grid">
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Headline *</label>
+                      <input
+                        id="cta-headline-input"
+                        type="text"
+                        value={sectionFormConfig.headline || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, headline: e.target.value })}
+                        className="input"
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Subheadline</label>
+                      <input
+                        id="cta-subheadline-input"
+                        type="text"
+                        value={sectionFormConfig.subheadline || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, subheadline: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Primary Button Text *</label>
+                      <input
+                        id="cta-primary-btn-text"
+                        type="text"
+                        value={sectionFormConfig.primaryButtonText || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, primaryButtonText: e.target.value })}
+                        className="input"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Primary Button URL *</label>
+                      <input
+                        id="cta-primary-btn-url"
+                        type="text"
+                        value={sectionFormConfig.primaryButtonUrl || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, primaryButtonUrl: e.target.value })}
+                        className="input"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Secondary Button Text (Optional)</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.secondaryButtonText || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, secondaryButtonText: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Secondary Button URL</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.secondaryButtonUrl || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, secondaryButtonUrl: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {sectionFormType === 'ACCORDION' && (
+                  <div>
+                    <div className="grid">
+                      <div className="form-group">
+                        <label className="form-label">Accordion Title *</label>
+                        <input
+                          id="accordion-title-input"
+                          type="text"
+                          value={sectionFormConfig.title || ''}
+                          onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, title: e.target.value })}
+                          className="input"
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Subtitle</label>
+                        <input
+                          type="text"
+                          value={sectionFormConfig.subtitle || ''}
+                          onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, subtitle: e.target.value })}
+                          className="input"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <h4 style={{ fontSize: '0.9rem', color: '#f8fafc' }}>
+                          FAQ / Accordion Items ({(sectionFormConfig.items || []).length})
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = sectionFormConfig.items || [];
+                            setSectionFormConfig({
+                              ...sectionFormConfig,
+                              items: [
+                                ...current,
+                                {
+                                  id: `item-${Date.now()}`,
+                                  title: 'New Question Title',
+                                  content: 'Detailed answer content goes here.',
+                                  isOpenDefault: false,
+                                },
+                              ],
+                            });
+                          }}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          + Add Item
+                        </button>
+                      </div>
+
+                      {(sectionFormConfig.items || []).map((item: any, itemIdx: number) => (
+                        <div key={item.id || itemIdx} style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '0.75rem', borderRadius: '6px', marginBottom: '0.75rem', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Item #{itemIdx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = [...(sectionFormConfig.items || [])];
+                                current.splice(itemIdx, 1);
+                                setSectionFormConfig({ ...sectionFormConfig, items: current });
+                              }}
+                              className="btn btn-danger btn-sm"
+                              style={{ padding: '0.1rem 0.4rem', fontSize: '0.75rem' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={item.title || ''}
+                            onChange={(e) => {
+                              const current = [...(sectionFormConfig.items || [])];
+                              current[itemIdx] = { ...current[itemIdx], title: e.target.value };
+                              setSectionFormConfig({ ...sectionFormConfig, items: current });
+                            }}
+                            className="input"
+                            placeholder="Question or Heading..."
+                            style={{ marginBottom: '0.5rem' }}
+                          />
+                          <textarea
+                            value={item.content || ''}
+                            onChange={(e) => {
+                              const current = [...(sectionFormConfig.items || [])];
+                              current[itemIdx] = { ...current[itemIdx], content: e.target.value };
+                              setSectionFormConfig({ ...sectionFormConfig, items: current });
+                            }}
+                            className="textarea"
+                            rows={2}
+                            placeholder="Answer or Body content..."
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {sectionFormType === 'STATS_COUNTER' && (
+                  <div>
+                    <div className="grid">
+                      <div className="form-group">
+                        <label className="form-label">Section Title</label>
+                        <input
+                          id="stats-title-input"
+                          type="text"
+                          value={sectionFormConfig.title || ''}
+                          onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, title: e.target.value })}
+                          className="input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Subtitle</label>
+                        <input
+                          type="text"
+                          value={sectionFormConfig.subtitle || ''}
+                          onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, subtitle: e.target.value })}
+                          className="input"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <h4 style={{ fontSize: '0.9rem', color: '#f8fafc' }}>
+                          Key Metric Counters ({(sectionFormConfig.items || []).length})
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = sectionFormConfig.items || [];
+                            setSectionFormConfig({
+                              ...sectionFormConfig,
+                              items: [
+                                ...current,
+                                { value: '100%', label: 'Metric Label', suffix: '', description: '' },
+                              ],
+                            });
+                          }}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          + Add Counter
+                        </button>
+                      </div>
+
+                      {(sectionFormConfig.items || []).map((item: any, itemIdx: number) => (
+                        <div key={itemIdx} style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '0.75rem', borderRadius: '6px', marginBottom: '0.75rem', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Counter #{itemIdx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = [...(sectionFormConfig.items || [])];
+                                current.splice(itemIdx, 1);
+                                setSectionFormConfig({ ...sectionFormConfig, items: current });
+                              }}
+                              className="btn btn-danger btn-sm"
+                              style={{ padding: '0.1rem 0.4rem', fontSize: '0.75rem' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div className="grid">
+                            <input
+                              type="text"
+                              value={item.value || ''}
+                              onChange={(e) => {
+                                const current = [...(sectionFormConfig.items || [])];
+                                current[itemIdx] = { ...current[itemIdx], value: e.target.value };
+                                setSectionFormConfig({ ...sectionFormConfig, items: current });
+                              }}
+                              className="input"
+                              placeholder="Value (e.g. 98%)"
+                            />
+                            <input
+                              type="text"
+                              value={item.label || ''}
+                              onChange={(e) => {
+                                const current = [...(sectionFormConfig.items || [])];
+                                current[itemIdx] = { ...current[itemIdx], label: e.target.value };
+                                setSectionFormConfig({ ...sectionFormConfig, items: current });
+                              }}
+                              className="input"
+                              placeholder="Label (e.g. Graduation Rate)"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {sectionFormType === 'TESTIMONIALS' && (
+                  <div>
+                    <div className="grid">
+                      <div className="form-group">
+                        <label className="form-label">Section Title</label>
+                        <input
+                          id="testimonials-title-input"
+                          type="text"
+                          value={sectionFormConfig.title || ''}
+                          onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, title: e.target.value })}
+                          className="input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Subtitle</label>
+                        <input
+                          type="text"
+                          value={sectionFormConfig.subtitle || ''}
+                          onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, subtitle: e.target.value })}
+                          className="input"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <h4 style={{ fontSize: '0.9rem', color: '#f8fafc' }}>
+                          Testimonial Quotes ({(sectionFormConfig.items || []).length})
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = sectionFormConfig.items || [];
+                            setSectionFormConfig({
+                              ...sectionFormConfig,
+                              items: [
+                                ...current,
+                                { quote: 'Insightful quote here...', author: 'Author Name', role: 'Student', organization: 'Class of 2025' },
+                              ],
+                            });
+                          }}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          + Add Quote
+                        </button>
+                      </div>
+
+                      {(sectionFormConfig.items || []).map((item: any, itemIdx: number) => (
+                        <div key={itemIdx} style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '0.75rem', borderRadius: '6px', marginBottom: '0.75rem', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Quote #{itemIdx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = [...(sectionFormConfig.items || [])];
+                                current.splice(itemIdx, 1);
+                                setSectionFormConfig({ ...sectionFormConfig, items: current });
+                              }}
+                              className="btn btn-danger btn-sm"
+                              style={{ padding: '0.1rem 0.4rem', fontSize: '0.75rem' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <textarea
+                            value={item.quote || ''}
+                            onChange={(e) => {
+                              const current = [...(sectionFormConfig.items || [])];
+                              current[itemIdx] = { ...current[itemIdx], quote: e.target.value };
+                              setSectionFormConfig({ ...sectionFormConfig, items: current });
+                            }}
+                            className="textarea"
+                            rows={2}
+                            placeholder="Quote text..."
+                            style={{ marginBottom: '0.5rem' }}
+                          />
+                          <div className="grid">
+                            <input
+                              type="text"
+                              value={item.author || ''}
+                              onChange={(e) => {
+                                const current = [...(sectionFormConfig.items || [])];
+                                current[itemIdx] = { ...current[itemIdx], author: e.target.value };
+                                setSectionFormConfig({ ...sectionFormConfig, items: current });
+                              }}
+                              className="input"
+                              placeholder="Author Name"
+                            />
+                            <input
+                              type="text"
+                              value={item.role || ''}
+                              onChange={(e) => {
+                                const current = [...(sectionFormConfig.items || [])];
+                                current[itemIdx] = { ...current[itemIdx], role: e.target.value };
+                                setSectionFormConfig({ ...sectionFormConfig, items: current });
+                              }}
+                              className="input"
+                              placeholder="Role (e.g. Alumnus)"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {sectionFormType === 'HERO' && (
+                  <div className="grid">
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Headline *</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.headline || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, headline: e.target.value })}
+                        className="input"
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Subheadline</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.subheadline || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, subheadline: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">CTA Text</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.ctaText || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, ctaText: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">CTA Link</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.ctaLink || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, ctaLink: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {sectionFormType === 'TEXT_CONTENT' && (
+                  <div className="form-group">
+                    <label className="form-label">Body Text *</label>
+                    <textarea
+                      value={sectionFormConfig.body || ''}
+                      onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, body: e.target.value })}
+                      className="textarea"
+                      rows={5}
+                      required
+                    />
+                  </div>
+                )}
+
+                {sectionFormType === 'IMAGE_MEDIA' && (
+                  <div className="grid">
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Image URL *</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.imageUrl || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, imageUrl: e.target.value })}
+                        className="input"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Alt Text * (WCAG 2.2 AA)</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.altText || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, altText: e.target.value })}
+                        className="input"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Caption</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.caption || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, caption: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {sectionFormType === 'FEATURE_GRID' && (
+                  <div>
+                    <div className="form-group">
+                      <label className="form-label">Section Heading</label>
+                      <input
+                        type="text"
+                        value={sectionFormConfig.title || ''}
+                        onChange={(e) => setSectionFormConfig({ ...sectionFormConfig, title: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsSectionModalOpen(false)}
+                  className="btn btn-secondary"
+                  disabled={sectionSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="save-section-btn"
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={sectionSaving}
+                >
+                  {sectionSaving ? 'Saving...' : editingSectionId ? 'Update Section' : 'Create Section'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DAY 8: INSERT REUSABLE SECTION MODAL (FROM PAGE BUILDER) */}
+      {isInsertSectionModalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="insert-section-modal-title">
+          <div className="modal-content" style={{ maxWidth: '680px', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h2 id="insert-section-modal-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Insert Reusable Section from Library
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsInsertSectionModalOpen(false)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ padding: '1.25rem' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
+                Select a centralized section from your institution's component library. Any changes made to the master section will synchronize to this page automatically.
+              </p>
+
+              {reusableSections.length === 0 ? (
+                <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+                  <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>No reusable sections created yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsInsertSectionModalOpen(false);
+                      setIsPageEditorOpen(false);
+                      setActiveTab('sections');
+                    }}
+                    className="btn btn-primary btn-sm"
+                  >
+                    Go to Sections Library
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {reusableSections.map((sec) => (
+                    <div
+                      key={sec.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '1rem',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.95rem' }}>{sec.name}</div>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.25rem' }}>
+                          <span className="badge badge-reusable">{sec.sectionType}</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            slug: <code>{sec.slug}</code> &bull; {sec.category || 'General'}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        id={`insert-section-item-${sec.id}`}
+                        onClick={() => handleInsertReusableSection(sec)}
+                        className="btn btn-primary btn-sm"
+                      >
+                        + Insert
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', padding: '1rem 1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setIsInsertSectionModalOpen(false)}
+                className="btn btn-secondary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DAY 8: PLACEMENTS INSPECTION MODAL */}
+      {placementsModalData && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="placements-modal-title">
+          <div className="modal-content" style={{ maxWidth: '640px', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h2 id="placements-modal-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Placements: {placementsModalData.sectionName}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setPlacementsModalData(null)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ padding: '1.25rem' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
+                This section is referenced across the following institutional CMS pages:
+              </p>
+
+              {placementsModalData.placements.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: '1rem', textAlign: 'center' }}>
+                  This reusable section is not currently embedded in any pages.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {placementsModalData.placements.map((p) => (
+                    <div
+                      key={p.pageId}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0.75rem 1rem',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#f8fafc' }}>{p.pageTitle}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          URL: <code>/{p.pageSlug}</code>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span className={`badge ${p.isPagePublished ? 'badge-active' : 'badge-pending'}`}>
+                          {p.isPagePublished ? 'Published' : 'Draft'}
+                        </span>
+                        <a
+                          href={`/${p.pageSlug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.15rem 0.5rem', textDecoration: 'none' }}
+                        >
+                          View Page &rarr;
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', padding: '1rem 1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setPlacementsModalData(null)}
+                className="btn btn-secondary"
+              >
+                Close
               </button>
             </div>
           </div>

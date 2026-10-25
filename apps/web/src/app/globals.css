@@ -854,5 +854,266 @@ code {
   }
 }
 
+/* Day 8: Reusable CMS Sections & Layout Styling */
+.accordion-section {
+  margin: 2.5rem 0;
+}
 
+.accordion-section h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
 
+.section-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  margin-bottom: 1.5rem;
+}
+
+.accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.accordion-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.accordion-item[open] {
+  border-color: var(--accent-primary);
+}
+
+.accordion-summary {
+  padding: 1.15rem 1.25rem;
+  font-weight: 600;
+  font-size: 1.05rem;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.accordion-summary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent-primary);
+}
+
+.accordion-content {
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* CTA Banner Section */
+.cta-banner-section {
+  margin: 3rem 0;
+  padding: 3rem 2rem;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-banner-inner {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.cta-theme-primary {
+  background: linear-gradient(135deg, #1e3a8a 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.cta-theme-dark {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.cta-theme-accent {
+  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+  color: #0f172a;
+}
+
+.cta-banner-section h2 {
+  font-size: 2.1rem;
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+}
+
+.cta-subheadline {
+  font-size: 1.15rem;
+  opacity: 0.9;
+  margin-bottom: 1.75rem;
+  line-height: 1.6;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.text-center .cta-buttons {
+  justify-content: center;
+}
+
+.text-right .cta-buttons {
+  justify-content: flex-end;
+}
+
+/* Stats Counter Section */
+.stats-counter-section {
+  margin: 3rem 0;
+}
+
+.stats-counter-section h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.stats-counter-section .section-subtitle {
+  text-align: center;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-primary);
+}
+
+.stat-value {
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: var(--accent-primary);
+  line-height: 1.1;
+  margin-bottom: 0.35rem;
+}
+
+.stat-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.stat-description {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Testimonials Section */
+.testimonials-section {
+  margin: 3rem 0;
+}
+
+.testimonials-section h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.testimonials-section .section-subtitle {
+  text-align: center;
+}
+
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.testimonial-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.testimonial-quote {
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+.testimonial-footer {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.75rem;
+}
+
+.testimonial-author {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+/* Reusable Badge & Section Builder Elements */
+.badge-reusable {
+  background: rgba(139, 92, 246, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.badge-inline {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.section-builder-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.section-builder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-reorder-group {
+  display: flex;
+  gap: 0.25rem;
+}

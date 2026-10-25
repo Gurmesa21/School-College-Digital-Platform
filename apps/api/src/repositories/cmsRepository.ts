@@ -87,6 +87,17 @@ export class PrismaCmsRepository implements ICmsRepository {
       include: {
         sections: {
           orderBy: { sortOrder: 'asc' },
+          include: {
+            reusableSection: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                sectionType: true,
+                config: true,
+              },
+            },
+          },
         },
         author: {
           select: { id: true, email: true, firstName: true, lastName: true },
@@ -123,10 +134,21 @@ export class PrismaCmsRepository implements ICmsRepository {
       sections: record.sections.map((s) => ({
         id: s.id,
         pageId: s.pageId,
-        sectionType: s.sectionType as any,
+        sectionType: (s.reusableSection?.sectionType || s.sectionType) as any,
         sortOrder: s.sortOrder,
         isVisible: s.isVisible,
-        config: s.config as Record<string, unknown>,
+        reusableSectionId: s.reusableSectionId,
+        reusableSection: s.reusableSection
+          ? {
+              id: s.reusableSection.id,
+              name: s.reusableSection.name,
+              slug: s.reusableSection.slug,
+              sectionType: s.reusableSection.sectionType as any,
+            }
+          : null,
+        config: s.reusableSection
+          ? (s.reusableSection.config as Record<string, unknown>)
+          : (s.config as Record<string, unknown>),
         createdAt: s.createdAt.toISOString(),
         updatedAt: s.updatedAt.toISOString(),
       })),
@@ -141,6 +163,17 @@ export class PrismaCmsRepository implements ICmsRepository {
       include: {
         sections: {
           orderBy: { sortOrder: 'asc' },
+          include: {
+            reusableSection: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                sectionType: true,
+                config: true,
+              },
+            },
+          },
         },
         author: {
           select: { id: true, email: true, firstName: true, lastName: true },
@@ -177,10 +210,21 @@ export class PrismaCmsRepository implements ICmsRepository {
       sections: record.sections.map((s) => ({
         id: s.id,
         pageId: s.pageId,
-        sectionType: s.sectionType as any,
+        sectionType: (s.reusableSection?.sectionType || s.sectionType) as any,
         sortOrder: s.sortOrder,
         isVisible: s.isVisible,
-        config: s.config as Record<string, unknown>,
+        reusableSectionId: s.reusableSectionId,
+        reusableSection: s.reusableSection
+          ? {
+              id: s.reusableSection.id,
+              name: s.reusableSection.name,
+              slug: s.reusableSection.slug,
+              sectionType: s.reusableSection.sectionType as any,
+            }
+          : null,
+        config: s.reusableSection
+          ? (s.reusableSection.config as Record<string, unknown>)
+          : (s.config as Record<string, unknown>),
         createdAt: s.createdAt.toISOString(),
         updatedAt: s.updatedAt.toISOString(),
       })),
@@ -207,6 +251,9 @@ export class PrismaCmsRepository implements ICmsRepository {
         sections: {
           where: { isVisible: true },
           orderBy: { sortOrder: 'asc' },
+          include: {
+            reusableSection: true,
+          },
         },
       },
     });
@@ -225,9 +272,12 @@ export class PrismaCmsRepository implements ICmsRepository {
       publishedAt: record.publishedAt ? record.publishedAt.toISOString() : record.createdAt.toISOString(),
       sections: record.sections.map((s) => ({
         id: s.id,
-        sectionType: s.sectionType as any,
+        sectionType: (s.reusableSection?.sectionType || s.sectionType) as any,
         sortOrder: s.sortOrder,
-        config: s.config as Record<string, unknown>,
+        reusableSectionId: s.reusableSectionId,
+        config: s.reusableSection
+          ? (s.reusableSection.config as Record<string, unknown>)
+          : (s.config as Record<string, unknown>),
       })),
     };
   }
@@ -242,12 +292,25 @@ export class PrismaCmsRepository implements ICmsRepository {
     }
 
     // Validate sections configs
-    const validatedSections = data.sections.map((sec, idx) => ({
-      sectionType: sec.sectionType as SectionType,
-      sortOrder: sec.sortOrder ?? idx,
-      isVisible: sec.isVisible ?? true,
-      config: validateSectionConfig(sec.sectionType, sec.config),
-    }));
+    const validatedSections = data.sections.map((sec, idx) => {
+      let cfg: Record<string, unknown> = (sec.config as Record<string, unknown>) || {};
+      if (!sec.reusableSectionId) {
+        cfg = validateSectionConfig(sec.sectionType, sec.config);
+      } else if (sec.config && Object.keys(sec.config).length > 0) {
+        try {
+          cfg = validateSectionConfig(sec.sectionType, sec.config);
+        } catch {
+          cfg = sec.config as Record<string, unknown>;
+        }
+      }
+      return {
+        sectionType: sec.sectionType as SectionType,
+        sortOrder: sec.sortOrder ?? idx,
+        isVisible: sec.isVisible ?? true,
+        config: cfg,
+        reusableSectionId: sec.reusableSectionId || null,
+      };
+    });
 
     const created = await prisma.$transaction(async (tx) => {
       const page = await tx.page.create({
@@ -276,6 +339,7 @@ export class PrismaCmsRepository implements ICmsRepository {
             sortOrder: s.sortOrder,
             isVisible: s.isVisible,
             config: s.config as any,
+            reusableSectionId: s.reusableSectionId,
           })),
         });
       }
@@ -346,12 +410,25 @@ export class PrismaCmsRepository implements ICmsRepository {
 
       if (data.sections !== undefined) {
         // Validate each section config
-        const validatedSections = data.sections.map((sec, idx) => ({
-          sectionType: sec.sectionType as SectionType,
-          sortOrder: sec.sortOrder ?? idx,
-          isVisible: sec.isVisible ?? true,
-          config: validateSectionConfig(sec.sectionType, sec.config),
-        }));
+        const validatedSections = data.sections.map((sec, idx) => {
+          let cfg: Record<string, unknown> = (sec.config as Record<string, unknown>) || {};
+          if (!sec.reusableSectionId) {
+            cfg = validateSectionConfig(sec.sectionType, sec.config);
+          } else if (sec.config && Object.keys(sec.config).length > 0) {
+            try {
+              cfg = validateSectionConfig(sec.sectionType, sec.config);
+            } catch {
+              cfg = sec.config as Record<string, unknown>;
+            }
+          }
+          return {
+            sectionType: sec.sectionType as SectionType,
+            sortOrder: sec.sortOrder ?? idx,
+            isVisible: sec.isVisible ?? true,
+            config: cfg,
+            reusableSectionId: sec.reusableSectionId || null,
+          };
+        });
 
         // Replace sections atomically
         await tx.pageSection.deleteMany({ where: { pageId } });
@@ -363,6 +440,7 @@ export class PrismaCmsRepository implements ICmsRepository {
               sortOrder: s.sortOrder,
               isVisible: s.isVisible,
               config: s.config as any,
+              reusableSectionId: s.reusableSectionId,
             })),
           });
         }
@@ -449,8 +527,13 @@ export class PrismaCmsRepository implements ICmsRepository {
  * In-Memory CMS Repository for offline testing and fast standalone execution
  */
 export class InMemoryCmsRepository implements ICmsRepository {
-  private pages: Map<string, any> = new Map();
-  private sections: Map<string, any[]> = new Map();
+  public pages: Map<string, any> = new Map();
+  public sections: Map<string, any[]> = new Map();
+  private sectionRepoRef?: any;
+
+  setSectionRepository(repo: any) {
+    this.sectionRepoRef = repo;
+  }
 
   async listPages(tenantId: string, query: PageQueryDto): Promise<PaginatedData<PageDto>> {
     const page = Math.max(1, query.page || 1);
@@ -503,10 +586,37 @@ export class InMemoryCmsRepository implements ICmsRepository {
     if (!p || p.tenantId !== tenantId) {
       return null;
     }
-    const secs = (this.sections.get(pageId) || []).sort((a, b) => a.sortOrder - b.sortOrder);
+    const rawSecs = (this.sections.get(pageId) || []).sort((a, b) => a.sortOrder - b.sortOrder);
+    const resolvedSecs = await Promise.all(
+      rawSecs.map(async (s) => {
+        let rSection = null;
+        let cfg = s.config;
+        let sType = s.sectionType;
+        if (s.reusableSectionId && this.sectionRepoRef) {
+          const r = await this.sectionRepoRef.getReusableSectionById(tenantId, s.reusableSectionId);
+          if (r) {
+            rSection = {
+              id: r.id,
+              name: r.name,
+              slug: r.slug,
+              sectionType: r.sectionType,
+            };
+            cfg = r.config;
+            sType = r.sectionType;
+          }
+        }
+        return {
+          ...s,
+          sectionType: sType,
+          reusableSection: rSection,
+          config: cfg,
+        };
+      })
+    );
+
     return {
       ...p,
-      sections: secs,
+      sections: resolvedSecs,
     };
   }
 
@@ -515,10 +625,37 @@ export class InMemoryCmsRepository implements ICmsRepository {
     if (!p) {
       return null;
     }
-    const secs = (this.sections.get(p.id) || []).sort((a, b) => a.sortOrder - b.sortOrder);
+    const rawSecs = (this.sections.get(p.id) || []).sort((a, b) => a.sortOrder - b.sortOrder);
+    const resolvedSecs = await Promise.all(
+      rawSecs.map(async (s) => {
+        let rSection = null;
+        let cfg = s.config;
+        let sType = s.sectionType;
+        if (s.reusableSectionId && this.sectionRepoRef) {
+          const r = await this.sectionRepoRef.getReusableSectionById(tenantId, s.reusableSectionId);
+          if (r) {
+            rSection = {
+              id: r.id,
+              name: r.name,
+              slug: r.slug,
+              sectionType: r.sectionType,
+            };
+            cfg = r.config;
+            sType = r.sectionType;
+          }
+        }
+        return {
+          ...s,
+          sectionType: sType,
+          reusableSection: rSection,
+          config: cfg,
+        };
+      })
+    );
+
     return {
       ...p,
-      sections: secs,
+      sections: resolvedSecs,
     };
   }
 
@@ -539,15 +676,30 @@ export class InMemoryCmsRepository implements ICmsRepository {
       return null;
     }
 
-    const secs = (this.sections.get(p.id) || [])
+    const rawSecs = (this.sections.get(p.id) || [])
       .filter((s) => s.isVisible)
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((s) => ({
-        id: s.id,
-        sectionType: s.sectionType,
-        sortOrder: s.sortOrder,
-        config: s.config,
-      }));
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const resolvedSecs = await Promise.all(
+      rawSecs.map(async (s) => {
+        let cfg = s.config;
+        let sType = s.sectionType;
+        if (s.reusableSectionId && this.sectionRepoRef) {
+          const r = await this.sectionRepoRef.getReusableSectionById(tenantId, s.reusableSectionId);
+          if (r) {
+            cfg = r.config;
+            sType = r.sectionType;
+          }
+        }
+        return {
+          id: s.id,
+          sectionType: sType,
+          sortOrder: s.sortOrder,
+          reusableSectionId: s.reusableSectionId || null,
+          config: cfg,
+        };
+      })
+    );
 
     return {
       title: p.title,
@@ -557,7 +709,7 @@ export class InMemoryCmsRepository implements ICmsRepository {
       seoDescription: p.seoDescription,
       canonicalUrl: p.canonicalUrl,
       publishedAt: p.publishedAt || p.createdAt,
-      sections: secs,
+      sections: resolvedSecs,
     };
   }
 
@@ -572,16 +724,32 @@ export class InMemoryCmsRepository implements ICmsRepository {
     const id = `page_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const nowIso = new Date().toISOString();
 
-    const validatedSections = data.sections.map((sec, idx) => ({
-      id: `sec_${Date.now()}_${idx}`,
-      pageId: id,
-      sectionType: sec.sectionType,
-      sortOrder: sec.sortOrder ?? idx,
-      isVisible: sec.isVisible ?? true,
-      config: validateSectionConfig(sec.sectionType, sec.config),
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    }));
+    const validatedSections = data.sections.map((sec, idx) => {
+      let cfg: Record<string, unknown> = (sec.config as Record<string, unknown>) || {};
+      if (!sec.reusableSectionId) {
+        cfg = validateSectionConfig(sec.sectionType, sec.config);
+      } else if (sec.config && Object.keys(sec.config).length > 0) {
+        try {
+          cfg = validateSectionConfig(sec.sectionType, sec.config);
+        } catch {
+          cfg = sec.config as Record<string, unknown>;
+        }
+      }
+      return {
+        id: `sec_${Date.now()}_${idx}`,
+        pageId: id,
+        pageTitle: data.title,
+        pageSlug: data.slug,
+        pageStatus: 'DRAFT',
+        sectionType: sec.sectionType,
+        sortOrder: sec.sortOrder ?? idx,
+        isVisible: sec.isVisible ?? true,
+        config: cfg,
+        reusableSectionId: sec.reusableSectionId || null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+    });
 
     const pageRecord = {
       id,
@@ -658,16 +826,32 @@ export class InMemoryCmsRepository implements ICmsRepository {
     this.pages.set(pageId, updated);
 
     if (data.sections !== undefined) {
-      const validatedSections = data.sections.map((sec, idx) => ({
-        id: sec.id || `sec_${Date.now()}_${idx}`,
-        pageId,
-        sectionType: sec.sectionType,
-        sortOrder: sec.sortOrder ?? idx,
-        isVisible: sec.isVisible ?? true,
-        config: validateSectionConfig(sec.sectionType, sec.config),
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      }));
+      const validatedSections = data.sections.map((sec, idx) => {
+        let cfg: Record<string, unknown> = (sec.config as Record<string, unknown>) || {};
+        if (!sec.reusableSectionId) {
+          cfg = validateSectionConfig(sec.sectionType, sec.config);
+        } else if (sec.config && Object.keys(sec.config).length > 0) {
+          try {
+            cfg = validateSectionConfig(sec.sectionType, sec.config);
+          } catch {
+            cfg = sec.config as Record<string, unknown>;
+          }
+        }
+        return {
+          id: sec.id || `sec_${Date.now()}_${idx}`,
+          pageId,
+          pageTitle: updated.title,
+          pageSlug: updated.slug,
+          pageStatus: updated.status,
+          sectionType: sec.sectionType,
+          sortOrder: sec.sortOrder ?? idx,
+          isVisible: sec.isVisible ?? true,
+          config: cfg,
+          reusableSectionId: sec.reusableSectionId || null,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        };
+      });
       this.sections.set(pageId, validatedSections);
     }
 
@@ -703,9 +887,14 @@ export class InMemoryCmsRepository implements ICmsRepository {
 
     this.pages.set(pageId, updated);
 
+    const pageSecs = this.sections.get(pageId) || [];
+    pageSecs.forEach((s) => {
+      s.pageStatus = 'PUBLISHED';
+    });
+
     return {
       ...updated,
-      sections: this.sections.get(pageId) || [],
+      sections: pageSecs,
     };
   }
 
@@ -727,9 +916,14 @@ export class InMemoryCmsRepository implements ICmsRepository {
 
     this.pages.set(pageId, updated);
 
+    const pageSecs = this.sections.get(pageId) || [];
+    pageSecs.forEach((s) => {
+      s.pageStatus = 'ARCHIVED';
+    });
+
     return {
       ...updated,
-      sections: this.sections.get(pageId) || [],
+      sections: pageSecs,
     };
   }
 }

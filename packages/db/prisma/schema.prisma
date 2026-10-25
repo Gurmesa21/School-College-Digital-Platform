@@ -56,6 +56,10 @@ enum SectionType {
   TEXT_CONTENT
   IMAGE_MEDIA
   FEATURE_GRID
+  ACCORDION
+  CTA_BANNER
+  STATS_COUNTER
+  TESTIMONIALS
 }
 
 enum NavigationLocation {
@@ -132,6 +136,7 @@ model Tenant {
   categories      Category[]
   forms           Form[]
   formSubmissions FormSubmission[]
+  reusableSections ReusableSection[]
 
   @@index([slug])
   @@index([status])
@@ -176,6 +181,8 @@ model User {
   editedPages             Page[]                   @relation("PageEditor")
   uploadedMedia           MediaAsset[]             @relation("UploadedMedia")
   reviewedSubmissions     FormSubmission[]         @relation("ReviewedSubmissions")
+  authoredReusableSections ReusableSection[]        @relation("ReusableSectionAuthor")
+  editedReusableSections   ReusableSection[]        @relation("ReusableSectionEditor")
 
   @@index([email])
   @@index([status])
@@ -402,19 +409,48 @@ model Page {
 }
 
 model PageSection {
-  id          String      @id @default(cuid())
-  pageId      String
-  sectionType SectionType
-  sortOrder   Int         @default(0)
-  isVisible   Boolean     @default(true)
-  config      Json
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                String           @id @default(cuid())
+  pageId            String
+  sectionType       SectionType
+  sortOrder         Int              @default(0)
+  isVisible         Boolean          @default(true)
+  config            Json
+  reusableSectionId String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
-  page        Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  page              Page             @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  reusableSection   ReusableSection? @relation(fields: [reusableSectionId], references: [id], onDelete: SetNull)
 
   @@index([pageId, sortOrder])
+  @@index([reusableSectionId])
   @@map("page_sections")
+}
+
+model ReusableSection {
+  id           String        @id @default(cuid())
+  tenantId     String
+  name         String
+  slug         String
+  description  String?
+  sectionType  SectionType
+  category     String?
+  config       Json
+  isGlobal     Boolean       @default(false)
+  authorId     String?
+  lastEditorId String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  author       User?         @relation("ReusableSectionAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  lastEditor   User?         @relation("ReusableSectionEditor", fields: [lastEditorId], references: [id], onDelete: SetNull)
+  placements   PageSection[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([sectionType])
+  @@map("reusable_sections")
 }
 
 model NavigationMenu {

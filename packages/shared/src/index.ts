@@ -440,9 +440,18 @@ export const PageStatusEnum = z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 export type PageStatus = z.infer<typeof PageStatusEnum>;
 
 /**
- * Allowlisted Page Section Types (SRS Section 8.1 & 8.3)
+ * Allowlisted Page Section Types (SRS Section 8.1 & 8.3, Day 8 Reusable CMS Sections & Layouts)
  */
-export const SectionTypeEnum = z.enum(['HERO', 'TEXT_CONTENT', 'IMAGE_MEDIA', 'FEATURE_GRID']);
+export const SectionTypeEnum = z.enum([
+  'HERO',
+  'TEXT_CONTENT',
+  'IMAGE_MEDIA',
+  'FEATURE_GRID',
+  'ACCORDION',
+  'CTA_BANNER',
+  'STATS_COUNTER',
+  'TESTIMONIALS',
+]);
 export type SectionType = z.infer<typeof SectionTypeEnum>;
 
 /**
@@ -483,6 +492,70 @@ export const FeatureGridSectionConfigSchema = z.object({
 });
 export type FeatureGridSectionConfig = z.infer<typeof FeatureGridSectionConfigSchema>;
 
+export const AccordionItemSchema = z.object({
+  title: z.string().min(1, 'Accordion item question/title is required').max(200),
+  content: z.string().min(1, 'Accordion item content is required').max(5000),
+});
+export type AccordionItem = z.infer<typeof AccordionItemSchema>;
+
+export const AccordionSectionConfigSchema = z.object({
+  title: z.string().max(200).optional().default(''),
+  description: z.string().max(500).optional().default(''),
+  items: z.array(AccordionItemSchema).min(1, 'At least one accordion item is required').max(25),
+});
+export type AccordionSectionConfig = z.infer<typeof AccordionSectionConfigSchema>;
+
+export const CtaBannerSectionConfigSchema = z.object({
+  headline: z.string().min(1, 'CTA headline is required').max(200),
+  subheadline: z.string().max(500).optional().default(''),
+  buttonText: z.string().max(100).optional().default(''),
+  buttonUrl: z.string().max(500).optional().default(''),
+  primaryButtonText: z.string().max(100).optional().default(''),
+  primaryButtonUrl: z.string().max(500).optional().default(''),
+  secondaryButtonText: z.string().max(100).optional().default(''),
+  secondaryButtonUrl: z.string().max(500).optional().default(''),
+  theme: z.string().optional().default('PRIMARY'),
+  alignment: z.string().optional().default('center'),
+});
+export type CtaBannerSectionConfig = z.infer<typeof CtaBannerSectionConfigSchema>;
+
+export const StatItemSchema = z.object({
+  value: z.string().min(1, 'Stat metric value is required').max(50),
+  label: z.string().min(1, 'Stat metric label is required').max(150),
+  suffix: z.string().max(20).optional().default(''),
+  description: z.string().max(300).optional().default(''),
+});
+export type StatItem = z.infer<typeof StatItemSchema>;
+
+export const StatsCounterSectionConfigSchema = z.object({
+  title: z.string().max(200).optional().default(''),
+  subtitle: z.string().max(200).optional().default(''),
+  items: z.array(StatItemSchema).min(1, 'At least one metric is required').max(8),
+});
+export type StatsCounterSectionConfig = z.infer<typeof StatsCounterSectionConfigSchema>;
+
+export const TestimonialItemSchema = z
+  .object({
+    quote: z.string().min(1, 'Testimonial quote is required').max(1000),
+    authorName: z.string().max(100).optional(),
+    author: z.string().max(100).optional(),
+    authorRole: z.string().max(150).optional().default(''),
+    role: z.string().max(150).optional(),
+    organization: z.string().max(150).optional(),
+    avatarUrl: z.string().max(1000).optional().default(''),
+  })
+  .refine((data) => Boolean(data.authorName || data.author), {
+    message: 'Author name is required',
+  });
+export type TestimonialItem = z.infer<typeof TestimonialItemSchema>;
+
+export const TestimonialsSectionConfigSchema = z.object({
+  title: z.string().max(200).optional().default(''),
+  subtitle: z.string().max(200).optional().default(''),
+  items: z.array(TestimonialItemSchema).min(1, 'At least one testimonial is required').max(6),
+});
+export type TestimonialsSectionConfig = z.infer<typeof TestimonialsSectionConfigSchema>;
+
 /**
  * Generic Section Input Schema for API requests
  */
@@ -492,6 +565,7 @@ export const SectionInputSchema = z.object({
   sortOrder: z.number().int().nonnegative().default(0),
   isVisible: z.boolean().default(true),
   config: z.record(z.unknown()),
+  reusableSectionId: z.string().optional().nullable(),
 });
 export type SectionInputDto = z.infer<typeof SectionInputSchema>;
 
@@ -508,6 +582,14 @@ export function validateSectionConfig(sectionType: SectionType, rawConfig: unkno
       return ImageMediaSectionConfigSchema.parse(rawConfig);
     case 'FEATURE_GRID':
       return FeatureGridSectionConfigSchema.parse(rawConfig);
+    case 'ACCORDION':
+      return AccordionSectionConfigSchema.parse(rawConfig);
+    case 'CTA_BANNER':
+      return CtaBannerSectionConfigSchema.parse(rawConfig);
+    case 'STATS_COUNTER':
+      return StatsCounterSectionConfigSchema.parse(rawConfig);
+    case 'TESTIMONIALS':
+      return TestimonialsSectionConfigSchema.parse(rawConfig);
     default:
       throw new Error(`Unsupported section type: ${sectionType}`);
   }
@@ -517,6 +599,76 @@ export function validateSectionConfig(sectionType: SectionType, rawConfig: unkno
  * CMS Page DTOs and Request Schemas
  */
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Reusable Sections DTOs and Request Schemas (Day 8)
+ */
+export const CreateReusableSectionSchema = z.object({
+  name: z.string().min(1, 'Section name is required').max(150),
+  slug: z
+    .string()
+    .min(1, 'Slug is required')
+    .max(100)
+    .regex(slugRegex, 'Slug must consist of lowercase alphanumeric characters separated by hyphens (e.g. "campus-tour-cta")'),
+  description: z.string().max(500).optional().nullable(),
+  sectionType: SectionTypeEnum,
+  category: z.string().max(50).optional().nullable(),
+  isGlobal: z.boolean().default(false),
+  config: z.record(z.unknown()),
+});
+export type CreateReusableSectionDto = z.infer<typeof CreateReusableSectionSchema>;
+
+export const UpdateReusableSectionSchema = z.object({
+  name: z.string().min(1, 'Section name is required').max(150).optional(),
+  slug: z
+    .string()
+    .min(1, 'Slug is required')
+    .max(100)
+    .regex(slugRegex, 'Slug must consist of lowercase alphanumeric characters separated by hyphens (e.g. "campus-tour-cta")')
+    .optional(),
+  description: z.string().max(500).optional().nullable(),
+  sectionType: SectionTypeEnum.optional(),
+  category: z.string().max(50).optional().nullable(),
+  isGlobal: z.boolean().optional(),
+  config: z.record(z.unknown()).optional(),
+});
+export type UpdateReusableSectionDto = z.infer<typeof UpdateReusableSectionSchema>;
+
+export const ReusableSectionQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().max(100).optional(),
+  sectionType: SectionTypeEnum.optional(),
+  category: z.string().max(50).optional(),
+});
+export type ReusableSectionQueryDto = z.infer<typeof ReusableSectionQuerySchema>;
+
+export interface ReusableSectionDto {
+  id: string;
+  tenantId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  sectionType: SectionType;
+  category?: string | null;
+  isGlobal: boolean;
+  config: Record<string, unknown>;
+  authorId?: string | null;
+  lastEditorId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  placementCount?: number;
+}
+
+export interface ReusableSectionPlacementDto {
+  pageId: string;
+  pageTitle: string;
+  pageSlug: string;
+  pageStatus: string;
+  sectionId: string;
+  sortOrder: number;
+  isVisible: boolean;
+}
 
 export const CreatePageSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
@@ -565,6 +717,13 @@ export interface PageSectionDto {
   sortOrder: number;
   isVisible: boolean;
   config: Record<string, unknown>;
+  reusableSectionId?: string | null;
+  reusableSection?: {
+    id: string;
+    name: string;
+    slug: string;
+    sectionType: SectionType;
+  } | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -619,6 +778,7 @@ export interface PublicPageDto {
     id: string;
     sectionType: SectionType;
     sortOrder: number;
+    reusableSectionId?: string | null;
     config: Record<string, unknown>;
   }>;
 }

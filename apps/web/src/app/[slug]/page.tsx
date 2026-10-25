@@ -142,6 +142,144 @@ export default async function PublicCmsPage({ params }: PageProps) {
                 </section>
               );
 
+            case 'ACCORDION':
+              const accordionItems = Array.isArray(config.items) ? (config.items as any[]) : [];
+              return (
+                <section
+                  key={sec.id}
+                  className="accordion-section"
+                  aria-labelledby={`accordion-heading-${sec.id}`}
+                >
+                  {config.title ? (
+                    <h2 id={`accordion-heading-${sec.id}`}>{config.title as string}</h2>
+                  ) : null}
+                  {config.subtitle ? (
+                    <p className="section-subtitle">{config.subtitle as string}</p>
+                  ) : null}
+                  <div className="accordion-list">
+                    {accordionItems.map((item, idx) => (
+                      <details
+                        key={item.id || idx}
+                        className="accordion-item"
+                        open={Boolean(item.isOpenDefault)}
+                      >
+                        <summary className="accordion-summary">{item.title}</summary>
+                        <div className="accordion-content">
+                          <p>{item.content}</p>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </section>
+              );
+
+            case 'CTA_BANNER':
+              const themeClass = config.theme ? `cta-theme-${config.theme}` : 'cta-theme-primary';
+              const alignClass =
+                config.alignment === 'left'
+                  ? 'text-left'
+                  : config.alignment === 'right'
+                  ? 'text-right'
+                  : 'text-center';
+              return (
+                <section
+                  key={sec.id}
+                  className={`cta-banner-section ${themeClass} ${alignClass}`}
+                  aria-labelledby={`cta-heading-${sec.id}`}
+                >
+                  <div className="cta-banner-inner">
+                    <h2 id={`cta-heading-${sec.id}`}>{config.headline as string}</h2>
+                    {config.subheadline ? (
+                      <p className="cta-subheadline">{config.subheadline as string}</p>
+                    ) : null}
+                    <div className="cta-buttons">
+                      {config.primaryButtonText && config.primaryButtonUrl ? (
+                        <a
+                          href={config.primaryButtonUrl as string}
+                          className="btn btn-primary"
+                          style={{ textDecoration: 'none' }}
+                        >
+                          {config.primaryButtonText as string}
+                        </a>
+                      ) : null}
+                      {config.secondaryButtonText && config.secondaryButtonUrl ? (
+                        <a
+                          href={config.secondaryButtonUrl as string}
+                          className="btn btn-outline"
+                          style={{ textDecoration: 'none' }}
+                        >
+                          {config.secondaryButtonText as string}
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
+              );
+
+            case 'STATS_COUNTER':
+              const statItems = Array.isArray(config.items) ? (config.items as any[]) : [];
+              return (
+                <section
+                  key={sec.id}
+                  className="stats-counter-section"
+                  aria-labelledby={`stats-heading-${sec.id}`}
+                >
+                  {config.title ? (
+                    <h2 id={`stats-heading-${sec.id}`}>{config.title as string}</h2>
+                  ) : null}
+                  {config.subtitle ? (
+                    <p className="section-subtitle">{config.subtitle as string}</p>
+                  ) : null}
+                  <div className="stats-grid">
+                    {statItems.map((item, idx) => (
+                      <div key={idx} className="stat-card">
+                        <div className="stat-value">
+                          {item.value}
+                          {item.suffix || ''}
+                        </div>
+                        <div className="stat-label">{item.label}</div>
+                        {item.description ? (
+                          <p className="stat-description">{item.description}</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+
+            case 'TESTIMONIALS':
+              const testimonialItems = Array.isArray(config.items) ? (config.items as any[]) : [];
+              return (
+                <section
+                  key={sec.id}
+                  className="testimonials-section"
+                  aria-labelledby={`testimonials-heading-${sec.id}`}
+                >
+                  {config.title ? (
+                    <h2 id={`testimonials-heading-${sec.id}`}>{config.title as string}</h2>
+                  ) : null}
+                  {config.subtitle ? (
+                    <p className="section-subtitle">{config.subtitle as string}</p>
+                  ) : null}
+                  <div className="testimonials-grid">
+                    {testimonialItems.map((item, idx) => (
+                      <blockquote key={idx} className="testimonial-card">
+                        <p className="testimonial-quote">"{item.quote}"</p>
+                        <footer className="testimonial-footer">
+                          <cite className="testimonial-author">{item.author}</cite>
+                          {item.role ? (
+                            <span className="testimonial-role">, {item.role}</span>
+                          ) : null}
+                          {item.organization ? (
+                            <span className="testimonial-org"> — {item.organization}</span>
+                          ) : null}
+                        </footer>
+                      </blockquote>
+                    ))}
+                  </div>
+                </section>
+              );
+
             default:
               return null;
           }

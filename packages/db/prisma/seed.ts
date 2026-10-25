@@ -1053,9 +1053,128 @@ export async function seedDevelopmentData(): Promise<void> {
       });
     }
     console.log('  -> Seeded 2 Dynamic Forms (Contact & Admissions) with Fields and Sample Submissions for Oxford');
+
+    // Seed Day 8 Reusable CMS Sections
+    console.log('[Seed] Seeding Day 8 Reusable CMS Sections...');
+    const tourCtaSection = await prisma.reusableSection.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId: oxfordTenant.id,
+          slug: 'campus-tour-cta',
+        },
+      },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        name: 'Campus Tour & Open House Callout',
+        slug: 'campus-tour-cta',
+        description: 'Standard institutional CTA strip promoting admissions tours and campus visits.',
+        sectionType: SectionType.CTA_BANNER,
+        category: 'CALLOUT',
+        isGlobal: true,
+        authorId: adminUser?.id,
+        config: {
+          headline: 'Experience Oxford in Person',
+          subheadline: 'Book a personalized campus tour and discover our world-class science labs, arts theatre, and Olympic athletics facilities.',
+          buttonText: 'Schedule a Campus Tour',
+          buttonUrl: '/contact',
+          theme: 'PRIMARY',
+        },
+      },
+    });
+
+    const faqSection = await prisma.reusableSection.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId: oxfordTenant.id,
+          slug: 'admissions-faq',
+        },
+      },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        name: 'Admissions & Enrollment FAQ Accordion',
+        slug: 'admissions-faq',
+        description: 'Common admissions and scholarship questions for incoming parents and students.',
+        sectionType: SectionType.ACCORDION,
+        category: 'FAQ',
+        isGlobal: true,
+        authorId: adminUser?.id,
+        config: {
+          title: 'Frequently Asked Questions About Enrollment',
+          description: 'Key insights into our admissions criteria, application deadlines, and scholarship requirements.',
+          items: [
+            {
+              title: 'What are the age requirements for kindergarten and primary admission?',
+              content: 'Kindergarten applicants must turn 4 by September 1st of the academic year. Grade 1 applicants must turn 6 by September 1st.',
+            },
+            {
+              title: 'Does Oxford offer academic or athletic scholarship grants?',
+              content: 'Yes! Merit-based scholarships covering up to 75% of tuition are awarded to distinguished incoming students following faculty evaluation.',
+            },
+            {
+              title: 'What international curriculum accreditation does Oxford hold?',
+              content: 'We offer the accredited Cambridge International Curriculum (IGCSE and International A-Levels) alongside full Ethiopian Ministry of Education accreditation.',
+            },
+          ],
+        },
+      },
+    });
+
+    const statsSection = await prisma.reusableSection.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId: oxfordTenant.id,
+          slug: 'oxford-key-metrics',
+        },
+      },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        name: 'Institutional Excellence Key Stats',
+        slug: 'oxford-key-metrics',
+        description: 'High-level metrics display showcasing Oxford academic performance and campus diversity.',
+        sectionType: SectionType.STATS_COUNTER,
+        category: 'METRICS',
+        isGlobal: true,
+        authorId: adminUser?.id,
+        config: {
+          title: 'Oxford Excellence at a Glance',
+          items: [
+            { value: '100%', label: 'University Placement Rate', description: 'Graduates enrolled in tier-1 global universities' },
+            { value: '12:1', label: 'Student-to-Faculty Ratio', description: 'Individualized mentorship in all academic subjects' },
+            { value: '35+', label: 'Nationalities Represented', description: 'Vibrant, multicultural student community' },
+            { value: '24', label: 'Advanced IGCSE & A-Level Courses', description: 'Comprehensive STEM, humanities, and arts curriculum' },
+          ],
+        },
+      },
+    });
+
+    // Link tour CTA section to welcome page if not already linked
+    const targetWelcomePage = await prisma.page.findFirst({
+      where: { tenantId: oxfordTenant.id, slug: 'welcome' },
+      include: { sections: true },
+    });
+    if (targetWelcomePage) {
+      const hasCta = targetWelcomePage.sections.some((s) => s.reusableSectionId === tourCtaSection.id);
+      if (!hasCta) {
+        await prisma.pageSection.create({
+          data: {
+            pageId: targetWelcomePage.id,
+            sectionType: SectionType.CTA_BANNER,
+            sortOrder: targetWelcomePage.sections.length,
+            isVisible: true,
+            reusableSectionId: tourCtaSection.id,
+            config: tourCtaSection.config as any,
+          },
+        });
+      }
+    }
+
+    console.log('  -> Seeded 3 Day 8 Reusable Sections (CTA Banner, FAQ Accordion, Stats Counter) for Oxford');
   }
 
-  console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, media, and dynamic forms seed completed idempotently.');
+  console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, media, dynamic forms, and reusable sections seed completed idempotently.');
 }
 
 // Direct execution guard

@@ -14,12 +14,14 @@ import { INavigationRepository, PrismaNavigationRepository } from './repositorie
 import { IMediaRepository, PrismaMediaRepository } from './repositories/mediaRepository.js';
 import { ITaxonomyRepository, PrismaTaxonomyRepository } from './repositories/taxonomyRepository.js';
 import { IFormRepository, PrismaFormRepository } from './repositories/formRepository.js';
+import { ISectionRepository, PrismaSectionRepository } from './repositories/sectionRepository.js';
 import { AuthService } from './services/authService.js';
 import { UserAdminService } from './services/userAdminService.js';
 import { CmsService } from './services/cmsService.js';
 import { NavigationService } from './services/navigationService.js';
 import { MediaService } from './services/mediaService.js';
 import { FormService } from './services/formService.js';
+import { SectionService } from './services/sectionService.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { healthRouter } from './routes/health.js';
 import { createTenantRouter } from './routes/tenant.js';
@@ -27,6 +29,7 @@ import { createAuthRouter } from './routes/auth.js';
 import { createPlatformRouter } from './routes/platform.js';
 import { createUserAdminRouter } from './routes/userAdmin.js';
 import { createCmsAdminRouter } from './routes/cmsAdmin.js';
+import { createSectionAdminRouter } from './routes/sectionAdmin.js';
 import { createPublicContentRouter } from './routes/publicContent.js';
 import { createNavigationAdminRouter } from './routes/navigationAdmin.js';
 import { createPublicNavigationRouter } from './routes/publicNavigation.js';
@@ -45,6 +48,7 @@ export interface AppOptions {
   mediaRepository?: IMediaRepository;
   taxonomyRepository?: ITaxonomyRepository;
   formRepository?: IFormRepository;
+  sectionRepository?: ISectionRepository;
   emailService?: IEmailService;
   authService?: AuthService;
   userAdminService?: UserAdminService;
@@ -52,6 +56,7 @@ export interface AppOptions {
   navigationService?: NavigationService;
   mediaService?: MediaService;
   formService?: FormService;
+  sectionService?: SectionService;
   envConfig?: EnvConfig;
 }
 
@@ -67,6 +72,10 @@ export function createApp(options: AppOptions = {}): Express {
   const mediaRepository = options.mediaRepository || new PrismaMediaRepository();
   const taxonomyRepository = options.taxonomyRepository || new PrismaTaxonomyRepository();
   const formRepository = options.formRepository || new PrismaFormRepository();
+
+  const sectionRepository = options.sectionRepository || new PrismaSectionRepository();
+  const sectionService =
+    options.sectionService || new SectionService(sectionRepository, auditRepository);
 
   const emailService = options.emailService || new InMemoryEmailService();
   const authService = options.authService || new AuthService(authRepository, emailService);
@@ -124,6 +133,7 @@ export function createApp(options: AppOptions = {}): Express {
   const tenantResolver = createTenantResolver(options.repository, envConfig);
   const userAdminRouter = createUserAdminRouter(userAdminService, authRepository, auditRepository);
   const cmsAdminRouter = createCmsAdminRouter(cmsService, authRepository);
+  const sectionAdminRouter = createSectionAdminRouter(sectionService, authRepository);
   const navigationAdminRouter = createNavigationAdminRouter(navigationService, authRepository);
   const mediaAdminRouter = createMediaAdminRouter(mediaService, authRepository);
   const taxonomyAdminRouter = createTaxonomyAdminRouter(taxonomyRepository, authRepository, auditRepository);
@@ -137,6 +147,7 @@ export function createApp(options: AppOptions = {}): Express {
 
   v1Router.use('/tenant/admin', tenantResolver, userAdminRouter);
   v1Router.use('/tenant/cms/pages', tenantResolver, cmsAdminRouter);
+  v1Router.use('/tenant/cms/sections', tenantResolver, sectionAdminRouter);
   v1Router.use('/tenant/cms/navigation', tenantResolver, navigationAdminRouter);
   v1Router.use('/tenant/cms/media', tenantResolver, mediaAdminRouter);
   v1Router.use('/tenant/cms/taxonomy', tenantResolver, taxonomyAdminRouter);

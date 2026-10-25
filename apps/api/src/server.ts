@@ -9,6 +9,7 @@ import { InMemoryNavigationRepository } from './repositories/navigationRepositor
 import { InMemoryMediaRepository } from './repositories/mediaRepository.js';
 import { InMemoryTaxonomyRepository } from './repositories/taxonomyRepository.js';
 import { InMemoryFormRepository } from './repositories/formRepository.js';
+import { InMemorySectionRepository } from './repositories/sectionRepository.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { PERMISSIONS } from '@school/shared';
 
@@ -211,6 +212,71 @@ async function startServer() {
     ]);
 
     const formRepo = new InMemoryFormRepository();
+    const sectionRepo = new InMemorySectionRepository([
+      {
+        id: 'sec_campus_tour',
+        tenantId: 'tenant_oxford',
+        name: 'Campus Tour CTA Banner',
+        slug: 'campus-tour-cta',
+        description: 'Call to action banner inviting parents to book an in-person campus tour',
+        sectionType: 'CTA_BANNER',
+        category: 'Admissions',
+        isGlobal: true,
+        config: {
+          headline: 'Experience Oxford First-Hand',
+          subheadline: 'Schedule a private guided tour of our historic campus and state-of-the-art STEM facilities.',
+          primaryButtonText: 'Book a Campus Tour',
+          primaryButtonUrl: '/contact',
+          secondaryButtonText: 'Download Prospectus',
+          secondaryButtonUrl: '/news',
+          theme: 'primary',
+          alignment: 'center',
+        },
+        authorId: adminUser.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        placementCount: 0,
+      },
+      {
+        id: 'sec_admissions_faq',
+        tenantId: 'tenant_oxford',
+        name: 'Admissions Frequently Asked Questions',
+        slug: 'admissions-faq',
+        description: 'Accordion of common admissions questions, key deadlines, and scholarship details',
+        sectionType: 'ACCORDION',
+        category: 'Admissions',
+        isGlobal: true,
+        config: {
+          title: 'Admissions Frequently Asked Questions',
+          subtitle: 'Everything you need to know about applying to Oxford for the 2026/2027 academic year.',
+          items: [
+            {
+              id: 'faq-1',
+              title: 'When is the application deadline for the autumn term?',
+              content: 'Applications for the autumn cohort close on January 15, 2027. Early decision applications close on November 30, 2026.',
+              isOpenDefault: true,
+            },
+            {
+              id: 'faq-2',
+              title: 'Does Oxford offer academic and athletic scholarships?',
+              content: 'Yes. Merit-based scholarships covering up to 50% of tuition are awarded based on our annual entrance assessment.',
+              isOpenDefault: false,
+            },
+            {
+              id: 'faq-3',
+              title: 'What documents are required during initial submission?',
+              content: 'Submit official transcripts for the past two academic years, two educator references, and a copy of the student identification.',
+              isOpenDefault: false,
+            },
+          ],
+          allowMultipleOpen: true,
+        },
+        authorId: adminUser.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        placementCount: 0,
+      },
+    ]);
 
     app = createApp({
       repository: tenantRepo,
@@ -221,6 +287,7 @@ async function startServer() {
       mediaRepository: mediaRepo,
       taxonomyRepository: taxRepo,
       formRepository: formRepo,
+      sectionRepository: sectionRepo,
       emailService,
     });
   } else {
