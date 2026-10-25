@@ -5,6 +5,9 @@ import { InMemoryTenantRepository } from './repositories/tenantRepository.js';
 import { InMemoryAuthRepository } from './repositories/authRepository.js';
 import { InMemoryAuditRepository } from './repositories/auditRepository.js';
 import { InMemoryCmsRepository } from './repositories/cmsRepository.js';
+import { InMemoryNavigationRepository } from './repositories/navigationRepository.js';
+import { InMemoryMediaRepository } from './repositories/mediaRepository.js';
+import { InMemoryTaxonomyRepository } from './repositories/taxonomyRepository.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { PERMISSIONS } from '@school/shared';
 
@@ -165,11 +168,55 @@ async function startServer() {
     });
     await cmsRepo.publishPage('tenant_oxford', welcomePage.id, adminUser.id);
 
+    const navRepo = new InMemoryNavigationRepository();
+    const headerMenu = await navRepo.upsertMenu('tenant_oxford', 'HEADER', 'Primary Header Navigation');
+    await navRepo.addMenuItem('tenant_oxford', headerMenu.id, { label: 'Home', url: '/', order: 0, target: '_self', isVisible: true });
+    await navRepo.addMenuItem('tenant_oxford', headerMenu.id, { label: 'Welcome', url: '/welcome', order: 1, target: '_self', isVisible: true });
+    await navRepo.addMenuItem('tenant_oxford', headerMenu.id, { label: 'Admissions', url: '/admissions', order: 2, target: '_self', isVisible: true });
+    await navRepo.addMenuItem('tenant_oxford', headerMenu.id, { label: 'Contact', url: '/contact', order: 3, target: '_self', isVisible: true });
+
+    const mediaRepo = new InMemoryMediaRepository([
+      {
+        id: 'media_oxford_crest',
+        tenantId: 'tenant_oxford',
+        uploaderId: adminUser.id,
+        title: 'Oxford International School Crest',
+        altText: 'Official crest and emblem of Oxford International School',
+        caption: 'Institutional emblem used on official publications.',
+        category: 'LOGO',
+        mimeType: 'image/png',
+        fileSizeBytes: 45200,
+        storageKey: 'tenants/tenant_oxford/media/oxford-crest.png',
+        publicUrl: '/api/v1/tenant/public/media/oxford-crest.png',
+        isPublic: true,
+        isDecorative: false,
+        categoryId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    const taxRepo = new InMemoryTaxonomyRepository([
+      {
+        id: 'cat_academics',
+        tenantId: 'tenant_oxford',
+        name: 'Academics & Curriculum',
+        slug: 'academics',
+        type: 'GENERAL',
+        description: 'Academic subjects and curriculum',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
     app = createApp({
       repository: tenantRepo,
       authRepository: authRepo,
       auditRepository: auditRepo,
       cmsRepository: cmsRepo,
+      navigationRepository: navRepo,
+      mediaRepository: mediaRepo,
+      taxonomyRepository: taxRepo,
       emailService,
     });
   } else {

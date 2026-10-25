@@ -21,7 +21,7 @@ test.describe('Platform E2E Smoke & Health Verification', () => {
     await expect(statusHeading).toContainText('Environment & System Status');
 
     // Navigation to Admin interface
-    const adminLink = page.locator('a[href="/admin"]');
+    const adminLink = page.locator('a[href="/admin"]').first();
     await expect(adminLink).toBeVisible();
     await adminLink.click();
     await expect(page).toHaveURL(/\/admin/);

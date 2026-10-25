@@ -282,6 +282,65 @@ async function run() {
     testCases.push({ name: 'Frontend SSR Renders Persisted CMS Page (/welcome)', status: webCmsPage.status, pass: pass15 });
     console.log(`  -> Status: ${webCmsPage.status}, Renders CMS Content: ${pass15}`);
 
+    // Test 16: Public Navigation Menu Retrieval (Day 6 Dynamic Navigation)
+    console.log('Testing 16: GET http://localhost:4000/api/v1/tenant/public/navigation/HEADER');
+    const pubNavRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/navigation/HEADER', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+      },
+    });
+    const pubNavJson = JSON.parse(pubNavRes.body);
+    const pass16 = pubNavRes.status === 200 && pubNavJson.success === true && pubNavJson.data?.location === 'HEADER' && Array.isArray(pubNavJson.data?.items) && pubNavJson.data.items.length >= 5;
+    testCases.push({ name: 'Public Navigation Menu Served for HEADER Location (200)', status: pubNavRes.status, pass: pass16 });
+    console.log(`  -> Status: ${pubNavRes.status}, Items Count: ${pubNavJson.data?.items?.length}, Pass: ${pass16}`);
+
+    // Test 17: Authenticated Access to Media Library (FR-MEDIA-001)
+    console.log('Testing 17: GET http://localhost:4000/api/v1/tenant/cms/media with Admin Session');
+    const authMediaRes = await fetchUrl('http://localhost:4000/api/v1/tenant/cms/media', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Cookie: cookieString,
+      },
+    });
+    const authMediaJson = JSON.parse(authMediaRes.body);
+    const pass17 = authMediaRes.status === 200 && authMediaJson.success === true && Array.isArray(authMediaJson.data?.items) && authMediaJson.data.items.length >= 4;
+    testCases.push({ name: 'Admin Retrieves Tenant Media Assets with RBAC (200)', status: authMediaRes.status, pass: pass17 });
+    console.log(`  -> Status: ${authMediaRes.status}, Asset Count: ${authMediaJson.data?.items?.length}, Pass: ${pass17}`);
+
+    const publicAsset = authMediaJson.data?.items?.find((i) => i.isPublic);
+    const privateAsset = authMediaJson.data?.items?.find((i) => !i.isPublic);
+
+    // Test 18: Public Media Asset Retrieval Anonymously (FR-MEDIA-004)
+    console.log(`Testing 18: GET http://localhost:4000/api/v1/tenant/public/media/${publicAsset?.id}`);
+    const pubMediaRes = await fetchUrl(`http://localhost:4000/api/v1/tenant/public/media/${publicAsset?.id}`, {
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Accept: 'application/json',
+      },
+    });
+    const pubMediaJson = JSON.parse(pubMediaRes.body);
+    const pass18 = pubMediaRes.status === 200 && pubMediaJson.success === true && pubMediaJson.data?.isPublic === true;
+    testCases.push({ name: 'Public Media Asset Served Anonymously (200)', status: pubMediaRes.status, pass: pass18 });
+    console.log(`  -> Status: ${pubMediaRes.status}, Category: ${pubMediaJson.data?.category}, Pass: ${pass18}`);
+
+    // Test 19: Private Media Asset Security Isolation (FR-MEDIA-003)
+    console.log(`Testing 19: GET http://localhost:4000/api/v1/tenant/public/media/${privateAsset?.id}`);
+    const privMediaRes = await fetchUrl(`http://localhost:4000/api/v1/tenant/public/media/${privateAsset?.id}`, {
+      headers: {
+        Host: 'oxford.localhost:4000',
+      },
+    });
+    const pass19 = privMediaRes.status === 404;
+    testCases.push({ name: 'Private Document Isolated from Anonymous Delivery (404)', status: privMediaRes.status, pass: pass19 });
+    console.log(`  -> Status: ${privMediaRes.status}, Private Document Protected: ${pass19}`);
+
+    // Test 20: Frontend SSR Public Header & Footer Integration
+    console.log('Testing 20: GET http://localhost:3000/ contains dynamic navbar and footer');
+    const webHomeNav = await fetchUrl('http://localhost:3000/');
+    const pass20 = webHomeNav.status === 200 && webHomeNav.body.includes('public-navbar-container') && webHomeNav.body.includes('public-footer-container');
+    testCases.push({ name: 'Frontend SSR Renders Dynamic Header & Footer Layout', status: webHomeNav.status, pass: pass20 });
+    console.log(`  -> Status: ${webHomeNav.status}, Header & Footer Present: ${pass20}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -295,7 +354,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 12 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 20 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');

@@ -15,6 +15,10 @@ async function main() {
   const auditLogsCount = await prisma.auditLog.count();
   const pagesCount = await prisma.page.count();
   const pageSectionsCount = await prisma.pageSection.count();
+  const navigationMenusCount = await prisma.navigationMenu.count();
+  const navigationMenuItemsCount = await prisma.navigationMenuItem.count();
+  const categoriesCount = await prisma.category.count();
+  const mediaAssetsCount = await prisma.mediaAsset.count();
 
   console.log('[DB Verification] Table Record Counts:');
   console.log(`  - tenants: ${tenantsCount}`);
@@ -27,6 +31,10 @@ async function main() {
   console.log(`  - audit_logs: ${auditLogsCount}`);
   console.log(`  - pages: ${pagesCount}`);
   console.log(`  - page_sections: ${pageSectionsCount}`);
+  console.log(`  - navigation_menus: ${navigationMenusCount}`);
+  console.log(`  - navigation_menu_items: ${navigationMenuItemsCount}`);
+  console.log(`  - categories: ${categoriesCount}`);
+  console.log(`  - media_assets: ${mediaAssetsCount}`);
 
   const users = await prisma.user.findMany({
     select: {

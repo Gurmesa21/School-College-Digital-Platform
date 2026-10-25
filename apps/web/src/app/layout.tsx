@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import PublicHeader from '../components/PublicHeader';
+import PublicFooter from '../components/PublicFooter';
 
 export const metadata: Metadata = {
   title: 'School Platform — Foundation Baseline',
@@ -17,10 +19,13 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
-        <main id="main-content" className="container">
+        <PublicHeader />
+        <main id="main-content" className="container app-main-content">
           {children}
         </main>
+        <PublicFooter />
       </body>
     </html>
   );
 }
+

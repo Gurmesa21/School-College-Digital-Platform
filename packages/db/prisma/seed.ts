@@ -1,4 +1,15 @@
-import { PrismaClient, InstitutionType, TenantStatus, UserStatus, MembershipStatus, PageStatus, SectionType } from '@prisma/client';
+import {
+  PrismaClient,
+  InstitutionType,
+  TenantStatus,
+  UserStatus,
+  MembershipStatus,
+  PageStatus,
+  SectionType,
+  NavigationLocation,
+  MediaCategory,
+  CategoryType,
+} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -111,6 +122,15 @@ export const SYSTEM_PERMISSIONS: Array<{ code: string; category: string; descrip
   { code: 'admissions:review', category: 'admissions', description: 'Review and update admission applicant statuses' },
   { code: 'admissions:manage', category: 'admissions', description: 'Configure admission cycles and decision forms' },
 
+  // Navigation & Media (Day 6)
+  { code: 'cms:navigation:read', category: 'cms', description: 'View institution navigation menus' },
+  { code: 'cms:navigation:write', category: 'cms', description: 'Configure institution header and footer navigation' },
+  { code: 'media:read', category: 'media', description: 'View media library assets and documents' },
+  { code: 'media:write', category: 'media', description: 'Upload and edit media library assets' },
+  { code: 'media:delete', category: 'media', description: 'Delete media library assets' },
+  { code: 'taxonomy:read', category: 'taxonomy', description: 'View content taxonomy categories' },
+  { code: 'taxonomy:write', category: 'taxonomy', description: 'Manage content taxonomy categories' },
+
   // Analytics
   { code: 'analytics:view', category: 'analytics', description: 'View institution traffic and admissions analytics' },
 
@@ -149,6 +169,13 @@ export const SYSTEM_ROLES: Array<{
       'cms:pages:read',
       'cms:pages:write',
       'cms:pages:publish',
+      'cms:navigation:read',
+      'cms:navigation:write',
+      'media:read',
+      'media:write',
+      'media:delete',
+      'taxonomy:read',
+      'taxonomy:write',
       'admissions:read',
       'admissions:review',
       'admissions:manage',
@@ -166,6 +193,9 @@ export const SYSTEM_ROLES: Array<{
       'cms:pages:read',
       'cms:pages:write',
       'cms:pages:publish',
+      'cms:navigation:read',
+      'media:read',
+      'taxonomy:read',
       'admissions:read',
       'admissions:review',
       'analytics:view',
@@ -190,6 +220,10 @@ export const SYSTEM_ROLES: Array<{
     permissions: [
       'cms:pages:read',
       'cms:pages:write',
+      'cms:navigation:read',
+      'media:read',
+      'media:write',
+      'taxonomy:read',
     ],
   },
 ];
@@ -625,9 +659,132 @@ export async function seedDevelopmentData(): Promise<void> {
       },
     });
     console.log('  -> Seeded CMS Page: "about-us-draft" (DRAFT) for Oxford');
+
+    // 6. Seed Baseline Categories (Day 6 Taxonomy)
+    const categoryNames = [
+      { name: 'Academics & Curriculum', slug: 'academics', type: CategoryType.GENERAL, description: 'Academic courses, subjects, and curricula' },
+      { name: 'Admissions & Enrolment', slug: 'admissions', type: CategoryType.GENERAL, description: 'Prospectus, admissions cycles, and guides' },
+      { name: 'Campus Life & Athletics', slug: 'campus-life', type: CategoryType.MEDIA, description: 'Extra-curriculars, student life, and facilities' },
+      { name: 'Institutional Governance', slug: 'governance', type: CategoryType.PAGE, description: 'Leadership policies and institutional governance' },
+    ];
+    for (const cat of categoryNames) {
+      await prisma.category.upsert({
+        where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: cat.slug } },
+        update: { name: cat.name, type: cat.type, description: cat.description },
+        create: { tenantId: oxfordTenant.id, name: cat.name, slug: cat.slug, type: cat.type, description: cat.description },
+      });
+    }
+    console.log('  -> Seeded 4 Taxonomy Categories for Oxford');
+
+    // 7. Seed Navigation Menus & Items (Day 6 Navigation)
+    const headerMenu = await prisma.navigationMenu.upsert({
+      where: { tenantId_location: { tenantId: oxfordTenant.id, location: NavigationLocation.HEADER } },
+      update: { title: 'Primary Header Navigation', isPublished: true },
+      create: { tenantId: oxfordTenant.id, location: NavigationLocation.HEADER, title: 'Primary Header Navigation', isPublished: true },
+    });
+
+    await prisma.navigationMenuItem.deleteMany({ where: { menuId: headerMenu.id } });
+    await prisma.navigationMenuItem.createMany({
+      data: [
+        { menuId: headerMenu.id, label: 'Home', url: '/', target: '_self', order: 0, isVisible: true },
+        { menuId: headerMenu.id, label: 'Welcome', url: '/welcome', target: '_self', order: 1, isVisible: true, pageId: welcomePage.id },
+        { menuId: headerMenu.id, label: 'Admissions', url: '/admissions', target: '_self', order: 2, isVisible: true },
+        { menuId: headerMenu.id, label: 'Academics', url: '/academics', target: '_self', order: 3, isVisible: true },
+        { menuId: headerMenu.id, label: 'Contact', url: '/contact', target: '_self', order: 4, isVisible: true },
+      ],
+    });
+
+    const footerMenu = await prisma.navigationMenu.upsert({
+      where: { tenantId_location: { tenantId: oxfordTenant.id, location: NavigationLocation.FOOTER } },
+      update: { title: 'Footer Links', isPublished: true },
+      create: { tenantId: oxfordTenant.id, location: NavigationLocation.FOOTER, title: 'Footer Links', isPublished: true },
+    });
+
+    await prisma.navigationMenuItem.deleteMany({ where: { menuId: footerMenu.id } });
+    await prisma.navigationMenuItem.createMany({
+      data: [
+        { menuId: footerMenu.id, label: 'Privacy Policy', url: '/privacy', target: '_self', order: 0, isVisible: true },
+        { menuId: footerMenu.id, label: 'Terms of Service', url: '/terms', target: '_self', order: 1, isVisible: true },
+        { menuId: footerMenu.id, label: 'Staff & Admin Portal', url: '/admin', target: '_self', order: 2, isVisible: true },
+      ],
+    });
+    console.log('  -> Seeded Navigation Menus (HEADER & FOOTER) with items for Oxford');
+
+    // 8. Seed Media Assets (Day 6 Media Library)
+    const mediaSeeds = [
+      {
+        title: 'Oxford International School Crest',
+        altText: 'Official crest and emblem of Oxford International School',
+        caption: 'Institutional emblem used on official publications.',
+        category: MediaCategory.LOGO,
+        mimeType: 'image/png',
+        fileSizeBytes: 45200,
+        storageKey: `tenants/${oxfordTenant.id}/media/oxford-crest.png`,
+        publicUrl: `/api/v1/tenant/public/media/oxford-crest.png`,
+        isPublic: true,
+        isDecorative: false,
+      },
+      {
+        title: 'Modern Campus Library & Innovation Hub',
+        altText: 'Students collaborating inside the modern architectural library at Oxford International School',
+        caption: 'The library supports independent research and collaborative projects.',
+        category: MediaCategory.IMAGE,
+        mimeType: 'image/jpeg',
+        fileSizeBytes: 248000,
+        storageKey: `tenants/${oxfordTenant.id}/media/campus-library.jpg`,
+        publicUrl: `/api/v1/tenant/public/media/campus-library.jpg`,
+        isPublic: true,
+        isDecorative: false,
+      },
+      {
+        title: 'Official School Prospectus 2026-2027',
+        altText: 'Comprehensive guide to educational programmes, faculty, and student admissions',
+        caption: 'Downloadable prospectus for prospective parents and students.',
+        category: MediaCategory.DOCUMENT,
+        mimeType: 'application/pdf',
+        fileSizeBytes: 1540000,
+        storageKey: `tenants/${oxfordTenant.id}/media/prospectus-2026.pdf`,
+        publicUrl: `/api/v1/tenant/public/media/prospectus-2026.pdf`,
+        isPublic: true,
+        isDecorative: false,
+      },
+      {
+        title: 'Confidential Admissions Criteria & Assessment Rubric',
+        altText: null,
+        caption: 'Internal rubric for admissions review committee.',
+        category: MediaCategory.DOCUMENT,
+        mimeType: 'application/pdf',
+        fileSizeBytes: 320000,
+        storageKey: `tenants/${oxfordTenant.id}/media/confidential-admissions-rubric.pdf`,
+        publicUrl: '',
+        isPublic: false,
+        isDecorative: false,
+      },
+    ];
+
+    await prisma.mediaAsset.deleteMany({ where: { tenantId: oxfordTenant.id } });
+    for (const media of mediaSeeds) {
+      await prisma.mediaAsset.create({
+        data: {
+          tenantId: oxfordTenant.id,
+          uploaderId: adminUser?.id,
+          title: media.title,
+          altText: media.altText,
+          caption: media.caption,
+          category: media.category,
+          mimeType: media.mimeType,
+          fileSizeBytes: media.fileSizeBytes,
+          storageKey: media.storageKey,
+          publicUrl: media.publicUrl,
+          isPublic: media.isPublic,
+          isDecorative: media.isDecorative,
+        },
+      });
+    }
+    console.log('  -> Seeded 4 Media Assets (3 public, 1 private access-controlled) for Oxford');
   }
 
-  console.log('[Seed] Development multi-tenant, RBAC, user, and CMS seed completed idempotently.');
+  console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, and media seed completed idempotently.');
 }
 
 // Direct execution guard

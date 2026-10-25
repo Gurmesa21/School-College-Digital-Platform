@@ -58,6 +58,26 @@ enum SectionType {
   FEATURE_GRID
 }
 
+enum NavigationLocation {
+  HEADER
+  FOOTER
+  QUICK_LINKS
+}
+
+enum MediaCategory {
+  IMAGE
+  DOCUMENT
+  VIDEO
+  LOGO
+  BANNER
+}
+
+enum CategoryType {
+  MEDIA
+  PAGE
+  GENERAL
+}
+
 model Tenant {
   id              String          @id @default(cuid())
   slug            String          @unique
@@ -78,6 +98,9 @@ model Tenant {
   invitations     TenantInvitation[]
   auditLogs       AuditLog[]
   pages           Page[]
+  navigationMenus NavigationMenu[]
+  mediaAssets     MediaAsset[]
+  categories      Category[]
 
   @@index([slug])
   @@index([status])
@@ -120,6 +143,7 @@ model User {
   auditLogs               AuditLog[]               @relation("ActorAuditLogs")
   authoredPages           Page[]                   @relation("PageAuthor")
   editedPages             Page[]                   @relation("PageEditor")
+  uploadedMedia           MediaAsset[]             @relation("UploadedMedia")
 
   @@index([email])
   @@index([status])
@@ -336,6 +360,7 @@ model Page {
   author             User?         @relation("PageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   lastEditor         User?         @relation("PageEditor", fields: [lastEditorId], references: [id], onDelete: SetNull)
   sections           PageSection[]
+  navigationItems    NavigationMenuItem[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -358,4 +383,91 @@ model PageSection {
 
   @@index([pageId, sortOrder])
   @@map("page_sections")
+}
+
+model NavigationMenu {
+  id          String              @id @default(cuid())
+  tenantId    String
+  location    NavigationLocation  @default(HEADER)
+  title       String
+  isPublished Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items       NavigationMenuItem[]
+
+  @@unique([tenantId, location])
+  @@index([tenantId])
+  @@map("navigation_menus")
+}
+
+model NavigationMenuItem {
+  id          String              @id @default(cuid())
+  menuId      String
+  parentId    String?
+  label       String
+  url         String
+  target      String              @default("_self")
+  order       Int                 @default(0)
+  isVisible   Boolean             @default(true)
+  pageId      String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  menu        NavigationMenu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  parent      NavigationMenuItem? @relation("MenuItemHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    NavigationMenuItem[] @relation("MenuItemHierarchy")
+  page        Page?               @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@index([menuId, order])
+  @@index([parentId])
+  @@index([pageId])
+  @@map("navigation_menu_items")
+}
+
+model Category {
+  id          String        @id @default(cuid())
+  tenantId    String
+  name        String
+  slug        String
+  type        CategoryType  @default(GENERAL)
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mediaAssets MediaAsset[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, type])
+  @@map("categories")
+}
+
+model MediaAsset {
+  id            String        @id @default(cuid())
+  tenantId      String
+  uploaderId    String?
+  title         String
+  altText       String?
+  caption       String?
+  category      MediaCategory @default(IMAGE)
+  mimeType      String
+  fileSizeBytes Int
+  storageKey    String
+  publicUrl     String
+  isPublic      Boolean       @default(true)
+  isDecorative  Boolean       @default(false)
+  categoryId    String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploader      User?         @relation("UploadedMedia", fields: [uploaderId], references: [id], onDelete: SetNull)
+  taxCategory   Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, category])
+  @@index([tenantId, isPublic])
+  @@index([uploaderId])
+  @@map("media_assets")
 }

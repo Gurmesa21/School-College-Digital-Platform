@@ -116,6 +116,15 @@ export const PERMISSIONS = {
   CMS_PAGES_WRITE: 'cms:pages:write',
   CMS_PAGES_PUBLISH: 'cms:pages:publish',
 
+  // Navigation & Media (Day 6)
+  CMS_NAVIGATION_READ: 'cms:navigation:read',
+  CMS_NAVIGATION_WRITE: 'cms:navigation:write',
+  MEDIA_READ: 'media:read',
+  MEDIA_WRITE: 'media:write',
+  MEDIA_DELETE: 'media:delete',
+  TAXONOMY_READ: 'taxonomy:read',
+  TAXONOMY_WRITE: 'taxonomy:write',
+
   // Admissions
   ADMISSIONS_READ: 'admissions:read',
   ADMISSIONS_REVIEW: 'admissions:review',
@@ -587,4 +596,231 @@ export interface PublicPageDto {
     sortOrder: number;
     config: Record<string, unknown>;
   }>;
+}
+
+/**
+ * ==========================================
+ * DAY 6: NAVIGATION MENUS & ITEMS
+ * ==========================================
+ */
+
+export const NavigationLocationEnum = z.enum(['HEADER', 'FOOTER', 'QUICK_LINKS']);
+export type NavigationLocation = z.infer<typeof NavigationLocationEnum>;
+
+export const CreateMenuItemSchema = z.object({
+  label: z.string().min(1, 'Label is required').max(100),
+  url: z.string().min(1, 'URL or route path is required').max(500),
+  target: z.enum(['_self', '_blank']).default('_self').optional(),
+  order: z.number().int().min(0).default(0).optional(),
+  isVisible: z.boolean().default(true).optional(),
+  pageId: z.string().optional().nullable(),
+  parentId: z.string().optional().nullable(),
+});
+export type CreateMenuItemDto = z.infer<typeof CreateMenuItemSchema>;
+
+export const UpdateMenuItemSchema = CreateMenuItemSchema.partial();
+export type UpdateMenuItemDto = z.infer<typeof UpdateMenuItemSchema>;
+
+export const ReorderMenuItemsSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      order: z.number().int().min(0),
+      parentId: z.string().optional().nullable(),
+    })
+  ),
+});
+export type ReorderMenuItemsDto = z.infer<typeof ReorderMenuItemsSchema>;
+
+export interface NavigationMenuItemDto {
+  id: string;
+  menuId: string;
+  parentId: string | null;
+  label: string;
+  url: string;
+  target: string;
+  order: number;
+  isVisible: boolean;
+  pageId: string | null;
+  children?: NavigationMenuItemDto[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface NavigationMenuDto {
+  id: string;
+  tenantId: string;
+  location: NavigationLocation;
+  title: string;
+  isPublished: boolean;
+  items: NavigationMenuItemDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicNavigationDto {
+  location: NavigationLocation;
+  title: string;
+  items: Array<{
+    id: string;
+    label: string;
+    url: string;
+    target: string;
+    order: number;
+    children?: Array<{
+      id: string;
+      label: string;
+      url: string;
+      target: string;
+      order: number;
+    }>;
+  }>;
+}
+
+/**
+ * ==========================================
+ * DAY 6: MEDIA LIBRARY & ASSETS
+ * ==========================================
+ */
+
+export const MediaCategoryEnum = z.enum(['IMAGE', 'DOCUMENT', 'VIDEO', 'LOGO', 'BANNER']);
+export type MediaCategory = z.infer<typeof MediaCategoryEnum>;
+
+export const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'video/mp4',
+  'video/webm',
+] as const;
+
+export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
+export const CreateMediaSchema = z
+  .object({
+    title: z.string().min(1, 'Title is required').max(200),
+    altText: z.string().max(300).optional().nullable(),
+    caption: z.string().max(500).optional().nullable(),
+    category: MediaCategoryEnum.default('IMAGE'),
+    mimeType: z.string().refine((val) => ALLOWED_MIME_TYPES.includes(val as any), {
+      message: 'Unsupported MIME type',
+    }),
+    fileSizeBytes: z.number().int().positive().max(MAX_FILE_SIZE_BYTES, 'File exceeds 10MB limit'),
+    storageKey: z.string().min(1),
+    publicUrl: z.string().default(''),
+    isPublic: z.boolean().default(true),
+    isDecorative: z.boolean().default(false),
+    categoryId: z.string().optional().nullable(),
+  })
+  .refine(
+    (data) => {
+      // WCAG 2.2 AA & FR-MEDIA-002: If it is an image and not decorative, alt text is required
+      if (['IMAGE', 'LOGO', 'BANNER'].includes(data.category) && !data.isDecorative) {
+        return !!data.altText && data.altText.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: 'Alternative text is required for non-decorative images (WCAG 2.2 AA / FR-MEDIA-002)',
+      path: ['altText'],
+    }
+  );
+export type CreateMediaDto = z.infer<typeof CreateMediaSchema>;
+
+export const UpdateMediaSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    altText: z.string().max(300).optional().nullable(),
+    caption: z.string().max(500).optional().nullable(),
+    category: MediaCategoryEnum.optional(),
+    isPublic: z.boolean().optional(),
+    isDecorative: z.boolean().optional(),
+    categoryId: z.string().optional().nullable(),
+  })
+  .refine(
+    (data) => {
+      if (data.isDecorative === false && data.altText !== undefined) {
+        return !!data.altText && data.altText.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: 'Alternative text is required for non-decorative images',
+      path: ['altText'],
+    }
+  );
+export type UpdateMediaDto = z.infer<typeof UpdateMediaSchema>;
+
+export const MediaQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  category: MediaCategoryEnum.optional(),
+  isPublic: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  categoryId: z.string().optional(),
+  search: z.string().max(100).optional(),
+});
+export type MediaQueryDto = z.infer<typeof MediaQuerySchema>;
+
+export interface MediaAssetDto {
+  id: string;
+  tenantId: string;
+  uploaderId: string | null;
+  title: string;
+  altText: string | null;
+  caption: string | null;
+  category: MediaCategory;
+  mimeType: string;
+  fileSizeBytes: number;
+  storageKey: string;
+  publicUrl: string;
+  isPublic: boolean;
+  isDecorative: boolean;
+  categoryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  uploader?: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+  categoryInfo?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+}
+
+/**
+ * ==========================================
+ * DAY 6: CONTENT TAXONOMY & CATEGORIES
+ * ==========================================
+ */
+
+export const CategoryTypeEnum = z.enum(['MEDIA', 'PAGE', 'GENERAL']);
+export type CategoryType = z.infer<typeof CategoryTypeEnum>;
+
+export const CreateCategorySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  slug: z.string().min(1, 'Slug is required').max(100).regex(slugRegex, 'Slug must consist of lowercase alphanumeric characters and hyphens'),
+  type: CategoryTypeEnum.default('GENERAL'),
+  description: z.string().max(500).optional().nullable(),
+});
+export type CreateCategoryDto = z.infer<typeof CreateCategorySchema>;
+
+export interface CategoryDto {
+  id: string;
+  tenantId: string;
+  name: string;
+  slug: string;
+  type: CategoryType;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  mediaAssetsCount?: number;
 }

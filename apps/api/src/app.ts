@@ -10,9 +10,14 @@ import { createSessionResolver, createOriginGuard } from './middleware/authMiddl
 import { IAuthRepository, PrismaAuthRepository } from './repositories/authRepository.js';
 import { IAuditRepository, PrismaAuditRepository } from './repositories/auditRepository.js';
 import { ICmsRepository, PrismaCmsRepository } from './repositories/cmsRepository.js';
+import { INavigationRepository, PrismaNavigationRepository } from './repositories/navigationRepository.js';
+import { IMediaRepository, PrismaMediaRepository } from './repositories/mediaRepository.js';
+import { ITaxonomyRepository, PrismaTaxonomyRepository } from './repositories/taxonomyRepository.js';
 import { AuthService } from './services/authService.js';
 import { UserAdminService } from './services/userAdminService.js';
 import { CmsService } from './services/cmsService.js';
+import { NavigationService } from './services/navigationService.js';
+import { MediaService } from './services/mediaService.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { healthRouter } from './routes/health.js';
 import { createTenantRouter } from './routes/tenant.js';
@@ -21,16 +26,26 @@ import { createPlatformRouter } from './routes/platform.js';
 import { createUserAdminRouter } from './routes/userAdmin.js';
 import { createCmsAdminRouter } from './routes/cmsAdmin.js';
 import { createPublicContentRouter } from './routes/publicContent.js';
+import { createNavigationAdminRouter } from './routes/navigationAdmin.js';
+import { createPublicNavigationRouter } from './routes/publicNavigation.js';
+import { createMediaAdminRouter } from './routes/mediaAdmin.js';
+import { createPublicMediaRouter } from './routes/publicMedia.js';
+import { createTaxonomyAdminRouter } from './routes/taxonomyAdmin.js';
 
 export interface AppOptions {
   repository?: ITenantRepository;
   authRepository?: IAuthRepository;
   auditRepository?: IAuditRepository;
   cmsRepository?: ICmsRepository;
+  navigationRepository?: INavigationRepository;
+  mediaRepository?: IMediaRepository;
+  taxonomyRepository?: ITaxonomyRepository;
   emailService?: IEmailService;
   authService?: AuthService;
   userAdminService?: UserAdminService;
   cmsService?: CmsService;
+  navigationService?: NavigationService;
+  mediaService?: MediaService;
   envConfig?: EnvConfig;
 }
 
@@ -42,12 +57,19 @@ export function createApp(options: AppOptions = {}): Express {
   const authRepository = options.authRepository || new PrismaAuthRepository();
   const auditRepository = options.auditRepository || new PrismaAuditRepository();
   const cmsRepository = options.cmsRepository || new PrismaCmsRepository();
+  const navigationRepository = options.navigationRepository || new PrismaNavigationRepository();
+  const mediaRepository = options.mediaRepository || new PrismaMediaRepository();
+  const taxonomyRepository = options.taxonomyRepository || new PrismaTaxonomyRepository();
+
   const emailService = options.emailService || new InMemoryEmailService();
   const authService = options.authService || new AuthService(authRepository, emailService);
   const userAdminService =
     options.userAdminService ||
     new UserAdminService(authRepository, auditRepository, emailService);
   const cmsService = options.cmsService || new CmsService(cmsRepository, auditRepository);
+  const navigationService =
+    options.navigationService || new NavigationService(navigationRepository, auditRepository);
+  const mediaService = options.mediaService || new MediaService(mediaRepository, auditRepository);
 
   // Basic Express configuration
   if (envConfig.TRUST_PROXY) {
@@ -65,7 +87,7 @@ export function createApp(options: AppOptions = {}): Express {
       origin: envConfig.CORS_ORIGIN,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Tenant-Id', 'x-tenant-id', 'Accept'],
     })
   );
 
@@ -92,11 +114,23 @@ export function createApp(options: AppOptions = {}): Express {
   const tenantResolver = createTenantResolver(options.repository, envConfig);
   const userAdminRouter = createUserAdminRouter(userAdminService, authRepository, auditRepository);
   const cmsAdminRouter = createCmsAdminRouter(cmsService, authRepository);
+  const navigationAdminRouter = createNavigationAdminRouter(navigationService, authRepository);
+  const mediaAdminRouter = createMediaAdminRouter(mediaService, authRepository);
+  const taxonomyAdminRouter = createTaxonomyAdminRouter(taxonomyRepository, authRepository, auditRepository);
+
   const publicContentRouter = createPublicContentRouter(cmsService);
+  const publicNavigationRouter = createPublicNavigationRouter(navigationService);
+  const publicMediaRouter = createPublicMediaRouter(mediaService);
   const tenantRouter = createTenantRouter(authRepository);
 
   v1Router.use('/tenant/admin', tenantResolver, userAdminRouter);
   v1Router.use('/tenant/cms/pages', tenantResolver, cmsAdminRouter);
+  v1Router.use('/tenant/cms/navigation', tenantResolver, navigationAdminRouter);
+  v1Router.use('/tenant/cms/media', tenantResolver, mediaAdminRouter);
+  v1Router.use('/tenant/cms/taxonomy', tenantResolver, taxonomyAdminRouter);
+
+  v1Router.use('/tenant/public/navigation', tenantResolver, publicNavigationRouter);
+  v1Router.use('/tenant/public/media', tenantResolver, publicMediaRouter);
   v1Router.use('/tenant/public', tenantResolver, publicContentRouter);
   v1Router.use('/tenant', tenantResolver, tenantRouter);
 

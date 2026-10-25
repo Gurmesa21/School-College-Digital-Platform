@@ -111,8 +111,43 @@ interface CmsSectionItem {
   config: Record<string, any>;
 }
 
+interface NavigationItem {
+  id: string;
+  menuId: string;
+  label: string;
+  url: string;
+  target: '_self' | '_blank';
+  orderIndex: number;
+  isVisible: boolean;
+  parentId?: string | null;
+  pageId?: string | null;
+  children?: NavigationItem[];
+}
+
+interface MediaAssetItem {
+  id: string;
+  tenantId: string;
+  title: string;
+  filename?: string;
+  storageKey?: string;
+  storagePath?: string;
+  publicUrl?: string | null;
+  mimeType: string;
+  fileSizeBytes?: number;
+  fileSize?: number;
+  category: 'IMAGE' | 'DOCUMENT' | 'VIDEO' | 'LOGO' | 'BANNER';
+  altText?: string | null;
+  isDecorative: boolean;
+  isPublic: boolean;
+  caption?: string | null;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+  url?: string;
+}
+
 export default function TenantAdminPage() {
-  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'navigation' | 'media'>('members');
   const [tenantSlug, setTenantSlug] = useState('oxford');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
 
@@ -183,6 +218,43 @@ export default function TenantAdminPage() {
 
   // Action loading state (publishing / archiving)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // Day 6 Navigation State
+  const [navLocation, setNavLocation] = useState<'HEADER' | 'FOOTER' | 'QUICK_LINKS'>('HEADER');
+  const [navItems, setNavItems] = useState<NavigationItem[]>([]);
+  const [navLoading, setNavLoading] = useState(false);
+  const [navError, setNavError] = useState<string | null>(null);
+  const [isNavModalOpen, setIsNavModalOpen] = useState(false);
+  const [editingNavItem, setEditingNavItem] = useState<NavigationItem | null>(null);
+  const [navItemLabel, setNavItemLabel] = useState('');
+  const [navItemUrl, setNavItemUrl] = useState('');
+  const [navItemTarget, setNavItemTarget] = useState<'_self' | '_blank'>('_self');
+  const [navItemParentId, setNavItemParentId] = useState<string>('');
+  const [navItemPageId, setNavItemPageId] = useState<string>('');
+  const [navItemIsVisible, setNavItemIsVisible] = useState(true);
+  const [navSaving, setNavSaving] = useState(false);
+  const [navModalError, setNavModalError] = useState<string | null>(null);
+
+  // Day 6 Media Library State
+  const [mediaAssets, setMediaAssets] = useState<MediaAssetItem[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [mediaCategoryFilter, setMediaCategoryFilter] = useState<string>('ALL');
+  const [mediaSearchQuery, setMediaSearchQuery] = useState('');
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+  const [mediaTitle, setMediaTitle] = useState('');
+  const [mediaCategory, setMediaCategory] = useState<'IMAGE' | 'DOCUMENT' | 'VIDEO' | 'LOGO' | 'BANNER'>('IMAGE');
+  const [mediaAltText, setMediaAltText] = useState('');
+  const [mediaIsDecorative, setMediaIsDecorative] = useState(false);
+  const [mediaIsPublic, setMediaIsPublic] = useState(true);
+  const [mediaCaption, setMediaCaption] = useState('');
+  const [mediaStorageUrl, setMediaStorageUrl] = useState('');
+  const [mediaSaving, setMediaSaving] = useState(false);
+  const [mediaModalError, setMediaModalError] = useState<string | null>(null);
+
+  // Day 6 Media Picker for CMS Sections
+  const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
+  const [targetSectionIndex, setTargetSectionIndex] = useState<number | null>(null);
 
   // Helper for API request headers
   const getHeaders = useCallback(() => {
@@ -322,6 +394,63 @@ export default function TenantAdminPage() {
     }
   }, [apiBaseUrl, getHeaders]);
 
+  // 6. Fetch Navigation Menu
+  const fetchNavigation = useCallback(async (locationToFetch = navLocation) => {
+    setNavLoading(true);
+    setNavError(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/navigation/${locationToFetch}`, {
+        headers: getHeaders(),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Authentication required: Sign in with tenant administrator permissions to manage navigation.');
+        }
+        throw new Error(`Failed to load navigation menu (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      if (data.success && data.data) {
+        setNavItems(data.data.items || []);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error loading navigation menu';
+      setNavError(message);
+    } finally {
+      setNavLoading(false);
+    }
+  }, [apiBaseUrl, getHeaders, navLocation]);
+
+  // 7. Fetch Media Library Assets
+  const fetchMediaAssets = useCallback(async (category = mediaCategoryFilter, query = mediaSearchQuery) => {
+    setMediaLoading(true);
+    setMediaError(null);
+    try {
+      const params = new URLSearchParams();
+      if (category && category !== 'ALL') params.append('category', category);
+      if (query && query.trim()) params.append('search', query.trim());
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/media?${params.toString()}`, {
+        headers: getHeaders(),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Authentication required: Sign in with tenant administrator permissions to access media.');
+        }
+        throw new Error(`Failed to load media assets (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      if (data.success && data.data) {
+        setMediaAssets(data.data.items || []);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error loading media assets';
+      setMediaError(message);
+    } finally {
+      setMediaLoading(false);
+    }
+  }, [apiBaseUrl, getHeaders, mediaCategoryFilter, mediaSearchQuery]);
+
   // Check active session on load
   const checkAuth = useCallback(async () => {
     try {
@@ -366,6 +495,8 @@ export default function TenantAdminPage() {
       fetchInvitations();
       fetchAuditLogs();
       fetchPages();
+      fetchNavigation(navLocation);
+      fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
     } catch (err: any) {
       setAuthError(err.message || 'Login failed');
     } finally {
@@ -385,6 +516,8 @@ export default function TenantAdminPage() {
       fetchInvitations();
       fetchAuditLogs();
       fetchPages();
+      fetchNavigation(navLocation);
+      fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
     } catch {
       setCurrentUser(null);
     }
@@ -402,8 +535,13 @@ export default function TenantAdminPage() {
       fetchAuditLogs();
     } else if (activeTab === 'pages') {
       fetchPages();
+    } else if (activeTab === 'navigation') {
+      fetchNavigation(navLocation);
+      fetchPages();
+    } else if (activeTab === 'media') {
+      fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
     }
-  }, [activeTab, tenantSlug, checkAuth, fetchRoles, fetchMembers, fetchInvitations, fetchAuditLogs, fetchPages]);
+  }, [activeTab, tenantSlug, navLocation, mediaCategoryFilter, mediaSearchQuery, checkAuth, fetchRoles, fetchMembers, fetchInvitations, fetchAuditLogs, fetchPages, fetchNavigation, fetchMediaAssets]);
 
   // CMS Page Action Handlers
   const handleOpenCreatePage = () => {
@@ -744,6 +882,245 @@ export default function TenantAdminPage() {
     }
   };
 
+  // =========================================================================
+  // Day 6 Navigation Action Handlers
+  // =========================================================================
+  const handleOpenCreateNavItem = () => {
+    setEditingNavItem(null);
+    setNavItemLabel('');
+    setNavItemUrl('');
+    setNavItemTarget('_self');
+    setNavItemParentId('');
+    setNavItemPageId('');
+    setNavItemIsVisible(true);
+    setNavModalError(null);
+    setIsNavModalOpen(true);
+  };
+
+  const handleOpenEditNavItem = (item: NavigationItem) => {
+    setEditingNavItem(item);
+    setNavItemLabel(item.label);
+    setNavItemUrl(item.url);
+    setNavItemTarget(item.target || '_self');
+    setNavItemParentId(item.parentId || '');
+    setNavItemPageId(item.pageId || '');
+    setNavItemIsVisible(item.isVisible);
+    setNavModalError(null);
+    setIsNavModalOpen(true);
+  };
+
+  const handleSaveNavItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!navItemLabel.trim() || !navItemUrl.trim()) {
+      setNavModalError('Menu item label and destination URL are required.');
+      return;
+    }
+    setNavSaving(true);
+    setNavModalError(null);
+    try {
+      const payload: Record<string, any> = {
+        label: navItemLabel.trim(),
+        url: navItemUrl.trim(),
+        target: navItemTarget,
+        parentId: navItemParentId || undefined,
+        pageId: navItemPageId || undefined,
+        isVisible: navItemIsVisible,
+      };
+
+      const url = editingNavItem
+        ? `${apiBaseUrl}/api/v1/tenant/cms/navigation/items/${editingNavItem.id}`
+        : `${apiBaseUrl}/api/v1/tenant/cms/navigation/${navLocation}/items`;
+      const method = editingNavItem ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to save navigation item');
+      }
+
+      setGlobalNotice({
+        type: 'success',
+        message: `Navigation item "${navItemLabel}" saved successfully.`,
+      });
+      setIsNavModalOpen(false);
+      fetchNavigation(navLocation);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error saving navigation item';
+      setNavModalError(message);
+    } finally {
+      setNavSaving(false);
+    }
+  };
+
+  const handleDeleteNavItem = async (item: NavigationItem) => {
+    if (!confirm(`Are you sure you want to remove "${item.label}" from this navigation menu?`)) return;
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/navigation/items/${item.id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to delete navigation item');
+      }
+      setGlobalNotice({ type: 'success', message: `Item "${item.label}" removed from menu.` });
+      fetchNavigation(navLocation);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error deleting item';
+      setGlobalNotice({ type: 'error', message });
+    }
+  };
+
+  const handleMoveNavItem = async (itemIndex: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? itemIndex - 1 : itemIndex + 1;
+    if (targetIndex < 0 || targetIndex >= navItems.length) return;
+
+    const newItems = [...navItems];
+    const [moved] = newItems.splice(itemIndex, 1);
+    newItems.splice(targetIndex, 0, moved);
+
+    const reorderPayload = {
+      items: newItems.map((item, idx) => ({ id: item.id, orderIndex: idx })),
+    };
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/navigation/${navLocation}/reorder`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(reorderPayload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to reorder navigation');
+      }
+      setNavItems(newItems);
+      setGlobalNotice({ type: 'success', message: 'Navigation order updated successfully.' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to reorder items';
+      setGlobalNotice({ type: 'error', message });
+      fetchNavigation(navLocation);
+    }
+  };
+
+  // =========================================================================
+  // Day 6 Media Library Action Handlers
+  // =========================================================================
+  const handleOpenCreateMedia = () => {
+    setMediaTitle('');
+    setMediaCategory('IMAGE');
+    setMediaAltText('');
+    setMediaIsDecorative(false);
+    setMediaIsPublic(true);
+    setMediaCaption('');
+    setMediaStorageUrl('https://images.unsplash.com/photo-1541829070764-84a7d30dd3f3?auto=format&fit=crop&w=1200&q=80');
+    setMediaModalError(null);
+    setIsMediaModalOpen(true);
+  };
+
+  const handleSaveMedia = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mediaTitle.trim()) {
+      setMediaModalError('Title is required.');
+      return;
+    }
+    // WCAG 2.2 AA Accessibility requirement: non-decorative visual assets MUST have alt-text
+    if (['IMAGE', 'LOGO', 'BANNER'].includes(mediaCategory) && !mediaIsDecorative && !mediaAltText.trim()) {
+      setMediaModalError('WCAG 2.2 AA Accessibility Violation: Non-decorative images must have descriptive alternative text for screen readers.');
+      return;
+    }
+
+    setMediaSaving(true);
+    setMediaModalError(null);
+    try {
+      const payload: Record<string, any> = {
+        title: mediaTitle.trim(),
+        category: mediaCategory,
+        altText: mediaIsDecorative ? undefined : mediaAltText.trim(),
+        isDecorative: mediaIsDecorative,
+        isPublic: mediaIsPublic,
+        caption: mediaCaption.trim() || undefined,
+        storageKey: mediaStorageUrl.trim() || `uploads/${mediaCategory.toLowerCase()}-${Date.now()}.jpg`,
+        storagePath: mediaStorageUrl.trim() || `uploads/${mediaCategory.toLowerCase()}-${Date.now()}.jpg`,
+        filename: `${mediaTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${mediaCategory === 'DOCUMENT' ? 'pdf' : 'jpg'}`,
+        mimeType: mediaCategory === 'DOCUMENT' ? 'application/pdf' : 'image/jpeg',
+        fileSizeBytes: 1048576,
+        fileSize: 1048576,
+      };
+
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/media`, {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to upload media asset');
+      }
+
+      setGlobalNotice({
+        type: 'success',
+        message: `Media asset "${mediaTitle}" stored successfully.`,
+      });
+      setIsMediaModalOpen(false);
+      fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error uploading media asset';
+      setMediaModalError(message);
+    } finally {
+      setMediaSaving(false);
+    }
+  };
+
+  const handleDeleteMedia = async (asset: MediaAssetItem) => {
+    if (!confirm(`Are you sure you want to delete media asset "${asset.title}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/media/${asset.id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to delete asset');
+      }
+      setGlobalNotice({ type: 'success', message: `Media asset "${asset.title}" deleted.` });
+      fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error deleting asset';
+      setGlobalNotice({ type: 'error', message });
+    }
+  };
+
+  const handleSelectMediaForSection = (asset: MediaAssetItem) => {
+    if (targetSectionIndex === null) return;
+    const updated = [...formSections];
+    const sec = updated[targetSectionIndex];
+    if (sec) {
+      const storagePath = asset.storagePath || asset.publicUrl || asset.storageKey || '';
+      const publicUrl = asset.isPublic
+        ? `${apiBaseUrl}/api/v1/tenant/public/media/${asset.id}/file`
+        : storagePath;
+      sec.config.imageUrl = publicUrl;
+      sec.config.altText = asset.altText || (asset.isDecorative ? '' : asset.title);
+      if (asset.caption && !sec.config.caption) {
+        sec.config.caption = asset.caption;
+      }
+    }
+    setFormSections(updated);
+    setIsMediaPickerOpen(false);
+    setTargetSectionIndex(null);
+  };
+
   return (
     <div className="container" style={{ paddingBottom: '4rem' }}>
       {/* Top Header */}
@@ -884,6 +1261,24 @@ export default function TenantAdminPage() {
           role="tab"
         >
           Pages & CMS
+        </button>
+        <button
+          id="tab-navigation-btn"
+          className={`tab-btn ${activeTab === 'navigation' ? 'active' : ''}`}
+          onClick={() => setActiveTab('navigation')}
+          aria-selected={activeTab === 'navigation'}
+          role="tab"
+        >
+          Navigation Menus
+        </button>
+        <button
+          id="tab-media-btn"
+          className={`tab-btn ${activeTab === 'media' ? 'active' : ''}`}
+          onClick={() => setActiveTab('media')}
+          aria-selected={activeTab === 'media'}
+          role="tab"
+        >
+          Media Library
         </button>
       </nav>
 
@@ -1540,6 +1935,357 @@ export default function TenantAdminPage() {
         </section>
       )}
 
+      {/* TAB 5: DYNAMIC NAVIGATION MENUS */}
+      {activeTab === 'navigation' && (
+        <section aria-labelledby="nav-heading">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 id="nav-heading" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Institutional Navigation Menus
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+                Configure hierarchy, destination routes, target windows, and dynamic dropdown submenus for header, footer, and quick links.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                id="create-nav-item-btn"
+                onClick={handleOpenCreateNavItem}
+                className="btn btn-primary btn-sm"
+              >
+                + Add Menu Item
+              </button>
+              <button
+                id="refresh-nav-btn"
+                onClick={() => fetchNavigation(navLocation)}
+                className="btn btn-secondary btn-sm"
+                disabled={navLoading}
+              >
+                {navLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+
+          {/* Location Switcher */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', background: 'rgba(30, 41, 59, 0.5)', padding: '0.5rem', borderRadius: '8px' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', alignSelf: 'center', marginRight: '0.5rem' }}>
+              Menu Location:
+            </span>
+            {(['HEADER', 'FOOTER', 'QUICK_LINKS'] as const).map((loc) => (
+              <button
+                key={loc}
+                id={`nav-loc-btn-${loc.toLowerCase()}`}
+                type="button"
+                className={`btn btn-sm ${navLocation === loc ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => {
+                  setNavLocation(loc);
+                  fetchNavigation(loc);
+                }}
+              >
+                {loc === 'HEADER' ? 'Header Navbar' : loc === 'FOOTER' ? 'Footer Menu' : 'Quick Links'}
+              </button>
+            ))}
+          </div>
+
+          {navError && (
+            <div className="alert alert-error" role="alert" style={{ marginBottom: '1.25rem' }}>
+              <span>{navError}</span>
+              <button onClick={() => fetchNavigation(navLocation)} className="btn btn-sm btn-secondary">Retry</button>
+            </div>
+          )}
+
+          {navLoading && !navError && (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+              <p style={{ color: 'var(--text-secondary)' }}>Loading navigation items...</p>
+            </div>
+          )}
+
+          {!navLoading && !navError && navItems.length === 0 && (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                No navigation items defined for location <code>{navLocation}</code>.
+              </p>
+              <button onClick={handleOpenCreateNavItem} className="btn btn-primary btn-sm">
+                Add First Menu Item
+              </button>
+            </div>
+          )}
+
+          {!navLoading && !navError && navItems.length > 0 && (
+            <div className="table-container">
+              <table className="table" aria-label="Navigation Menu Items">
+                <thead>
+                  <tr>
+                    <th scope="col" style={{ width: '80px' }}>Order</th>
+                    <th scope="col">Menu Item Label</th>
+                    <th scope="col">Destination URL</th>
+                    <th scope="col">Target</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {navItems.map((item, idx) => (
+                    <tr key={item.id}>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                          <button
+                            id={`nav-move-up-${idx}`}
+                            onClick={() => handleMoveNavItem(idx, 'up')}
+                            disabled={idx === 0}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '0.15rem 0.4rem', fontSize: '0.75rem' }}
+                            title="Move Up"
+                            aria-label={`Move ${item.label} Up`}
+                          >
+                            &uarr;
+                          </button>
+                          <button
+                            id={`nav-move-down-${idx}`}
+                            onClick={() => handleMoveNavItem(idx, 'down')}
+                            disabled={idx === navItems.length - 1}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '0.15rem 0.4rem', fontSize: '0.75rem' }}
+                            title="Move Down"
+                            aria-label={`Move ${item.label} Down`}
+                          >
+                            &darr;
+                          </button>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {item.parentId ? (
+                            <span style={{ color: 'var(--accent-primary)', fontSize: '0.85rem' }}>&#x2514;&#x2500;</span>
+                          ) : null}
+                          <strong style={{ color: '#f8fafc', fontSize: '0.95rem' }}>{item.label}</strong>
+                          {item.parentId ? (
+                            <span className="badge badge-secondary" style={{ fontSize: '0.65rem' }}>Submenu</span>
+                          ) : null}
+                          {item.pageId ? (
+                            <span className="badge badge-role" style={{ fontSize: '0.65rem' }}>Linked Page</span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>
+                        <code style={{ fontSize: '0.85rem' }}>{item.url}</code>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {item.target === '_blank' ? 'New Window (_blank)' : 'Same Window (_self)'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${item.isVisible ? 'badge-active' : 'badge-secondary'}`}>
+                          {item.isVisible ? 'Visible' : 'Hidden'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          <button
+                            id={`edit-nav-${item.id}`}
+                            onClick={() => handleOpenEditNavItem(item)}
+                            className="btn btn-secondary btn-sm"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            id={`delete-nav-${item.id}`}
+                            onClick={() => handleDeleteNavItem(item)}
+                            className="btn btn-danger btn-sm"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB 6: MEDIA LIBRARY */}
+      {activeTab === 'media' && (
+        <section aria-labelledby="media-heading">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 id="media-heading" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Media Library & Digital Assets
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+                Centralized asset repository supporting WCAG 2.2 AA alternative text compliance, categories, and public vs. access-controlled document distribution.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                id="upload-media-btn"
+                onClick={handleOpenCreateMedia}
+                className="btn btn-primary btn-sm"
+              >
+                + Upload Asset
+              </button>
+              <button
+                id="refresh-media-btn"
+                onClick={() => fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery)}
+                className="btn btn-secondary btn-sm"
+                disabled={mediaLoading}
+              >
+                {mediaLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+
+          {/* Category Chips and Search Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className="media-category-chips" style={{ marginBottom: 0 }}>
+              {(['ALL', 'IMAGE', 'DOCUMENT', 'VIDEO', 'LOGO', 'BANNER'] as const).map((cat) => (
+                <button
+                  key={cat}
+                  id={`media-chip-${cat.toLowerCase()}`}
+                  className={`media-chip-btn ${mediaCategoryFilter === cat ? 'active' : ''}`}
+                  onClick={() => {
+                    setMediaCategoryFilter(cat);
+                    fetchMediaAssets(cat, mediaSearchQuery);
+                  }}
+                >
+                  {cat === 'ALL' ? 'All Assets' : cat}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <label htmlFor="media-search-input" className="sr-only" style={{ display: 'none' }}>Search Media</label>
+              <input
+                id="media-search-input"
+                type="text"
+                placeholder="Search by title or filename..."
+                value={mediaSearchQuery}
+                onChange={(e) => {
+                  setMediaSearchQuery(e.target.value);
+                  fetchMediaAssets(mediaCategoryFilter, e.target.value);
+                }}
+                className="input"
+                style={{ width: '240px', padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+              />
+            </div>
+          </div>
+
+          {mediaError && (
+            <div className="alert alert-error" role="alert" style={{ marginBottom: '1.25rem' }}>
+              <span>{mediaError}</span>
+              <button onClick={() => fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery)} className="btn btn-sm btn-secondary">Retry</button>
+            </div>
+          )}
+
+          {mediaLoading && !mediaError && (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+              <p style={{ color: 'var(--text-secondary)' }}>Loading media assets...</p>
+            </div>
+          )}
+
+          {!mediaLoading && !mediaError && mediaAssets.length === 0 && (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                No assets found matching the selected filter.
+              </p>
+              <button onClick={handleOpenCreateMedia} className="btn btn-primary btn-sm">
+                Upload New Asset
+              </button>
+            </div>
+          )}
+
+          {!mediaLoading && !mediaError && mediaAssets.length > 0 && (
+            <div className="media-grid">
+              {mediaAssets.map((asset) => {
+                const storagePath = asset.storagePath || asset.publicUrl || asset.storageKey || '';
+                const isImageLike = ['IMAGE', 'LOGO', 'BANNER'].includes(asset.category);
+                const displayUrl = asset.isPublic
+                  ? `${apiBaseUrl}/api/v1/tenant/public/media/${asset.id}/file`
+                  : `${apiBaseUrl}/api/v1/tenant/cms/media/${asset.id}/file`;
+                const imageSrc = storagePath.startsWith('http') ? storagePath : displayUrl;
+                const filename = asset.filename || asset.storageKey?.split('/').pop() || `${asset.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${asset.category === 'DOCUMENT' ? 'pdf' : 'jpg'}`;
+                const sizeKb = ((asset.fileSizeBytes || asset.fileSize || 0) / 1024).toFixed(0);
+
+                return (
+                  <div key={asset.id} className="media-card" id={`media-card-${asset.id}`}>
+                    <div className="media-thumbnail-container">
+                      {isImageLike ? (
+                        <img
+                          src={imageSrc}
+                          alt={asset.altText || (asset.isDecorative ? '' : asset.title)}
+                          className="media-thumbnail"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="media-doc-icon" aria-hidden="true">
+                          {asset.category === 'DOCUMENT' ? '📄' : '🎥'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="media-card-body">
+                      <h3 className="media-card-title" title={asset.title}>
+                        {asset.title}
+                      </h3>
+                      <div className="media-card-meta">
+                        <span>{filename}</span> &bull; <span>{sizeKb} KB</span>
+                      </div>
+                      <div className="media-badges">
+                        <span className="badge badge-role">{asset.category}</span>
+                        <span className={`badge ${asset.isPublic ? 'badge-active' : 'badge-danger'}`}>
+                          {asset.isPublic ? 'PUBLIC' : 'RESTRICTED'}
+                        </span>
+                        {asset.isDecorative ? (
+                          <span className="badge badge-secondary" title="Decorative Asset (Alt text omitted)">Decorative</span>
+                        ) : asset.altText ? (
+                          <span className="badge badge-active" title={`Alt: "${asset.altText}"`}>Alt Text OK</span>
+                        ) : (
+                          <span className="badge badge-warning" title="Missing Alt Text">Needs Alt</span>
+                        )}
+                      </div>
+                      <div className="media-card-actions">
+                        <button
+                          id={`copy-url-${asset.id}`}
+                          onClick={() => {
+                            navigator.clipboard?.writeText(displayUrl);
+                            setGlobalNotice({ type: 'info', message: `Copied endpoint URL for "${asset.title}" to clipboard.` });
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ flex: 1 }}
+                        >
+                          Copy Link
+                        </button>
+                        <a
+                          id={`view-asset-${asset.id}`}
+                          href={displayUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-secondary btn-sm"
+                          style={{ textDecoration: 'none' }}
+                          title="Open or download asset file"
+                        >
+                          Open &rarr;
+                        </a>
+                        <button
+                          id={`delete-asset-${asset.id}`}
+                          onClick={() => handleDeleteMedia(asset)}
+                          className="btn btn-danger btn-sm"
+                          aria-label={`Delete ${asset.title}`}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* CMS PAGE EDITOR MODAL */}
       {isPageEditorOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="editor-modal-title">
@@ -1563,7 +2309,7 @@ export default function TenantAdminPage() {
               </div>
             )}
 
-            <form onSubmit={handleSavePage}>
+            <form onSubmit={handleSavePage} noValidate>
               <div className="grid" style={{ marginBottom: '1.25rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label htmlFor="page-title-input" className="form-label">
@@ -1788,15 +2534,30 @@ export default function TenantAdminPage() {
                       <div className="grid">
                         <div className="form-group" style={{ marginBottom: '0.5rem' }}>
                           <label htmlFor={`image-url-${idx}`} className="form-label">Image URL *</label>
-                          <input
-                            id={`image-url-${idx}`}
-                            type="text"
-                            value={sec.config.imageUrl || ''}
-                            onChange={(e) => handleUpdateSectionConfig(idx, 'imageUrl', e.target.value)}
-                            className="input"
-                            placeholder="https://..."
-                            required
-                          />
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <input
+                              id={`image-url-${idx}`}
+                              type="text"
+                              value={sec.config.imageUrl || ''}
+                              onChange={(e) => handleUpdateSectionConfig(idx, 'imageUrl', e.target.value)}
+                              className="input"
+                              placeholder="https://..."
+                              required
+                            />
+                            <button
+                              id={`choose-media-btn-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                setTargetSectionIndex(idx);
+                                fetchMediaAssets();
+                                setIsMediaPickerOpen(true);
+                              }}
+                              className="btn btn-secondary btn-sm"
+                              style={{ whiteSpace: 'nowrap' }}
+                            >
+                              Browse Media
+                            </button>
+                          </div>
                         </div>
                         <div className="form-group" style={{ marginBottom: '0.5rem' }}>
                           <label htmlFor={`image-alt-${idx}`} className="form-label">Accessible Alt Text * (WCAG 2.2 AA)</label>
@@ -1862,6 +2623,407 @@ export default function TenantAdminPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* NAVIGATION ITEM MODAL */}
+      {isNavModalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="nav-modal-title">
+          <div className="modal-content" style={{ maxWidth: '550px' }}>
+            <div className="modal-header">
+              <h2 id="nav-modal-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                {editingNavItem ? 'Edit Navigation Item' : `Add ${navLocation} Menu Item`}
+              </h2>
+              <button
+                onClick={() => setIsNavModalOpen(false)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+            </div>
+
+            {navModalError && (
+              <div className="alert alert-error" role="alert" style={{ marginBottom: '1.25rem' }}>
+                <span>{navModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveNavItem} noValidate>
+              <div className="form-group">
+                <label htmlFor="nav-item-label" className="form-label">
+                  Menu Label *
+                </label>
+                <input
+                  id="nav-item-label"
+                  type="text"
+                  value={navItemLabel}
+                  onChange={(e) => setNavItemLabel(e.target.value)}
+                  className="input"
+                  placeholder="e.g. Undergraduate Admissions"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="nav-item-url" className="form-label">
+                  Destination URL *
+                </label>
+                <input
+                  id="nav-item-url"
+                  type="text"
+                  value={navItemUrl}
+                  onChange={(e) => setNavItemUrl(e.target.value)}
+                  className="input"
+                  placeholder="e.g. /admissions or https://..."
+                  required
+                />
+              </div>
+
+              <div className="grid">
+                <div className="form-group">
+                  <label htmlFor="nav-item-target" className="form-label">
+                    Target Window
+                  </label>
+                  <select
+                    id="nav-item-target"
+                    value={navItemTarget}
+                    onChange={(e) => setNavItemTarget(e.target.value as '_self' | '_blank')}
+                    className="select"
+                  >
+                    <option value="_self">Same Window (_self)</option>
+                    <option value="_blank">New Window (_blank)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="nav-item-parent" className="form-label">
+                    Parent Item (Submenu)
+                  </label>
+                  <select
+                    id="nav-item-parent"
+                    value={navItemParentId}
+                    onChange={(e) => setNavItemParentId(e.target.value)}
+                    className="select"
+                  >
+                    <option value="">None (Top-Level Item)</option>
+                    {navItems
+                      .filter((i) => !editingNavItem || i.id !== editingNavItem.id)
+                      .map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.label}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="nav-item-page" className="form-label">
+                  Optionally Link to Existing Page
+                </label>
+                <select
+                  id="nav-item-page"
+                  value={navItemPageId}
+                  onChange={(e) => {
+                    const selPageId = e.target.value;
+                    setNavItemPageId(selPageId);
+                    if (selPageId) {
+                      const matched = pages.find((p) => p.id === selPageId);
+                      if (matched) {
+                        setNavItemUrl(`/${matched.slug}`);
+                        if (!navItemLabel) setNavItemLabel(matched.title);
+                      }
+                    }
+                  }}
+                  className="select"
+                >
+                  <option value="">Custom URL (Not linked to CMS Page)</option>
+                  {pages.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} (/{p.slug})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <input
+                  id="nav-item-visible"
+                  type="checkbox"
+                  checked={navItemIsVisible}
+                  onChange={(e) => setNavItemIsVisible(e.target.checked)}
+                />
+                <label htmlFor="nav-item-visible" style={{ color: '#f8fafc', fontSize: '0.9rem', cursor: 'pointer' }}>
+                  Visible in public navigation
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsNavModalOpen(false)}
+                  className="btn btn-secondary"
+                  disabled={navSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="save-nav-item-btn"
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={navSaving}
+                >
+                  {navSaving ? 'Saving...' : editingNavItem ? 'Update Item' : 'Add Item'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MEDIA UPLOAD MODAL */}
+      {isMediaModalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="media-modal-title">
+          <div className="modal-content" style={{ maxWidth: '620px' }}>
+            <div className="modal-header">
+              <h2 id="media-modal-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Upload Digital Media Asset
+              </h2>
+              <button
+                onClick={() => setIsMediaModalOpen(false)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+            </div>
+
+            {mediaModalError && (
+              <div className="alert alert-error" role="alert" style={{ marginBottom: '1.25rem' }}>
+                <span>{mediaModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveMedia} noValidate>
+              <div className="grid">
+                <div className="form-group">
+                  <label htmlFor="media-title-input" className="form-label">
+                    Asset Title *
+                  </label>
+                  <input
+                    id="media-title-input"
+                    type="text"
+                    value={mediaTitle}
+                    onChange={(e) => setMediaTitle(e.target.value)}
+                    className="input"
+                    placeholder="e.g. Campus Aerial View"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="media-category-select" className="form-label">
+                    Category *
+                  </label>
+                  <select
+                    id="media-category-select"
+                    value={mediaCategory}
+                    onChange={(e) => setMediaCategory(e.target.value as any)}
+                    className="select"
+                  >
+                    <option value="IMAGE">Image</option>
+                    <option value="DOCUMENT">Document / PDF</option>
+                    <option value="VIDEO">Video</option>
+                    <option value="LOGO">Institutional Logo</option>
+                    <option value="BANNER">Hero Banner</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Alt Text Accessibility Section (WCAG 2.2 AA) */}
+              {['IMAGE', 'LOGO', 'BANNER'].includes(mediaCategory) && (
+                <div style={{ background: 'rgba(15, 23, 42, 0.5)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <label htmlFor="media-alt-input" className="form-label" style={{ marginBottom: 0 }}>
+                      Accessible Alternative Text {mediaIsDecorative ? '(Omitted)' : '*'}
+                    </label>
+                    <span className="badge badge-active" style={{ fontSize: '0.68rem' }}>WCAG 2.2 AA Mandatory</span>
+                  </div>
+                  <input
+                    id="media-alt-input"
+                    type="text"
+                    value={mediaAltText}
+                    onChange={(e) => setMediaAltText(e.target.value)}
+                    className="input"
+                    placeholder="Describe asset contents for screen-reader users..."
+                    disabled={mediaIsDecorative}
+                    required={!mediaIsDecorative}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <input
+                      id="media-decorative-check"
+                      type="checkbox"
+                      checked={mediaIsDecorative}
+                      onChange={(e) => {
+                        setMediaIsDecorative(e.target.checked);
+                        if (e.target.checked) setMediaAltText('');
+                      }}
+                    />
+                    <label htmlFor="media-decorative-check" style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', cursor: 'pointer' }}>
+                      Mark as purely decorative (decorative elements omit alt text per WCAG 2.2 guideline 1.1.1)
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label htmlFor="media-url-input" className="form-label">
+                  File URL or Storage Path *
+                </label>
+                <input
+                  id="media-url-input"
+                  type="text"
+                  value={mediaStorageUrl}
+                  onChange={(e) => setMediaStorageUrl(e.target.value)}
+                  className="input"
+                  placeholder="https://..."
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="media-caption-input" className="form-label">
+                  Caption / Description (Optional)
+                </label>
+                <input
+                  id="media-caption-input"
+                  type="text"
+                  value={mediaCaption}
+                  onChange={(e) => setMediaCaption(e.target.value)}
+                  className="input"
+                  placeholder="Additional context displayed beneath media..."
+                />
+              </div>
+
+              {/* Public vs. Restricted Switch */}
+              <div style={{ background: 'rgba(30, 41, 59, 0.4)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '0.85rem', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    id="media-public-check"
+                    type="checkbox"
+                    checked={mediaIsPublic}
+                    onChange={(e) => setMediaIsPublic(e.target.checked)}
+                  />
+                  <label htmlFor="media-public-check" style={{ color: '#f8fafc', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer' }}>
+                    Public Media Asset (Accessible on public website without login)
+                  </label>
+                </div>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
+                  Uncheck for sensitive, internal admissions, financial, or staff documents. Restricted assets return HTTP 404 to unauthenticated visitors.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsMediaModalOpen(false)}
+                  className="btn btn-secondary"
+                  disabled={mediaSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="submit-media-btn"
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={mediaSaving}
+                >
+                  {mediaSaving ? 'Saving...' : 'Upload Asset'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MEDIA PICKER MODAL (For CMS Section Editor) */}
+      {isMediaPickerOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="media-picker-title">
+          <div className="modal-content" style={{ maxWidth: '850px', maxHeight: '85vh' }}>
+            <div className="modal-header">
+              <h2 id="media-picker-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Choose Media for Section
+              </h2>
+              <button
+                onClick={() => setIsMediaPickerOpen(false)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                Select an asset from the media library to populate the section image and accessibility alt text.
+              </p>
+            </div>
+
+            {mediaAssets.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '2.5rem' }}>
+                <p style={{ color: 'var(--text-secondary)' }}>No media assets available.</p>
+              </div>
+            ) : (
+              <div className="media-grid" style={{ maxHeight: '55vh', overflowY: 'auto', padding: '0.5rem' }}>
+                {mediaAssets.map((asset) => {
+                  const storagePath = asset.storagePath || asset.publicUrl || asset.storageKey || '';
+                  const displayUrl = asset.isPublic
+                    ? `${apiBaseUrl}/api/v1/tenant/public/media/${asset.id}/file`
+                    : `${apiBaseUrl}/api/v1/tenant/cms/media/${asset.id}/file`;
+                  const imageSrc = storagePath.startsWith('http') ? storagePath : displayUrl;
+
+                  return (
+                    <div
+                      key={asset.id}
+                      id={`picker-asset-${asset.id}`}
+                      onClick={() => handleSelectMediaForSection(asset)}
+                      className="media-card"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className="media-thumbnail-container" style={{ height: '120px' }}>
+                        {['IMAGE', 'LOGO', 'BANNER'].includes(asset.category) ? (
+                          <img
+                            src={imageSrc}
+                            alt={asset.altText || ''}
+                            className="media-thumbnail"
+                          />
+                        ) : (
+                          <span className="media-doc-icon">📄</span>
+                        )}
+                      </div>
+                    <div className="media-card-body" style={{ padding: '0.75rem' }}>
+                      <strong style={{ color: '#f8fafc', fontSize: '0.9rem' }}>{asset.title}</strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.25rem' }}>
+                        Click to Select &rarr;
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => setIsMediaPickerOpen(false)}
+                className="btn btn-secondary"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
