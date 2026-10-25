@@ -125,7 +125,9 @@ export const PERMISSIONS = {
   TAXONOMY_READ: 'taxonomy:read',
   TAXONOMY_WRITE: 'taxonomy:write',
 
-  // Admissions
+  // Admissions & Forms (Day 7)
+  CMS_FORMS_READ: 'cms:forms:read',
+  CMS_FORMS_WRITE: 'cms:forms:write',
   ADMISSIONS_READ: 'admissions:read',
   ADMISSIONS_REVIEW: 'admissions:review',
   ADMISSIONS_MANAGE: 'admissions:manage',
@@ -397,6 +399,16 @@ export type AuditLogQueryDto = z.infer<typeof AuditLogQuerySchema>;
 /**
  * Email Delivery Service Interface
  */
+export interface FormSubmissionEmailNotification {
+  formTitle: string;
+  formType: string;
+  submitterName?: string;
+  submitterEmail?: string;
+  submittedAt: string;
+  data: Record<string, unknown>;
+  tenantName: string;
+}
+
 export interface IEmailService {
   sendPasswordResetEmail(toEmail: string, resetToken: string, tenantName?: string): Promise<void>;
   sendEmailVerificationEmail(toEmail: string, verificationToken: string, tenantName?: string): Promise<void>;
@@ -405,6 +417,19 @@ export interface IEmailService {
     invitationToken: string,
     tenantName: string,
     inviterName?: string
+  ): Promise<void>;
+  sendFormSubmissionNotification(
+    recipientEmails: string[],
+    notification: FormSubmissionEmailNotification
+  ): Promise<void>;
+  sendSubmissionConfirmation(
+    toEmail: string,
+    notification: {
+      submitterName?: string;
+      formTitle: string;
+      tenantName: string;
+      confirmationMessage?: string;
+    }
   ): Promise<void>;
 }
 
@@ -824,3 +849,190 @@ export interface CategoryDto {
   updatedAt: string;
   mediaAssetsCount?: number;
 }
+
+/**
+ * ==========================================
+ * DAY 7: DYNAMIC FORMS & ADMISSIONS SUBMISSIONS
+ * ==========================================
+ */
+
+export const FormTypeEnum = z.enum([
+  'GENERAL_ENQUIRY',
+  'ADMISSIONS_INQUIRY',
+  'CONTACT_US',
+  'APPLICATION',
+  'FEEDBACK',
+  'OTHER',
+]);
+export type FormType = z.infer<typeof FormTypeEnum>;
+
+export const FormFieldTypeEnum = z.enum([
+  'TEXT',
+  'TEXTAREA',
+  'EMAIL',
+  'PHONE',
+  'NUMBER',
+  'SELECT',
+  'RADIO',
+  'CHECKBOX',
+  'DATE',
+]);
+export type FormFieldType = z.infer<typeof FormFieldTypeEnum>;
+
+export const SubmissionStatusEnum = z.enum([
+  'PENDING',
+  'UNDER_REVIEW',
+  'ACCEPTED',
+  'REJECTED',
+  'ARCHIVED',
+]);
+export type SubmissionStatus = z.infer<typeof SubmissionStatusEnum>;
+
+export const FormFieldOptionSchema = z.object({
+  label: z.string().min(1, 'Option label is required').max(100),
+  value: z.string().min(1, 'Option value is required').max(100),
+});
+export type FormFieldOption = z.infer<typeof FormFieldOptionSchema>;
+
+export const FormFieldValidationSchema = z.object({
+  min: z.number().optional(),
+  max: z.number().optional(),
+  pattern: z.string().optional(),
+  customError: z.string().optional(),
+});
+export type FormFieldValidation = z.infer<typeof FormFieldValidationSchema>;
+
+export const FormFieldInputSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Field name is required')
+    .max(64)
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Field name must be alphanumeric with underscores or hyphens'),
+  label: z.string().min(1, 'Field label is required').max(120),
+  fieldType: FormFieldTypeEnum.default('TEXT'),
+  placeholder: z.string().max(200).optional().nullable(),
+  helpText: z.string().max(300).optional().nullable(),
+  defaultValue: z.string().max(200).optional().nullable(),
+  isRequired: z.boolean().default(false),
+  validationRules: FormFieldValidationSchema.optional().nullable(),
+  options: z.array(FormFieldOptionSchema).optional().nullable(),
+  orderIndex: z.number().int().min(0).default(0),
+});
+export type FormFieldInputDto = z.infer<typeof FormFieldInputSchema>;
+
+export interface FormFieldDto {
+  id: string;
+  formId: string;
+  name: string;
+  label: string;
+  fieldType: FormFieldType;
+  placeholder: string | null;
+  helpText: string | null;
+  defaultValue: string | null;
+  isRequired: boolean;
+  validationRules: FormFieldValidation | null;
+  options: FormFieldOption[] | null;
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const CreateFormSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(150),
+  slug: z
+    .string()
+    .min(1, 'Slug is required')
+    .max(100)
+    .regex(slugRegex, 'Slug must consist of lowercase alphanumeric characters and hyphens'),
+  description: z.string().max(1000).optional().nullable(),
+  type: FormTypeEnum.default('GENERAL_ENQUIRY'),
+  recipientEmails: z.array(z.string().email('Valid recipient email required')).default([]),
+  isPublished: z.boolean().default(true),
+  successMessage: z.string().max(500).optional().nullable(),
+  submitButtonText: z.string().max(50).default('Submit'),
+  fields: z.array(FormFieldInputSchema).optional(),
+});
+export type CreateFormDto = z.infer<typeof CreateFormSchema>;
+
+export const UpdateFormSchema = z.object({
+  title: z.string().min(1).max(150).optional(),
+  slug: z.string().min(1).max(100).regex(slugRegex).optional(),
+  description: z.string().max(1000).optional().nullable(),
+  type: FormTypeEnum.optional(),
+  recipientEmails: z.array(z.string().email()).optional(),
+  isPublished: z.boolean().optional(),
+  successMessage: z.string().max(500).optional().nullable(),
+  submitButtonText: z.string().max(50).optional(),
+  fields: z.array(FormFieldInputSchema).optional(),
+});
+export type UpdateFormDto = z.infer<typeof UpdateFormSchema>;
+
+export interface FormDto {
+  id: string;
+  tenantId: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  type: FormType;
+  recipientEmails: string[];
+  isPublished: boolean;
+  successMessage: string | null;
+  submitButtonText: string;
+  fields: FormFieldDto[];
+  submissionsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicFormDto {
+  id: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  type: FormType;
+  isPublished: boolean;
+  successMessage: string | null;
+  submitButtonText: string;
+  fields: FormFieldDto[];
+}
+
+export const PublicSubmitFormSchema = z.object({
+  data: z.record(z.unknown()),
+  _hp_company: z.string().optional(),
+});
+export type PublicSubmitFormDto = z.infer<typeof PublicSubmitFormSchema>;
+
+export const UpdateSubmissionStatusSchema = z.object({
+  status: SubmissionStatusEnum,
+  adminNotes: z.string().max(2000).optional().nullable(),
+});
+export type UpdateSubmissionStatusDto = z.infer<typeof UpdateSubmissionStatusSchema>;
+
+export const FormSubmissionQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: SubmissionStatusEnum.optional(),
+  formId: z.string().optional(),
+  search: z.string().max(100).optional(),
+});
+export type FormSubmissionQueryDto = z.infer<typeof FormSubmissionQuerySchema>;
+
+export interface FormSubmissionDto {
+  id: string;
+  tenantId: string;
+  formId: string;
+  formTitle?: string;
+  formType?: FormType;
+  data: Record<string, unknown>;
+  status: SubmissionStatus;
+  submitterEmail: string | null;
+  submitterName: string | null;
+  submitterPhone: string | null;
+  adminNotes: string | null;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  reviewerName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+

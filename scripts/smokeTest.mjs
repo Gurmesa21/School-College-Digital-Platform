@@ -341,6 +341,100 @@ async function run() {
     testCases.push({ name: 'Frontend SSR Renders Dynamic Header & Footer Layout', status: webHomeNav.status, pass: pass20 });
     console.log(`  -> Status: ${webHomeNav.status}, Header & Footer Present: ${pass20}`);
 
+    // Test 21: Public Form Schema Retrieval (FR-CON-001)
+    console.log('Testing 21: GET http://localhost:4000/api/v1/tenant/public/forms/contact-us');
+    const pubFormRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/forms/contact-us', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Accept: 'application/json',
+      },
+    });
+    const pubFormJson = JSON.parse(pubFormRes.body);
+    const pass21 = pubFormRes.status === 200 && pubFormJson.success === true && pubFormJson.data?.slug === 'contact-us' && Array.isArray(pubFormJson.data?.fields);
+    testCases.push({ name: 'Public Form Schema Served Anonymously (200)', status: pubFormRes.status, pass: pass21 });
+    console.log(`  -> Status: ${pubFormRes.status}, Fields Count: ${pubFormJson.data?.fields?.length}, Pass: ${pass21}`);
+
+    // Test 22: Public Form Submission Processing & Validation (FR-CON-001)
+    console.log('Testing 22: POST http://localhost:4000/api/v1/tenant/public/forms/contact-us/submit');
+    const submitRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/forms/contact-us/submit', {
+      method: 'POST',
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: {
+        data: {
+          fullName: 'Smoke Test Visitor',
+          email: 'visitor.smoke@example.com',
+          phone: '+251 91 000 1122',
+          department: 'admissions',
+          message: 'Inquiring via automated smoke test suite.',
+        },
+      },
+    });
+    const submitJson = JSON.parse(submitRes.body);
+    const pass22 = submitRes.status === 201 && submitJson.success === true && !!submitJson.data?.submissionId;
+    testCases.push({ name: 'Public Form Submission Processed (201)', status: submitRes.status, pass: pass22 });
+    console.log(`  -> Status: ${submitRes.status}, Submission ID: ${submitJson.data?.submissionId}, Pass: ${pass22}`);
+
+    const newSubmissionId = submitJson.data?.submissionId;
+
+    // Test 23: Anti-Spam Honeypot Bot Rejection (FR-CON-001)
+    console.log('Testing 23: POST http://localhost:4000/api/v1/tenant/public/forms/contact-us/submit with honeypot');
+    const botRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/forms/contact-us/submit', {
+      method: 'POST',
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: {
+        data: {
+          fullName: 'Spam Bot',
+          email: 'spammer@bot.net',
+          department: 'general',
+          message: 'Spam payload',
+        },
+        _hp_company: 'Spam Corporation Inc',
+      },
+    });
+    const botJson = JSON.parse(botRes.body);
+    const pass23 = botRes.status === 400 && botJson.error?.code === 'VALIDATION_FAILED';
+    testCases.push({ name: 'Anti-Spam Honeypot Bot Submission Rejected (400)', status: botRes.status, pass: pass23 });
+    console.log(`  -> Status: ${botRes.status}, Error Code: ${botJson.error?.code}, Pass: ${pass23}`);
+
+    // Test 24: Admin Submission Review & Status Transition (FR-APP-003, FR-APP-005)
+    console.log(`Testing 24: PATCH http://localhost:4000/api/v1/tenant/cms/forms/submissions/${newSubmissionId}/status`);
+    const reviewRes = await fetchUrl(`http://localhost:4000/api/v1/tenant/cms/forms/submissions/${newSubmissionId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Content-Type': 'application/json',
+        'Cookie': cookieString,
+      },
+      body: {
+        status: 'UNDER_REVIEW',
+        adminNotes: 'Smoke test review verification note.',
+      },
+    });
+    const reviewJson = JSON.parse(reviewRes.body);
+    const pass24 = reviewRes.status === 200 && reviewJson.success === true && reviewJson.data?.status === 'UNDER_REVIEW';
+    testCases.push({ name: 'Admin Submission Status Review Transition (200)', status: reviewRes.status, pass: pass24 });
+    console.log(`  -> Status: ${reviewRes.status}, New Status: ${reviewJson.data?.status}, Pass: ${pass24}`);
+
+    // Test 25: Public Frontend Contact & Admissions Pages
+    console.log('Testing 25: GET http://localhost:3000/contact and /admissions');
+    const contactPageRes = await fetchUrl('http://localhost:3000/contact');
+    const admissionsPageRes = await fetchUrl('http://localhost:3000/admissions');
+    const pass25 =
+      contactPageRes.status === 200 &&
+      (contactPageRes.body.includes('Get in Touch') || contactPageRes.body.includes('Contact')) &&
+      admissionsPageRes.status === 200 &&
+      admissionsPageRes.body.includes('Admissions');
+    testCases.push({ name: 'Public Contact & Admissions Frontend Pages Render (200)', status: contactPageRes.status, pass: pass25 });
+    console.log(`  -> Contact: ${contactPageRes.status}, Admissions: ${admissionsPageRes.status}, Pass: ${pass25}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -354,7 +448,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 20 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 25 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');

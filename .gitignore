@@ -15,12 +15,12 @@ next-env.d.ts
 coverage/
 test-results/
 playwright-report/
-docs/
+
 # Environment files
 .env*
 !.env.example
 !.env.docker.example
-
+docs/
 # Logs
 logs/
 *.log

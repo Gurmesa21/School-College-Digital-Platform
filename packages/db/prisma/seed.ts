@@ -9,6 +9,9 @@ import {
   NavigationLocation,
   MediaCategory,
   CategoryType,
+  FormType,
+  FormFieldType,
+  SubmissionStatus,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -131,6 +134,10 @@ export const SYSTEM_PERMISSIONS: Array<{ code: string; category: string; descrip
   { code: 'taxonomy:read', category: 'taxonomy', description: 'View content taxonomy categories' },
   { code: 'taxonomy:write', category: 'taxonomy', description: 'Manage content taxonomy categories' },
 
+  // Forms & Admissions Submissions (Day 7)
+  { code: 'cms:forms:read', category: 'cms', description: 'View form definitions and submissions' },
+  { code: 'cms:forms:write', category: 'cms', description: 'Create, update, and manage dynamic forms' },
+
   // Analytics
   { code: 'analytics:view', category: 'analytics', description: 'View institution traffic and admissions analytics' },
 
@@ -176,6 +183,8 @@ export const SYSTEM_ROLES: Array<{
       'media:delete',
       'taxonomy:read',
       'taxonomy:write',
+      'cms:forms:read',
+      'cms:forms:write',
       'admissions:read',
       'admissions:review',
       'admissions:manage',
@@ -196,6 +205,7 @@ export const SYSTEM_ROLES: Array<{
       'cms:navigation:read',
       'media:read',
       'taxonomy:read',
+      'cms:forms:read',
       'admissions:read',
       'admissions:review',
       'analytics:view',
@@ -207,6 +217,8 @@ export const SYSTEM_ROLES: Array<{
     description: 'Review admissions enquiries, documents, and application reviews',
     isSystem: true,
     permissions: [
+      'cms:forms:read',
+      'cms:forms:write',
       'admissions:read',
       'admissions:review',
       'admissions:manage',
@@ -782,9 +794,268 @@ export async function seedDevelopmentData(): Promise<void> {
       });
     }
     console.log('  -> Seeded 4 Media Assets (3 public, 1 private access-controlled) for Oxford');
+
+    // 9. Seed Dynamic Forms & Submissions (Day 7)
+    console.log('[Seed] Seeding dynamic forms and admissions submissions for Oxford...');
+
+    // Form 1: Contact & General Enquiries
+    const contactForm = await prisma.form.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId: oxfordTenant.id,
+          slug: 'contact-us',
+        },
+      },
+      update: {
+        title: 'Contact & General Enquiries',
+        description: 'Have questions about Oxford International School? Get in touch with our team.',
+        type: FormType.CONTACT_US,
+        recipientEmails: ['admissions@oxford.school.example', 'info@oxford.school.example'],
+        isPublished: true,
+        successMessage: 'Thank you for contacting Oxford International School. A member of our team will respond within 1 business day.',
+        submitButtonText: 'Send Message',
+      },
+      create: {
+        tenantId: oxfordTenant.id,
+        slug: 'contact-us',
+        title: 'Contact & General Enquiries',
+        description: 'Have questions about Oxford International School? Get in touch with our team.',
+        type: FormType.CONTACT_US,
+        recipientEmails: ['admissions@oxford.school.example', 'info@oxford.school.example'],
+        isPublished: true,
+        successMessage: 'Thank you for contacting Oxford International School. A member of our team will respond within 1 business day.',
+        submitButtonText: 'Send Message',
+      },
+    });
+
+    await prisma.formField.deleteMany({ where: { formId: contactForm.id } });
+    await prisma.formField.createMany({
+      data: [
+        {
+          formId: contactForm.id,
+          name: 'fullName',
+          label: 'Full Name',
+          fieldType: FormFieldType.TEXT,
+          placeholder: 'e.g. Jane Doe',
+          isRequired: true,
+          orderIndex: 0,
+        },
+        {
+          formId: contactForm.id,
+          name: 'email',
+          label: 'Email Address',
+          fieldType: FormFieldType.EMAIL,
+          placeholder: 'jane.doe@example.com',
+          isRequired: true,
+          orderIndex: 1,
+        },
+        {
+          formId: contactForm.id,
+          name: 'phone',
+          label: 'Phone Number',
+          fieldType: FormFieldType.PHONE,
+          placeholder: '+251 91 123 4567',
+          isRequired: false,
+          orderIndex: 2,
+        },
+        {
+          formId: contactForm.id,
+          name: 'department',
+          label: 'Department / Enquiry Category',
+          fieldType: FormFieldType.SELECT,
+          isRequired: true,
+          orderIndex: 3,
+          options: [
+            { label: 'General Enquiry', value: 'general' },
+            { label: 'Admissions & Enrollment', value: 'admissions' },
+            { label: 'Finance & Tuition', value: 'finance' },
+            { label: 'Academic Curriculum', value: 'academics' },
+          ],
+        },
+        {
+          formId: contactForm.id,
+          name: 'message',
+          label: 'Your Message',
+          fieldType: FormFieldType.TEXTAREA,
+          placeholder: 'How can our administration assist you?',
+          isRequired: true,
+          orderIndex: 4,
+        },
+      ],
+    });
+
+    // Form 2: Admissions Application Form
+    const admissionsForm = await prisma.form.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId: oxfordTenant.id,
+          slug: 'admissions-application',
+        },
+      },
+      update: {
+        title: 'Admissions Application Form 2026-2027',
+        description: 'Submit your student application for the upcoming academic year.',
+        type: FormType.APPLICATION,
+        recipientEmails: ['admissions@oxford.school.example'],
+        isPublished: true,
+        successMessage: 'Your admissions application has been submitted successfully. The Admissions Office will review your details and contact you for assessment scheduling.',
+        submitButtonText: 'Submit Application',
+      },
+      create: {
+        tenantId: oxfordTenant.id,
+        slug: 'admissions-application',
+        title: 'Admissions Application Form 2026-2027',
+        description: 'Submit your student application for the upcoming academic year.',
+        type: FormType.APPLICATION,
+        recipientEmails: ['admissions@oxford.school.example'],
+        isPublished: true,
+        successMessage: 'Your admissions application has been submitted successfully. The Admissions Office will review your details and contact you for assessment scheduling.',
+        submitButtonText: 'Submit Application',
+      },
+    });
+
+    await prisma.formField.deleteMany({ where: { formId: admissionsForm.id } });
+    await prisma.formField.createMany({
+      data: [
+        {
+          formId: admissionsForm.id,
+          name: 'studentFullName',
+          label: 'Student Full Name',
+          fieldType: FormFieldType.TEXT,
+          placeholder: 'e.g. Dawit Haile',
+          isRequired: true,
+          orderIndex: 0,
+        },
+        {
+          formId: admissionsForm.id,
+          name: 'dateOfBirth',
+          label: 'Student Date of Birth',
+          fieldType: FormFieldType.DATE,
+          isRequired: true,
+          orderIndex: 1,
+        },
+        {
+          formId: admissionsForm.id,
+          name: 'gradeApplying',
+          label: 'Grade / Year Group Applying For',
+          fieldType: FormFieldType.SELECT,
+          isRequired: true,
+          orderIndex: 2,
+          options: [
+            { label: 'Kindergarten / Early Years', value: 'KG' },
+            { label: 'Primary (Grades 1-5)', value: 'PRIMARY' },
+            { label: 'Middle School (Grades 6-8)', value: 'MIDDLE' },
+            { label: 'High School (Grades 9-12)', value: 'HIGH' },
+          ],
+        },
+        {
+          formId: admissionsForm.id,
+          name: 'parentFullName',
+          label: 'Parent / Guardian Full Name',
+          fieldType: FormFieldType.TEXT,
+          placeholder: 'e.g. Haile Gebreselassie',
+          isRequired: true,
+          orderIndex: 3,
+        },
+        {
+          formId: admissionsForm.id,
+          name: 'parentEmail',
+          label: 'Parent Email Address',
+          fieldType: FormFieldType.EMAIL,
+          placeholder: 'haile.parent@example.com',
+          isRequired: true,
+          orderIndex: 4,
+        },
+        {
+          formId: admissionsForm.id,
+          name: 'parentPhone',
+          label: 'Parent Phone Number',
+          fieldType: FormFieldType.PHONE,
+          placeholder: '+251 91 123 4567',
+          isRequired: true,
+          orderIndex: 5,
+        },
+        {
+          formId: admissionsForm.id,
+          name: 'previousSchool',
+          label: 'Previous School Name',
+          fieldType: FormFieldType.TEXT,
+          placeholder: 'Name of prior institution attended',
+          isRequired: false,
+          orderIndex: 6,
+        },
+        {
+          formId: admissionsForm.id,
+          name: 'specialNeeds',
+          label: 'Medical or Learning Support Needs',
+          fieldType: FormFieldType.TEXTAREA,
+          placeholder: 'Indicate any accommodations, allergies, or support required',
+          isRequired: false,
+          orderIndex: 7,
+        },
+      ],
+    });
+
+    // Seed sample submissions
+    const existingContactSub = await prisma.formSubmission.findFirst({
+      where: { formId: contactForm.id },
+    });
+    if (!existingContactSub) {
+      await prisma.formSubmission.create({
+        data: {
+          tenantId: oxfordTenant.id,
+          formId: contactForm.id,
+          status: SubmissionStatus.PENDING,
+          submitterName: 'Abebe Kebede',
+          submitterEmail: 'abebe.kebede@example.com',
+          submitterPhone: '+251 91 234 5678',
+          ipAddressHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          data: {
+            fullName: 'Abebe Kebede',
+            email: 'abebe.kebede@example.com',
+            phone: '+251 91 234 5678',
+            department: 'admissions',
+            message: 'Inquiring about open house dates and campus tour schedules for next term.',
+          },
+        },
+      });
+    }
+
+    const existingAppSub = await prisma.formSubmission.findFirst({
+      where: { formId: admissionsForm.id },
+    });
+    if (!existingAppSub) {
+      await prisma.formSubmission.create({
+        data: {
+          tenantId: oxfordTenant.id,
+          formId: admissionsForm.id,
+          status: SubmissionStatus.UNDER_REVIEW,
+          submitterName: 'Sara Tadesse',
+          submitterEmail: 'sara.tadesse@example.com',
+          submitterPhone: '+251 92 345 6789',
+          adminNotes: 'Application documents verified. Assessment interview scheduled for next Tuesday.',
+          reviewedById: adminUser?.id,
+          reviewedAt: new Date(),
+          ipAddressHash: 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3',
+          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+          data: {
+            studentFullName: 'Yonas Tadesse',
+            dateOfBirth: '2015-04-12',
+            gradeApplying: 'PRIMARY',
+            parentFullName: 'Sara Tadesse',
+            parentEmail: 'sara.tadesse@example.com',
+            parentPhone: '+251 92 345 6789',
+            previousSchool: 'Addis International Community School',
+            specialNeeds: 'None',
+          },
+        },
+      });
+    }
+    console.log('  -> Seeded 2 Dynamic Forms (Contact & Admissions) with Fields and Sample Submissions for Oxford');
   }
 
-  console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, and media seed completed idempotently.');
+  console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, media, and dynamic forms seed completed idempotently.');
 }
 
 // Direct execution guard

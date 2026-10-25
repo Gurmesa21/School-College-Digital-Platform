@@ -146,8 +146,57 @@ interface MediaAssetItem {
   url?: string;
 }
 
+interface FormFieldItem {
+  id?: string;
+  name: string;
+  label: string;
+  fieldType: 'TEXT' | 'TEXTAREA' | 'EMAIL' | 'PHONE' | 'NUMBER' | 'SELECT' | 'RADIO' | 'CHECKBOX' | 'DATE';
+  placeholder?: string | null;
+  helpText?: string | null;
+  defaultValue?: string | null;
+  isRequired: boolean;
+  options?: Array<{ label: string; value: string }> | null;
+  orderIndex: number;
+}
+
+interface FormItem {
+  id: string;
+  tenantId: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  type: 'GENERAL_ENQUIRY' | 'ADMISSIONS_INQUIRY' | 'CONTACT_US' | 'APPLICATION' | 'FEEDBACK' | 'OTHER';
+  recipientEmails: string[];
+  isPublished: boolean;
+  successMessage: string | null;
+  submitButtonText: string;
+  fields: FormFieldItem[];
+  submissionsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface FormSubmissionItem {
+  id: string;
+  tenantId: string;
+  formId: string;
+  formTitle?: string;
+  formType?: string;
+  data: Record<string, unknown>;
+  status: 'PENDING' | 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'ARCHIVED';
+  submitterEmail: string | null;
+  submitterName: string | null;
+  submitterPhone: string | null;
+  adminNotes: string | null;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  reviewerName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function TenantAdminPage() {
-  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'navigation' | 'media'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'navigation' | 'media' | 'forms' | 'submissions'>('members');
   const [tenantSlug, setTenantSlug] = useState('oxford');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
 
@@ -255,6 +304,41 @@ export default function TenantAdminPage() {
   // Day 6 Media Picker for CMS Sections
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
   const [targetSectionIndex, setTargetSectionIndex] = useState<number | null>(null);
+
+  // Day 7 Dynamic Forms State
+  const [forms, setForms] = useState<FormItem[]>([]);
+  const [formsLoading, setFormsLoading] = useState(false);
+  const [formsError, setFormsError] = useState<string | null>(null);
+
+  // Day 7 Form Builder Modal State
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [editingFormId, setEditingFormId] = useState<string | null>(null);
+  const [formBuilderTitle, setFormBuilderTitle] = useState('');
+  const [formBuilderSlug, setFormBuilderSlug] = useState('');
+  const [formBuilderDesc, setFormBuilderDesc] = useState('');
+  const [formBuilderType, setFormBuilderType] = useState<FormItem['type']>('GENERAL_ENQUIRY');
+  const [formBuilderRecipients, setFormBuilderRecipients] = useState('');
+  const [formBuilderPublished, setFormBuilderPublished] = useState(true);
+  const [formBuilderSuccessMsg, setFormBuilderSuccessMsg] = useState('');
+  const [formBuilderBtnText, setFormBuilderBtnText] = useState('Submit');
+  const [formBuilderFields, setFormBuilderFields] = useState<FormFieldItem[]>([]);
+  const [formModalError, setFormModalError] = useState<string | null>(null);
+  const [formSaving, setFormSaving] = useState(false);
+
+  // Day 7 Submissions State
+  const [submissions, setSubmissions] = useState<FormSubmissionItem[]>([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [submissionsError, setSubmissionsError] = useState<string | null>(null);
+  const [submissionStatusFilter, setSubmissionStatusFilter] = useState('ALL');
+  const [submissionSearchQuery, setSubmissionSearchQuery] = useState('');
+
+  // Day 7 Submission Review Modal State
+  const [isSubmissionModalOpen, setIsSubmissionModalOpen] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState<FormSubmissionItem | null>(null);
+  const [reviewStatus, setReviewStatus] = useState<FormSubmissionItem['status']>('PENDING');
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewModalError, setReviewModalError] = useState<string | null>(null);
 
   // Helper for API request headers
   const getHeaders = useCallback(() => {
@@ -518,10 +602,74 @@ export default function TenantAdminPage() {
       fetchPages();
       fetchNavigation(navLocation);
       fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
+      fetchForms();
+      fetchSubmissions(submissionStatusFilter, submissionSearchQuery);
     } catch {
       setCurrentUser(null);
     }
   };
+
+  // 7. Fetch Forms
+  const fetchForms = useCallback(async () => {
+    setFormsLoading(true);
+    setFormsError(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/forms`, {
+        headers: getHeaders(),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Authentication required: Sign in with permissions to view forms.');
+        }
+        throw new Error(`Failed to fetch forms: Status ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setForms(data.data);
+      }
+    } catch (err: any) {
+      setFormsError(err.message || 'Error fetching forms');
+    } finally {
+      setFormsLoading(false);
+    }
+  }, [apiBaseUrl, getHeaders]);
+
+  // 8. Fetch Submissions
+  const fetchSubmissions = useCallback(
+    async (status?: string, search?: string) => {
+      setSubmissionsLoading(true);
+      setSubmissionsError(null);
+      try {
+        let queryUrl = `${apiBaseUrl}/api/v1/tenant/cms/forms/submissions/items?page=1&limit=50`;
+        if (status && status !== 'ALL') {
+          queryUrl += `&status=${encodeURIComponent(status)}`;
+        }
+        if (search && search.trim()) {
+          queryUrl += `&search=${encodeURIComponent(search.trim())}`;
+        }
+        const res = await fetch(queryUrl, {
+          headers: getHeaders(),
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            throw new Error('Authentication required: Sign in with permissions to review submissions.');
+          }
+          throw new Error(`Failed to fetch submissions: Status ${res.status}`);
+        }
+        const data = await res.json();
+        if (data.success && data.data && Array.isArray(data.data.items)) {
+          setSubmissions(data.data.items);
+        }
+      } catch (err: any) {
+        setSubmissionsError(err.message || 'Error fetching submissions');
+      } finally {
+        setSubmissionsLoading(false);
+      }
+    },
+    [apiBaseUrl, getHeaders]
+  );
 
   // Initial load when tab or tenant changes
   useEffect(() => {
@@ -540,8 +688,12 @@ export default function TenantAdminPage() {
       fetchPages();
     } else if (activeTab === 'media') {
       fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
+    } else if (activeTab === 'forms') {
+      fetchForms();
+    } else if (activeTab === 'submissions') {
+      fetchSubmissions(submissionStatusFilter, submissionSearchQuery);
     }
-  }, [activeTab, tenantSlug, navLocation, mediaCategoryFilter, mediaSearchQuery, checkAuth, fetchRoles, fetchMembers, fetchInvitations, fetchAuditLogs, fetchPages, fetchNavigation, fetchMediaAssets]);
+  }, [activeTab, tenantSlug, navLocation, mediaCategoryFilter, mediaSearchQuery, submissionStatusFilter, submissionSearchQuery, checkAuth, fetchRoles, fetchMembers, fetchInvitations, fetchAuditLogs, fetchPages, fetchNavigation, fetchMediaAssets, fetchForms, fetchSubmissions]);
 
   // CMS Page Action Handlers
   const handleOpenCreatePage = () => {
@@ -1279,6 +1431,24 @@ export default function TenantAdminPage() {
           role="tab"
         >
           Media Library
+        </button>
+        <button
+          id="tab-forms-btn"
+          className={`tab-btn ${activeTab === 'forms' ? 'active' : ''}`}
+          onClick={() => setActiveTab('forms')}
+          aria-selected={activeTab === 'forms'}
+          role="tab"
+        >
+          Dynamic Forms
+        </button>
+        <button
+          id="tab-submissions-btn"
+          className={`tab-btn ${activeTab === 'submissions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('submissions')}
+          aria-selected={activeTab === 'submissions'}
+          role="tab"
+        >
+          Inquiries & Submissions
         </button>
       </nav>
 
@@ -2286,6 +2456,343 @@ export default function TenantAdminPage() {
         </section>
       )}
 
+      {/* TAB 7: DYNAMIC FORMS BUILDER */}
+      {activeTab === 'forms' && (
+        <section aria-labelledby="forms-heading">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 id="forms-heading" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Dynamic Form Builder & Institutional Workflows
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+                Create configurable enquiry, admissions, and contact forms with custom fields, validation rules, recipient routing, and spam protection.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                id="create-form-btn"
+                onClick={() => {
+                  setEditingFormId(null);
+                  setFormBuilderTitle('');
+                  setFormBuilderSlug('');
+                  setFormBuilderDesc('');
+                  setFormBuilderType('GENERAL_ENQUIRY');
+                  setFormBuilderRecipients('admissions@oxford.school.example');
+                  setFormBuilderPublished(true);
+                  setFormBuilderSuccessMsg('Thank you! Your submission has been received.');
+                  setFormBuilderBtnText('Submit Enquiry');
+                  setFormBuilderFields([
+                    { name: 'fullName', label: 'Full Name', fieldType: 'TEXT', isRequired: true, orderIndex: 0 },
+                    { name: 'email', label: 'Email Address', fieldType: 'EMAIL', isRequired: true, orderIndex: 1 },
+                    { name: 'message', label: 'Message', fieldType: 'TEXTAREA', isRequired: true, orderIndex: 2 },
+                  ]);
+                  setFormModalError(null);
+                  setIsFormModalOpen(true);
+                }}
+                className="btn btn-primary btn-sm"
+              >
+                + Build New Form
+              </button>
+              <button
+                id="refresh-forms-btn"
+                onClick={fetchForms}
+                className="btn btn-secondary btn-sm"
+                disabled={formsLoading}
+              >
+                {formsLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+
+          {formsError && (
+            <div className="alert alert-danger" style={{ marginBottom: '1.5rem' }} role="alert">
+              <strong>Error:</strong> {formsError}
+            </div>
+          )}
+
+          {formsLoading ? (
+            <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
+              Loading forms...
+            </div>
+          ) : forms.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: '#f8fafc' }}>No Forms Configured</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                Create your first admissions or general inquiry form to begin receiving submissions.
+              </p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th>Form Title</th>
+                    <th>Type</th>
+                    <th>Slug / Endpoint</th>
+                    <th>Fields</th>
+                    <th>Submissions</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {forms.map((f) => (
+                    <tr key={f.id} id={`form-row-${f.slug}`}>
+                      <td style={{ fontWeight: 600 }}>{f.title}</td>
+                      <td>
+                        <span className="badge badge-info" style={{ fontSize: '0.75rem' }}>
+                          {f.type.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td>
+                        <code style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.06)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                          /forms/{f.slug}
+                        </code>
+                      </td>
+                      <td>{f.fields?.length || 0} fields</td>
+                      <td>
+                        <span style={{ fontWeight: 600, color: 'var(--accent-primary)' }}>
+                          {f.submissionsCount ?? 0}
+                        </span>
+                      </td>
+                      <td>
+                        {f.isPublished ? (
+                          <span className="badge badge-success">Published</span>
+                        ) : (
+                          <span className="badge badge-warning">Draft</span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                          <a
+                            id={`view-public-form-${f.slug}`}
+                            href={`/forms/${f.slug}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-secondary btn-sm"
+                            style={{ textDecoration: 'none', fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                          >
+                            Public View &rarr;
+                          </a>
+                          <button
+                            id={`edit-form-${f.slug}`}
+                            onClick={() => {
+                              setEditingFormId(f.id);
+                              setFormBuilderTitle(f.title);
+                              setFormBuilderSlug(f.slug);
+                              setFormBuilderDesc(f.description || '');
+                              setFormBuilderType(f.type);
+                              setFormBuilderRecipients((f.recipientEmails || []).join(', '));
+                              setFormBuilderPublished(f.isPublished);
+                              setFormBuilderSuccessMsg(f.successMessage || '');
+                              setFormBuilderBtnText(f.submitButtonText || 'Submit');
+                              setFormBuilderFields(
+                                (f.fields || []).map((field) => ({
+                                  name: field.name,
+                                  label: field.label,
+                                  fieldType: field.fieldType,
+                                  placeholder: field.placeholder || '',
+                                  helpText: field.helpText || '',
+                                  defaultValue: field.defaultValue || '',
+                                  isRequired: field.isRequired,
+                                  options: field.options || null,
+                                  orderIndex: field.orderIndex,
+                                }))
+                              );
+                              setFormModalError(null);
+                              setIsFormModalOpen(true);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            id={`delete-form-${f.slug}`}
+                            onClick={async () => {
+                              if (!window.confirm(`Are you sure you want to delete form "${f.title}" and its submissions?`)) return;
+                              try {
+                                const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/forms/${f.id}`, {
+                                  method: 'DELETE',
+                                  headers: getHeaders(),
+                                  credentials: 'include',
+                                });
+                                if (!res.ok) throw new Error(`Delete failed (Status: ${res.status})`);
+                                setGlobalNotice({ type: 'success', message: `Form "${f.title}" deleted.` });
+                                fetchForms();
+                              } catch (err: any) {
+                                setGlobalNotice({ type: 'error', message: err.message || 'Failed to delete form' });
+                              }
+                            }}
+                            className="btn btn-danger btn-sm"
+                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB 8: ADMISSIONS & SUBMISSIONS REVIEW */}
+      {activeTab === 'submissions' && (
+        <section aria-labelledby="submissions-heading">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 id="submissions-heading" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Form Submissions & Admissions Review
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+                Review incoming enquiries and admissions applications, transition review statuses, and record reviewer decisions.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                id="refresh-submissions-btn"
+                onClick={() => fetchSubmissions(submissionStatusFilter, submissionSearchQuery)}
+                className="btn btn-secondary btn-sm"
+                disabled={submissionsLoading}
+              >
+                {submissionsLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+
+          {/* Status Filters and Search Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className="media-category-chips" style={{ marginBottom: 0 }}>
+              {(['ALL', 'PENDING', 'UNDER_REVIEW', 'ACCEPTED', 'REJECTED', 'ARCHIVED'] as const).map((status) => (
+                <button
+                  key={status}
+                  id={`sub-filter-${status.toLowerCase()}`}
+                  className={`media-chip-btn ${submissionStatusFilter === status ? 'active' : ''}`}
+                  onClick={() => {
+                    setSubmissionStatusFilter(status);
+                    fetchSubmissions(status, submissionSearchQuery);
+                  }}
+                >
+                  {status.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                id="sub-search-input"
+                type="text"
+                placeholder="Search submitter / notes..."
+                value={submissionSearchQuery}
+                onChange={(e) => setSubmissionSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    fetchSubmissions(submissionStatusFilter, submissionSearchQuery);
+                  }
+                }}
+                className="form-input"
+                style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', width: '220px' }}
+              />
+              <button
+                id="sub-search-btn"
+                onClick={() => fetchSubmissions(submissionStatusFilter, submissionSearchQuery)}
+                className="btn btn-secondary btn-sm"
+              >
+                Search
+              </button>
+            </div>
+          </div>
+
+          {submissionsError && (
+            <div className="alert alert-danger" style={{ marginBottom: '1.5rem' }} role="alert">
+              <strong>Error:</strong> {submissionsError}
+            </div>
+          )}
+
+          {submissionsLoading ? (
+            <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
+              Loading submissions...
+            </div>
+          ) : submissions.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: '#f8fafc' }}>No Submissions Found</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                There are no form submissions matching the current filter criteria.
+              </p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th>Submitter</th>
+                    <th>Form Name</th>
+                    <th>Status</th>
+                    <th>Submitted Date</th>
+                    <th>Reviewer</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {submissions.map((sub) => (
+                    <tr key={sub.id} id={`sub-row-${sub.id}`}>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{sub.submitterName || 'Anonymous Submitter'}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{sub.submitterEmail || 'No email provided'}</div>
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 500 }}>{sub.formTitle || 'General Form'}</span>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            sub.status === 'ACCEPTED'
+                              ? 'badge-success'
+                              : sub.status === 'REJECTED'
+                              ? 'badge-danger'
+                              : sub.status === 'UNDER_REVIEW'
+                              ? 'badge-info'
+                              : 'badge-warning'
+                          }`}
+                        >
+                          {sub.status.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '0.85rem' }}>
+                        {new Date(sub.createdAt).toLocaleDateString()} {new Date(sub.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {sub.reviewerName || 'Unreviewed'}
+                      </td>
+                      <td>
+                        <button
+                          id={`review-sub-${sub.id}`}
+                          onClick={() => {
+                            setSelectedSubmission(sub);
+                            setReviewStatus(sub.status);
+                            setReviewNotes(sub.adminNotes || '');
+                            setReviewModalError(null);
+                            setIsSubmissionModalOpen(true);
+                          }}
+                          className="btn btn-primary btn-sm"
+                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                        >
+                          Review &rarr;
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* CMS PAGE EDITOR MODAL */}
       {isPageEditorOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="editor-modal-title">
@@ -3022,6 +3529,560 @@ export default function TenantAdminPage() {
                 className="btn btn-secondary"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DAY 7: FORM BUILDER MODAL */}
+      {isFormModalOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="form-modal-title">
+          <div className="modal-content" style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h2 id="form-modal-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                {editingFormId ? 'Edit Dynamic Form Configuration' : 'Create New Dynamic Form'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsFormModalOpen(false)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close form builder"
+              >
+                &times;
+              </button>
+            </div>
+
+            {formModalError && (
+              <div className="alert alert-danger" style={{ margin: '1rem' }} role="alert">
+                <strong>Error: </strong> {formModalError}
+              </div>
+            )}
+
+            <form
+              noValidate
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setFormModalError(null);
+                if (!formBuilderTitle.trim() || !formBuilderSlug.trim()) {
+                  setFormModalError('Form title and slug are required.');
+                  return;
+                }
+
+                setFormSaving(true);
+                try {
+                  const recipients = formBuilderRecipients
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0);
+
+                  const payload = {
+                    title: formBuilderTitle.trim(),
+                    slug: formBuilderSlug.trim().toLowerCase(),
+                    description: formBuilderDesc.trim() || null,
+                    type: formBuilderType,
+                    recipientEmails: recipients,
+                    isPublished: formBuilderPublished,
+                    successMessage: formBuilderSuccessMsg.trim() || null,
+                    submitButtonText: formBuilderBtnText.trim() || 'Submit',
+                    fields: formBuilderFields.map((f, idx) => ({
+                      name: f.name.trim(),
+                      label: f.label.trim(),
+                      fieldType: f.fieldType,
+                      placeholder: f.placeholder?.trim() || null,
+                      helpText: f.helpText?.trim() || null,
+                      defaultValue: f.defaultValue?.trim() || null,
+                      isRequired: f.isRequired,
+                      options: f.options || null,
+                      orderIndex: idx,
+                    })),
+                  };
+
+                  const url = editingFormId
+                    ? `${apiBaseUrl}/api/v1/tenant/cms/forms/${editingFormId}`
+                    : `${apiBaseUrl}/api/v1/tenant/cms/forms`;
+                  const method = editingFormId ? 'PUT' : 'POST';
+
+                  const res = await fetch(url, {
+                    method,
+                    headers: getHeaders(),
+                    credentials: 'include',
+                    body: JSON.stringify(payload),
+                  });
+
+                  const json = await res.json();
+                  if (!res.ok || !json.success) {
+                    throw new Error(json.error?.message || 'Failed to save form');
+                  }
+
+                  setGlobalNotice({
+                    type: 'success',
+                    message: `Form "${formBuilderTitle}" saved successfully.`,
+                  });
+                  setIsFormModalOpen(false);
+                  fetchForms();
+                } catch (err: any) {
+                  setFormModalError(err.message || 'Error saving form');
+                } finally {
+                  setFormSaving(false);
+                }
+              }}
+              style={{ padding: '1.25rem' }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group">
+                  <label htmlFor="form-builder-title" style={{ fontWeight: 600 }}>Form Title *</label>
+                  <input
+                    id="form-builder-title"
+                    type="text"
+                    value={formBuilderTitle}
+                    onChange={(e) => {
+                      setFormBuilderTitle(e.target.value);
+                      if (!editingFormId) {
+                        setFormBuilderSlug(
+                          e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/(^-|-$)+/g, '')
+                        );
+                      }
+                    }}
+                    placeholder="e.g. Admissions Inquiry"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="form-builder-slug" style={{ fontWeight: 600 }}>Slug *</label>
+                  <input
+                    id="form-builder-slug"
+                    type="text"
+                    value={formBuilderSlug}
+                    onChange={(e) => setFormBuilderSlug(e.target.value)}
+                    placeholder="e.g. admissions-inquiry"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="form-builder-type" style={{ fontWeight: 600 }}>Form Type</label>
+                  <select
+                    id="form-builder-type"
+                    value={formBuilderType}
+                    onChange={(e) => setFormBuilderType(e.target.value as any)}
+                    className="form-select"
+                  >
+                    <option value="GENERAL_ENQUIRY">General Enquiry</option>
+                    <option value="ADMISSIONS_INQUIRY">Admissions Inquiry</option>
+                    <option value="CONTACT_US">Contact Us</option>
+                    <option value="APPLICATION">Application Form</option>
+                    <option value="FEEDBACK">Feedback</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="form-builder-recipients" style={{ fontWeight: 600 }}>Recipient Emails (comma separated)</label>
+                  <input
+                    id="form-builder-recipients"
+                    type="text"
+                    value={formBuilderRecipients}
+                    onChange={(e) => setFormBuilderRecipients(e.target.value)}
+                    placeholder="admissions@school.edu, info@school.edu"
+                    className="form-input"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label htmlFor="form-builder-desc" style={{ fontWeight: 600 }}>Form Description</label>
+                <textarea
+                  id="form-builder-desc"
+                  rows={2}
+                  value={formBuilderDesc}
+                  onChange={(e) => setFormBuilderDesc(e.target.value)}
+                  placeholder="Introductory instructions displayed above fields..."
+                  className="form-textarea"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="form-group">
+                  <label htmlFor="form-builder-btn-text" style={{ fontWeight: 600 }}>Submit Button Text</label>
+                  <input
+                    id="form-builder-btn-text"
+                    type="text"
+                    value={formBuilderBtnText}
+                    onChange={(e) => setFormBuilderBtnText(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="form-builder-success-msg" style={{ fontWeight: 600 }}>Success Message</label>
+                  <input
+                    id="form-builder-success-msg"
+                    type="text"
+                    value={formBuilderSuccessMsg}
+                    onChange={(e) => setFormBuilderSuccessMsg(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+                  <input
+                    id="form-builder-published"
+                    type="checkbox"
+                    checked={formBuilderPublished}
+                    onChange={(e) => setFormBuilderPublished(e.target.checked)}
+                  />
+                  <label htmlFor="form-builder-published" style={{ fontWeight: 600, cursor: 'pointer' }}>
+                    Publish Form (Open for submissions)
+                  </label>
+                </div>
+              </div>
+
+              {/* Dynamic Field Builder Rows */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc' }}>
+                    Form Fields ({formBuilderFields.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormBuilderFields([
+                        ...formBuilderFields,
+                        {
+                          name: `field_${Date.now()}`,
+                          label: 'New Question',
+                          fieldType: 'TEXT',
+                          isRequired: false,
+                          orderIndex: formBuilderFields.length,
+                        },
+                      ]);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    + Add Field
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {formBuilderFields.map((field, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: 'rgba(255,255,255,0.02)',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr)) 40px',
+                        gap: '0.75rem',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Field Label</label>
+                        <input
+                          type="text"
+                          value={field.label}
+                          onChange={(e) => {
+                            const updated = [...formBuilderFields];
+                            updated[idx].label = e.target.value;
+                            if (!field.name || field.name.startsWith('field_')) {
+                              updated[idx].name = e.target.value
+                                .toLowerCase()
+                                .replace(/[^a-z0-9]+/g, '_')
+                                .replace(/(^_|_$)+/g, '');
+                            }
+                            setFormBuilderFields(updated);
+                          }}
+                          className="form-input"
+                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.85rem' }}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Identifier (key)</label>
+                        <input
+                          type="text"
+                          value={field.name}
+                          onChange={(e) => {
+                            const updated = [...formBuilderFields];
+                            updated[idx].name = e.target.value;
+                            setFormBuilderFields(updated);
+                          }}
+                          className="form-input"
+                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.85rem' }}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Field Type</label>
+                        <select
+                          value={field.fieldType}
+                          onChange={(e) => {
+                            const updated = [...formBuilderFields];
+                            updated[idx].fieldType = e.target.value as any;
+                            setFormBuilderFields(updated);
+                          }}
+                          className="form-select"
+                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.85rem' }}
+                        >
+                          <option value="TEXT">Text</option>
+                          <option value="TEXTAREA">Textarea</option>
+                          <option value="EMAIL">Email</option>
+                          <option value="PHONE">Phone</option>
+                          <option value="NUMBER">Number</option>
+                          <option value="SELECT">Select Dropdown</option>
+                          <option value="RADIO">Radio</option>
+                          <option value="CHECKBOX">Checkbox</option>
+                          <option value="DATE">Date</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '1rem' }}>
+                        <input
+                          type="checkbox"
+                          id={`req-${idx}`}
+                          checked={field.isRequired}
+                          onChange={(e) => {
+                            const updated = [...formBuilderFields];
+                            updated[idx].isRequired = e.target.checked;
+                            setFormBuilderFields(updated);
+                          }}
+                        />
+                        <label htmlFor={`req-${idx}`} style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
+                          Required
+                        </label>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormBuilderFields(formBuilderFields.filter((_, i) => i !== idx));
+                        }}
+                        className="btn btn-danger btn-sm"
+                        style={{ padding: '0.35rem 0.6rem', marginTop: '0.75rem' }}
+                        title="Remove field"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsFormModalOpen(false)}
+                  className="btn btn-secondary"
+                  disabled={formSaving}
+                >
+                  Cancel
+                </button>
+                <button id="save-form-btn" type="submit" className="btn btn-primary" disabled={formSaving}>
+                  {formSaving ? 'Saving...' : editingFormId ? 'Update Form' : 'Create Form'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DAY 7: SUBMISSION REVIEW MODAL */}
+      {isSubmissionModalOpen && selectedSubmission && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="review-modal-title">
+          <div className="modal-content" style={{ maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <h2 id="review-modal-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Review Submission — {selectedSubmission.formTitle || 'Form'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsSubmissionModalOpen(false)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close review modal"
+              >
+                &times;
+              </button>
+            </div>
+
+            {reviewModalError && (
+              <div className="alert alert-danger" style={{ margin: '1rem' }} role="alert">
+                <strong>Error: </strong> {reviewModalError}
+              </div>
+            )}
+
+            <div style={{ padding: '1.25rem' }}>
+              {/* Submitter Metadata Banner */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--border-color)',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Submitter Name</div>
+                  <div style={{ fontWeight: 600 }}>{selectedSubmission.submitterName || 'Not specified'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Email Address</div>
+                  <div style={{ fontWeight: 600 }}>{selectedSubmission.submitterEmail || 'Not specified'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Phone Number</div>
+                  <div style={{ fontWeight: 600 }}>{selectedSubmission.submitterPhone || 'Not specified'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Submitted Timestamp</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                    {new Date(selectedSubmission.createdAt).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Data Fields Table */}
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem', color: '#f8fafc' }}>
+                Submitted Form Data
+              </h3>
+              <div
+                style={{
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                  <tbody>
+                    {Object.entries(selectedSubmission.data || {}).map(([key, val]) => (
+                      <tr key={key} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td
+                          style={{
+                            padding: '0.65rem 1rem',
+                            fontWeight: 600,
+                            width: '35%',
+                            backgroundColor: 'rgba(255,255,255,0.02)',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          {key}
+                        </td>
+                        <td style={{ padding: '0.65rem 1rem' }}>
+                          {typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Review & Status Transition Section */}
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem', color: '#f8fafc' }}>
+                Administrative Review Decision
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group">
+                  <label htmlFor="review-status-select" style={{ fontWeight: 600 }}>Review Status</label>
+                  <select
+                    id="review-status-select"
+                    value={reviewStatus}
+                    onChange={(e) => setReviewStatus(e.target.value as any)}
+                    className="form-select"
+                  >
+                    <option value="PENDING">Pending Review</option>
+                    <option value="UNDER_REVIEW">Under Review</option>
+                    <option value="ACCEPTED">Accepted / Approved</option>
+                    <option value="REJECTED">Rejected / Closed</option>
+                    <option value="ARCHIVED">Archived</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="review-notes-textarea" style={{ fontWeight: 600 }}>Internal Administrator Notes</label>
+                  <textarea
+                    id="review-notes-textarea"
+                    rows={3}
+                    value={reviewNotes}
+                    onChange={(e) => setReviewNotes(e.target.value)}
+                    placeholder="Add remarks regarding candidate qualifications, missing documents, or interview results..."
+                    className="form-textarea"
+                  />
+                </div>
+
+                {selectedSubmission.reviewerName && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Last reviewed by <strong>{selectedSubmission.reviewerName}</strong> on{' '}
+                    {selectedSubmission.reviewedAt ? new Date(selectedSubmission.reviewedAt).toLocaleString() : 'N/A'}.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setIsSubmissionModalOpen(false)}
+                className="btn btn-secondary"
+                disabled={reviewSaving}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                id="save-review-decision-btn"
+                onClick={async () => {
+                  setReviewSaving(true);
+                  setReviewModalError(null);
+                  try {
+                    const res = await fetch(
+                      `${apiBaseUrl}/api/v1/tenant/cms/forms/submissions/${selectedSubmission.id}/status`,
+                      {
+                        method: 'PATCH',
+                        headers: getHeaders(),
+                        credentials: 'include',
+                        body: JSON.stringify({
+                          status: reviewStatus,
+                          adminNotes: reviewNotes.trim() || null,
+                        }),
+                      }
+                    );
+
+                    const json = await res.json();
+                    if (!res.ok || !json.success) {
+                      throw new Error(json.error?.message || 'Failed to update review status');
+                    }
+
+                    setGlobalNotice({
+                      type: 'success',
+                      message: `Submission status updated to ${reviewStatus}.`,
+                    });
+                    setIsSubmissionModalOpen(false);
+                    fetchSubmissions(submissionStatusFilter, submissionSearchQuery);
+                  } catch (err: any) {
+                    setReviewModalError(err.message || 'Error updating review decision');
+                  } finally {
+                    setReviewSaving(false);
+                  }
+                }}
+                className="btn btn-primary"
+                disabled={reviewSaving}
+              >
+                {reviewSaving ? 'Saving...' : 'Save Decision'}
               </button>
             </div>
           </div>

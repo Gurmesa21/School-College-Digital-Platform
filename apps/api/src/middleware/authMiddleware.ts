@@ -4,6 +4,7 @@ import {
   AuthSession,
   AuthMembership,
   PermissionCode,
+  PERMISSIONS,
   ApiErrorResponse,
 } from '@school/shared';
 import { AuthService } from '../services/authService.js';
@@ -188,26 +189,7 @@ export function createTenantMembershipGuard(authRepository: IAuthRepository): Re
 
     // Platform Super Admin has explicit cross-tenant support privilege
     if (req.user.isSuperAdmin) {
-      req.permissions = Object.values({
-        PLATFORM_ACCESS: 'platform:access',
-        PLATFORM_TENANTS_MANAGE: 'platform:tenants:manage',
-        TENANT_PROFILE_READ: 'tenant:profile:read',
-        TENANT_PROFILE_UPDATE: 'tenant:profile:update',
-        TENANT_BRANDING_UPDATE: 'tenant:branding:update',
-        USERS_READ: 'users:read',
-        USERS_INVITE: 'users:invite',
-        USERS_MANAGE: 'users:manage',
-        ROLES_READ: 'roles:read',
-        ROLES_ASSIGN: 'roles:assign',
-        CMS_PAGES_READ: 'cms:pages:read',
-        CMS_PAGES_WRITE: 'cms:pages:write',
-        CMS_PAGES_PUBLISH: 'cms:pages:publish',
-        ADMISSIONS_READ: 'admissions:read',
-        ADMISSIONS_REVIEW: 'admissions:review',
-        ADMISSIONS_MANAGE: 'admissions:manage',
-        ANALYTICS_VIEW: 'analytics:view',
-        AUDIT_READ: 'audit:read',
-      }) as PermissionCode[];
+      req.permissions = Object.values(PERMISSIONS) as PermissionCode[];
       return next();
     }
 
@@ -253,7 +235,9 @@ export function createTenantMembershipGuard(authRepository: IAuthRepository): Re
 /**
  * Enforces possession of a specific tenant-scoped permission
  */
-export function requirePermission(requiredPermission: PermissionCode): RequestHandler {
+export function requirePermission(
+  requiredPermission: PermissionCode | PermissionCode[]
+): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     const requestId = req.id || 'unknown';
 
@@ -262,12 +246,17 @@ export function requirePermission(requiredPermission: PermissionCode): RequestHa
     }
 
     const permissions = req.permissions || [];
-    if (!permissions.includes(requiredPermission)) {
+    const requiredList = Array.isArray(requiredPermission)
+      ? requiredPermission
+      : [requiredPermission];
+    const hasPermission = requiredList.some((perm) => permissions.includes(perm));
+
+    if (!hasPermission) {
       const errorResponse: ApiErrorResponse = {
         success: false,
         error: {
           code: 'INSUFFICIENT_PERMISSIONS',
-          message: `Forbidden: You lack the required permission '${requiredPermission}' for this operation.`,
+          message: `Forbidden: You lack the required permission (${requiredList.join(' or ')}) for this operation.`,
           requestId,
           timestamp: new Date().toISOString(),
         },

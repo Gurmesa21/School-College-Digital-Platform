@@ -13,11 +13,13 @@ import { ICmsRepository, PrismaCmsRepository } from './repositories/cmsRepositor
 import { INavigationRepository, PrismaNavigationRepository } from './repositories/navigationRepository.js';
 import { IMediaRepository, PrismaMediaRepository } from './repositories/mediaRepository.js';
 import { ITaxonomyRepository, PrismaTaxonomyRepository } from './repositories/taxonomyRepository.js';
+import { IFormRepository, PrismaFormRepository } from './repositories/formRepository.js';
 import { AuthService } from './services/authService.js';
 import { UserAdminService } from './services/userAdminService.js';
 import { CmsService } from './services/cmsService.js';
 import { NavigationService } from './services/navigationService.js';
 import { MediaService } from './services/mediaService.js';
+import { FormService } from './services/formService.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { healthRouter } from './routes/health.js';
 import { createTenantRouter } from './routes/tenant.js';
@@ -31,6 +33,8 @@ import { createPublicNavigationRouter } from './routes/publicNavigation.js';
 import { createMediaAdminRouter } from './routes/mediaAdmin.js';
 import { createPublicMediaRouter } from './routes/publicMedia.js';
 import { createTaxonomyAdminRouter } from './routes/taxonomyAdmin.js';
+import { createFormAdminRouter } from './routes/formAdmin.js';
+import { createPublicFormsRouter } from './routes/publicForms.js';
 
 export interface AppOptions {
   repository?: ITenantRepository;
@@ -40,12 +44,14 @@ export interface AppOptions {
   navigationRepository?: INavigationRepository;
   mediaRepository?: IMediaRepository;
   taxonomyRepository?: ITaxonomyRepository;
+  formRepository?: IFormRepository;
   emailService?: IEmailService;
   authService?: AuthService;
   userAdminService?: UserAdminService;
   cmsService?: CmsService;
   navigationService?: NavigationService;
   mediaService?: MediaService;
+  formService?: FormService;
   envConfig?: EnvConfig;
 }
 
@@ -60,6 +66,7 @@ export function createApp(options: AppOptions = {}): Express {
   const navigationRepository = options.navigationRepository || new PrismaNavigationRepository();
   const mediaRepository = options.mediaRepository || new PrismaMediaRepository();
   const taxonomyRepository = options.taxonomyRepository || new PrismaTaxonomyRepository();
+  const formRepository = options.formRepository || new PrismaFormRepository();
 
   const emailService = options.emailService || new InMemoryEmailService();
   const authService = options.authService || new AuthService(authRepository, emailService);
@@ -70,6 +77,9 @@ export function createApp(options: AppOptions = {}): Express {
   const navigationService =
     options.navigationService || new NavigationService(navigationRepository, auditRepository);
   const mediaService = options.mediaService || new MediaService(mediaRepository, auditRepository);
+  const formService =
+    options.formService ||
+    new FormService(formRepository, auditRepository, emailService, options.repository);
 
   // Basic Express configuration
   if (envConfig.TRUST_PROXY) {
@@ -117,10 +127,12 @@ export function createApp(options: AppOptions = {}): Express {
   const navigationAdminRouter = createNavigationAdminRouter(navigationService, authRepository);
   const mediaAdminRouter = createMediaAdminRouter(mediaService, authRepository);
   const taxonomyAdminRouter = createTaxonomyAdminRouter(taxonomyRepository, authRepository, auditRepository);
+  const formAdminRouter = createFormAdminRouter(formService, authRepository);
 
   const publicContentRouter = createPublicContentRouter(cmsService);
   const publicNavigationRouter = createPublicNavigationRouter(navigationService);
   const publicMediaRouter = createPublicMediaRouter(mediaService);
+  const publicFormsRouter = createPublicFormsRouter(formService);
   const tenantRouter = createTenantRouter(authRepository);
 
   v1Router.use('/tenant/admin', tenantResolver, userAdminRouter);
@@ -128,7 +140,9 @@ export function createApp(options: AppOptions = {}): Express {
   v1Router.use('/tenant/cms/navigation', tenantResolver, navigationAdminRouter);
   v1Router.use('/tenant/cms/media', tenantResolver, mediaAdminRouter);
   v1Router.use('/tenant/cms/taxonomy', tenantResolver, taxonomyAdminRouter);
+  v1Router.use('/tenant/cms/forms', tenantResolver, formAdminRouter);
 
+  v1Router.use('/tenant/public/forms', tenantResolver, publicFormsRouter);
   v1Router.use('/tenant/public/navigation', tenantResolver, publicNavigationRouter);
   v1Router.use('/tenant/public/media', tenantResolver, publicMediaRouter);
   v1Router.use('/tenant/public', tenantResolver, publicContentRouter);

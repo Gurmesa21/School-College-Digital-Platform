@@ -78,6 +78,35 @@ enum CategoryType {
   GENERAL
 }
 
+enum FormType {
+  GENERAL_ENQUIRY
+  ADMISSIONS_INQUIRY
+  CONTACT_US
+  APPLICATION
+  FEEDBACK
+  OTHER
+}
+
+enum FormFieldType {
+  TEXT
+  TEXTAREA
+  EMAIL
+  PHONE
+  NUMBER
+  SELECT
+  RADIO
+  CHECKBOX
+  DATE
+}
+
+enum SubmissionStatus {
+  PENDING
+  UNDER_REVIEW
+  ACCEPTED
+  REJECTED
+  ARCHIVED
+}
+
 model Tenant {
   id              String          @id @default(cuid())
   slug            String          @unique
@@ -101,6 +130,8 @@ model Tenant {
   navigationMenus NavigationMenu[]
   mediaAssets     MediaAsset[]
   categories      Category[]
+  forms           Form[]
+  formSubmissions FormSubmission[]
 
   @@index([slug])
   @@index([status])
@@ -144,6 +175,7 @@ model User {
   authoredPages           Page[]                   @relation("PageAuthor")
   editedPages             Page[]                   @relation("PageEditor")
   uploadedMedia           MediaAsset[]             @relation("UploadedMedia")
+  reviewedSubmissions     FormSubmission[]         @relation("ReviewedSubmissions")
 
   @@index([email])
   @@index([status])
@@ -471,3 +503,76 @@ model MediaAsset {
   @@index([uploaderId])
   @@map("media_assets")
 }
+
+model Form {
+  id               String           @id @default(cuid())
+  tenantId         String
+  title            String
+  slug             String
+  description      String?
+  type             FormType         @default(GENERAL_ENQUIRY)
+  recipientEmails  String[]         @default([])
+  isPublished      Boolean          @default(true)
+  successMessage   String?
+  submitButtonText String           @default("Submit")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fields           FormField[]
+  submissions      FormSubmission[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isPublished])
+  @@map("forms")
+}
+
+model FormField {
+  id              String        @id @default(cuid())
+  formId          String
+  name            String
+  label           String
+  fieldType       FormFieldType @default(TEXT)
+  placeholder     String?
+  helpText        String?
+  defaultValue    String?
+  isRequired      Boolean       @default(false)
+  validationRules Json?
+  options         Json?
+  orderIndex      Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  form            Form          @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId, orderIndex])
+  @@map("form_fields")
+}
+
+model FormSubmission {
+  id             String           @id @default(cuid())
+  tenantId       String
+  formId         String
+  data           Json
+  status         SubmissionStatus @default(PENDING)
+  submitterEmail String?
+  submitterName  String?
+  submitterPhone String?
+  ipAddressHash  String?
+  userAgent      String?
+  adminNotes     String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  form           Form             @relation(fields: [formId], references: [id], onDelete: Cascade)
+  reviewedBy     User?            @relation("ReviewedSubmissions", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([formId, createdAt])
+  @@index([reviewedById])
+  @@map("form_submissions")
+}
+
