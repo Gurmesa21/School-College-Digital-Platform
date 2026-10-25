@@ -8,6 +8,7 @@ import { InMemoryCmsRepository } from './repositories/cmsRepository.js';
 import { InMemoryNavigationRepository } from './repositories/navigationRepository.js';
 import { InMemoryMediaRepository } from './repositories/mediaRepository.js';
 import { InMemoryTaxonomyRepository } from './repositories/taxonomyRepository.js';
+import { InMemoryFormRepository } from './repositories/formRepository.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { PERMISSIONS } from '@school/shared';
 
@@ -209,6 +210,8 @@ async function startServer() {
       },
     ]);
 
+    const formRepo = new InMemoryFormRepository();
+
     app = createApp({
       repository: tenantRepo,
       authRepository: authRepo,
@@ -217,6 +220,7 @@ async function startServer() {
       navigationRepository: navRepo,
       mediaRepository: mediaRepo,
       taxonomyRepository: taxRepo,
+      formRepository: formRepo,
       emailService,
     });
   } else {

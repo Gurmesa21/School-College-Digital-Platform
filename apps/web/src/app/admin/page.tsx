@@ -671,9 +671,14 @@ export default function TenantAdminPage() {
     [apiBaseUrl, getHeaders]
   );
 
-  // Initial load when tab or tenant changes
+  // Check auth once on mount
   useEffect(() => {
     checkAuth();
+  }, [checkAuth]);
+
+  // Load admin data when authenticated user, tab, or filters change
+  useEffect(() => {
+    if (!currentUser) return;
     fetchRoles();
     if (activeTab === 'members') {
       fetchMembers();
@@ -693,7 +698,7 @@ export default function TenantAdminPage() {
     } else if (activeTab === 'submissions') {
       fetchSubmissions(submissionStatusFilter, submissionSearchQuery);
     }
-  }, [activeTab, tenantSlug, navLocation, mediaCategoryFilter, mediaSearchQuery, submissionStatusFilter, submissionSearchQuery, checkAuth, fetchRoles, fetchMembers, fetchInvitations, fetchAuditLogs, fetchPages, fetchNavigation, fetchMediaAssets, fetchForms, fetchSubmissions]);
+  }, [currentUser, activeTab, tenantSlug, navLocation, mediaCategoryFilter, mediaSearchQuery, submissionStatusFilter, submissionSearchQuery, fetchRoles, fetchMembers, fetchInvitations, fetchAuditLogs, fetchPages, fetchNavigation, fetchMediaAssets, fetchForms, fetchSubmissions]);
 
   // CMS Page Action Handlers
   const handleOpenCreatePage = () => {

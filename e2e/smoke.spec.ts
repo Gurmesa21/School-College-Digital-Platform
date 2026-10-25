@@ -26,8 +26,10 @@ test.describe('Platform E2E Smoke & Health Verification', () => {
     await adminLink.click();
     await expect(page).toHaveURL(/\/admin/);
 
-    // Verify no fatal console errors during navigation
-    const fatalErrors = consoleErrors.filter((e) => !e.includes('favicon') && !e.includes('404'));
+    // Verify no fatal console errors during navigation (ignoring expected 401 on unauthenticated admin visit and favicon/404)
+    const fatalErrors = consoleErrors.filter(
+      (e) => !e.includes('favicon') && !e.includes('404') && !e.includes('401') && !e.includes('Unauthorized')
+    );
     expect(fatalErrors.length).toBe(0);
   });
 
