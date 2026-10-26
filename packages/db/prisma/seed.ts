@@ -143,6 +143,11 @@ export const SYSTEM_PERMISSIONS: Array<{ code: string; category: string; descrip
   { code: 'academics:write', category: 'academics', description: 'Create, edit, and configure academic structures and programmes' },
   { code: 'academics:publish', category: 'academics', description: 'Publish academic programmes and catalogue records to public site' },
 
+  // Staff Directory & Profiles (Day 10)
+  { code: 'staff:read', category: 'staff', description: 'View staff directory records and unpublished draft profiles' },
+  { code: 'staff:write', category: 'staff', description: 'Create, edit, and configure staff member profiles' },
+  { code: 'staff:publish', category: 'staff', description: 'Publish or archive staff profiles on the public directory' },
+
   // Analytics
   { code: 'analytics:view', category: 'analytics', description: 'View institution traffic and admissions analytics' },
 
@@ -193,6 +198,9 @@ export const SYSTEM_ROLES: Array<{
       'academics:read',
       'academics:write',
       'academics:publish',
+      'staff:read',
+      'staff:write',
+      'staff:publish',
       'admissions:read',
       'admissions:review',
       'admissions:manage',
@@ -217,6 +225,9 @@ export const SYSTEM_ROLES: Array<{
       'academics:read',
       'academics:write',
       'academics:publish',
+      'staff:read',
+      'staff:write',
+      'staff:publish',
       'admissions:read',
       'admissions:review',
       'analytics:view',
@@ -247,6 +258,7 @@ export const SYSTEM_ROLES: Array<{
       'media:read',
       'media:write',
       'taxonomy:read',
+      'staff:read',
     ],
   },
 ];
@@ -1537,6 +1549,193 @@ export async function seedDevelopmentData(): Promise<void> {
     });
 
     console.log('  -> Seeded Summit TVET Structure (Vocational training, certification, practical duration, criteria)');
+  }
+
+  // 12. Seed Staff Directory & Profiles (Day 10)
+  console.log('[Seed] Seeding staff profiles for Oxford, Kindergarten, and Summit TVET...');
+  if (oxfordTenant) {
+    const oxfordScienceDept = await prisma.academicDepartment.findUnique({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'science-technology-division' } },
+    });
+
+    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@oxford.edu' } });
+
+    // Profile photo media asset
+    const eleanorPhoto = await prisma.mediaAsset.upsert({
+      where: { id: `media-seed-${oxfordTenant.id}-eleanor-vance` },
+      update: {},
+      create: {
+        id: `media-seed-${oxfordTenant.id}-eleanor-vance`,
+        tenantId: oxfordTenant.id,
+        uploaderId: adminUser?.id,
+        title: 'Dr. Eleanor Vance Portrait',
+        altText: 'Dr. Eleanor Vance, Dean of Science and Mathematics, in academic regalia',
+        caption: 'Dean & Head of Science & Mathematics at Oxford International School',
+        category: MediaCategory.IMAGE,
+        mimeType: 'image/jpeg',
+        fileSizeBytes: 185000,
+        storageKey: `tenants/${oxfordTenant.id}/media/staff-eleanor-vance.jpg`,
+        publicUrl: '/api/v1/tenant/public/media/staff-eleanor-vance.jpg',
+        isPublic: true,
+        isDecorative: false,
+      },
+    });
+
+    await prisma.staffProfile.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'dr-eleanor-vance' } },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        fullName: 'Dr. Eleanor Vance',
+        slug: 'dr-eleanor-vance',
+        roleTitle: 'Dean & Head of Science & Mathematics',
+        biography: 'Dr. Eleanor Vance oversees the Faculty of Sciences and Mathematics at Oxford International School. With over 15 years of academic leadership, her research spans quantum optics and STEM pedagogical methodologies.',
+        departmentId: oxfordScienceDept?.id,
+        profileMediaId: eleanorPhoto.id,
+        subjects: ['Advanced Physics', 'Quantum Mechanics', 'Pure Mathematics'],
+        qualifications: 'Ph.D. in Physics (Cambridge), M.Sc. Applied Mathematics',
+        officeLocation: 'Science Block, Suite 304',
+        consultationHours: 'Mon & Wed 2:00 PM - 4:00 PM',
+        publicEmail: 'e.vance@oxford.school.example',
+        publicPhone: '+44 1865 270001',
+        displayEmail: true,
+        displayPhone: true,
+        websiteUrl: 'https://eleanorvance.oxford.school.example',
+        internalNotes: 'Senior academic leadership member; faculty budgeting oversight.',
+        status: PageStatus.PUBLISHED,
+        isActive: true,
+        isFeatured: true,
+        orderIndex: 1,
+        publishedAt: new Date(),
+        seoTitle: 'Dr. Eleanor Vance | Oxford Faculty & Leadership',
+        seoDescription: 'Biography, consultation hours, STEM research expertise, and courses led by Dr. Eleanor Vance.',
+      },
+    });
+
+    await prisma.staffProfile.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'marcus-sterling' } },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        fullName: 'Marcus Sterling',
+        slug: 'marcus-sterling',
+        roleTitle: 'Senior Lecturer in Pure & Applied Mathematics',
+        biography: 'Marcus Sterling specializes in multivariable calculus, linear algebra, and competitive mathematical Olympiad coaching.',
+        departmentId: oxfordScienceDept?.id,
+        subjects: ['Calculus III', 'Linear Algebra', 'Discrete Mathematics'],
+        qualifications: 'M.Sc. Mathematics (Oxford), B.Sc. First Class Honors',
+        officeLocation: 'Mathematics Wing, Room 112',
+        consultationHours: 'Tue & Thu 10:00 AM - 12:00 PM',
+        publicEmail: 'm.sterling@oxford.school.example',
+        publicPhone: '+44 1865 270002',
+        displayEmail: true,
+        displayPhone: false, // Phone unapproved for public display (privacy redaction check)
+        status: PageStatus.PUBLISHED,
+        isActive: true,
+        isFeatured: false,
+        orderIndex: 2,
+        publishedAt: new Date(),
+        seoTitle: 'Marcus Sterling | Oxford Mathematics Faculty',
+        seoDescription: 'Senior mathematics faculty profile, publications, and student consultation times.',
+      },
+    });
+
+    await prisma.staffProfile.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'helena-rostova' } },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        fullName: 'Helena Rostova',
+        slug: 'helena-rostova',
+        roleTitle: 'Associate Lecturer in Biology & Genetics',
+        biography: 'Draft bio undergoing faculty review.',
+        departmentId: oxfordScienceDept?.id,
+        subjects: ['Molecular Genetics', 'Cellular Biology'],
+        qualifications: 'M.Sc. Molecular Biology',
+        officeLocation: 'Biology Annex, Lab 4',
+        consultationHours: 'Fridays 1:00 PM - 3:00 PM',
+        publicEmail: 'h.rostova@oxford.school.example',
+        displayEmail: true,
+        status: PageStatus.DRAFT, // Draft fail-closed test
+        isActive: true,
+        isFeatured: false,
+        orderIndex: 3,
+      },
+    });
+
+    console.log('  -> Seeded Oxford Staff Profiles (Dr. Eleanor Vance, Marcus Sterling, Helena Rostova [Draft])');
+  }
+
+  if (kgTenant) {
+    const playActivityDept = await prisma.academicDepartment.findUnique({
+      where: { tenantId_slug: { tenantId: kgTenant.id, slug: 'creative-play-activities' } },
+    });
+
+    await prisma.staffProfile.upsert({
+      where: { tenantId_slug: { tenantId: kgTenant.id, slug: 'sarah-jenkins' } },
+      update: {},
+      create: {
+        tenantId: kgTenant.id,
+        fullName: 'Sarah Jenkins',
+        slug: 'sarah-jenkins',
+        roleTitle: 'Lead Early Childhood Educator & Reggio Specialist',
+        biography: 'Sarah Jenkins leads our early childhood discovery activities, guiding toddlers and young children through sensory exploration, play-based numeracy, and language development.',
+        departmentId: playActivityDept?.id,
+        subjects: ['Sensory Exploration', 'Early Literacy', 'Reggio Creative Arts'],
+        qualifications: 'B.Ed. Early Childhood Education (Montessori & Reggio certified)',
+        officeLocation: 'Sunflower Classroom B',
+        consultationHours: 'Weekdays 3:15 PM - 4:00 PM (By appointment)',
+        publicEmail: 's.jenkins@littleexplorers.school.example',
+        publicPhone: '+251 11 618 2000',
+        displayEmail: true,
+        displayPhone: true,
+        status: PageStatus.PUBLISHED,
+        isActive: true,
+        isFeatured: true,
+        orderIndex: 1,
+        publishedAt: new Date(),
+        seoTitle: 'Sarah Jenkins | Little Explorers Kindergarten',
+        seoDescription: 'Meet Lead Early Childhood Educator Sarah Jenkins at Little Explorers Kindergarten.',
+      },
+    });
+
+    console.log('  -> Seeded Little Explorers Kindergarten Staff Profile (Sarah Jenkins)');
+  }
+
+  if (tvetTenant) {
+    const autoDept = await prisma.academicDepartment.findUnique({
+      where: { tenantId_slug: { tenantId: tvetTenant.id, slug: 'automotive-trades' } },
+    });
+
+    await prisma.staffProfile.upsert({
+      where: { tenantId_slug: { tenantId: tvetTenant.id, slug: 'david-miller' } },
+      update: {},
+      create: {
+        tenantId: tvetTenant.id,
+        fullName: 'David Miller',
+        slug: 'david-miller',
+        roleTitle: 'Head Instructor, Automotive Diagnostics & Systems',
+        biography: 'David Miller brings 20 years of field master technician experience in computer diagnostics, transmission rebuilds, and electrical system troubleshooting.',
+        departmentId: autoDept?.id,
+        subjects: ['OBD-II Diagnostics', 'Hybrid Powertrains', 'Engine Overhaul'],
+        qualifications: 'ASE Certified Master Automotive Technician (L1), National TVET Trainer Level V',
+        officeLocation: 'Technical Workshop Bay 3',
+        consultationHours: 'Mon-Fri 4:00 PM - 5:30 PM',
+        publicEmail: 'd.miller@summit-tvet.edu.example',
+        publicPhone: '+251 11 551 9800',
+        displayEmail: true,
+        displayPhone: true,
+        status: PageStatus.PUBLISHED,
+        isActive: true,
+        isFeatured: true,
+        orderIndex: 1,
+        publishedAt: new Date(),
+        seoTitle: 'David Miller | Summit TVET Technical Faculty',
+        seoDescription: 'Practical vocational instructor profile and workshop hours for David Miller at Summit TVET.',
+      },
+    });
+
+    console.log('  -> Seeded Summit TVET Staff Profile (David Miller)');
   }
 
   console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, media, dynamic forms, reusable sections, and academic catalogue seed completed idempotently.');

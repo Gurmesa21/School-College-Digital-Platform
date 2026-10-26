@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import AcademicAdminView from '@/components/AcademicAdminView';
+import StaffAdminView from '@/components/StaffAdminView';
 
 interface UserMember {
   id?: string;
@@ -237,7 +238,7 @@ interface FormSubmissionItem {
 }
 
 export default function TenantAdminPage() {
-  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'sections' | 'navigation' | 'media' | 'forms' | 'submissions' | 'academics'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'sections' | 'navigation' | 'media' | 'forms' | 'submissions' | 'academics' | 'staff'>('members');
   const [tenantSlug, setTenantSlug] = useState('oxford');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
 
@@ -1857,6 +1858,15 @@ export default function TenantAdminPage() {
         >
           Academic Catalogue
         </button>
+        <button
+          id="tab-staff-btn"
+          className={`tab-btn ${activeTab === 'staff' ? 'active' : ''}`}
+          onClick={() => setActiveTab('staff')}
+          aria-selected={activeTab === 'staff'}
+          role="tab"
+        >
+          Staff & Profiles
+        </button>
       </nav>
 
       {/* TAB 1: MEMBERS */}
@@ -3426,6 +3436,16 @@ export default function TenantAdminPage() {
       {/* TAB: ACADEMIC CATALOGUE */}
       {activeTab === 'academics' && (
         <AcademicAdminView
+          apiBaseUrl={apiBaseUrl}
+          tenantSlug={tenantSlug}
+          getHeaders={getHeaders}
+          setGlobalNotice={setGlobalNotice}
+        />
+      )}
+
+      {/* TAB: STAFF DIRECTORY & PROFILES */}
+      {activeTab === 'staff' && (
+        <StaffAdminView
           apiBaseUrl={apiBaseUrl}
           tenantSlug={tenantSlug}
           getHeaders={getHeaders}

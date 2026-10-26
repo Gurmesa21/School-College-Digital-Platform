@@ -137,6 +137,11 @@ export const PERMISSIONS = {
   ACADEMICS_WRITE: 'academics:write',
   ACADEMICS_PUBLISH: 'academics:publish',
 
+  // Staff Directory & Profiles (Day 10)
+  STAFF_READ: 'staff:read',
+  STAFF_WRITE: 'staff:write',
+  STAFF_PUBLISH: 'staff:publish',
+
   // Analytics
   ANALYTICS_VIEW: 'analytics:view',
 
@@ -1470,5 +1475,140 @@ export const AssignCoursesToProgrammeSchema = z.object({
   term: z.string().max(50).optional().nullable(),
 });
 export type AssignCoursesToProgrammeDto = z.infer<typeof AssignCoursesToProgrammeSchema>;
+
+/**
+ * ==========================================
+ * DAY 10: STAFF DIRECTORY & PROFILES
+ * ==========================================
+ */
+
+export interface StaffProfileDto {
+  id: string;
+  tenantId: string;
+  fullName: string;
+  slug: string;
+  roleTitle: string;
+  biography?: string | null;
+  departmentId?: string | null;
+  profileMediaId?: string | null;
+  subjects: string[];
+  qualifications?: string | null;
+  officeLocation?: string | null;
+  consultationHours?: string | null;
+  publicEmail?: string | null;
+  publicPhone?: string | null;
+  displayEmail: boolean;
+  displayPhone: boolean;
+  websiteUrl?: string | null;
+  internalNotes?: string | null;
+  userId?: string | null;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  isActive: boolean;
+  isFeatured: boolean;
+  orderIndex: number;
+  publishedAt?: string | null;
+  archivedAt?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+  authorId?: string | null;
+  lastEditorId?: string | null;
+  department?: AcademicDepartmentDto | null;
+  profileMedia?: {
+    id: string;
+    title: string;
+    publicUrl: string;
+    altText?: string | null;
+    caption?: string | null;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicStaffProfileDto {
+  id: string;
+  fullName: string;
+  slug: string;
+  roleTitle: string;
+  biography?: string | null;
+  subjects: string[];
+  qualifications?: string | null;
+  officeLocation?: string | null;
+  consultationHours?: string | null;
+  publicEmail?: string | null;
+  publicPhone?: string | null;
+  websiteUrl?: string | null;
+  isFeatured: boolean;
+  orderIndex: number;
+  department?: {
+    id: string;
+    name: string;
+    slug: string;
+    code?: string | null;
+  } | null;
+  profileMedia?: {
+    id: string;
+    title: string;
+    publicUrl: string;
+    altText?: string | null;
+    caption?: string | null;
+  } | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+}
+
+export const CreateStaffProfileSchema = z.object({
+  fullName: z.string().min(2, 'Full name must be at least 2 characters').max(200),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
+  roleTitle: z.string().min(2, 'Role or professional title must be at least 2 characters').max(200),
+  biography: z.string().max(10000).optional().nullable(),
+  departmentId: z.string().optional().nullable(),
+  profileMediaId: z.string().optional().nullable(),
+  subjects: z.array(z.string().max(100)).optional().default([]),
+  qualifications: z.string().max(1000).optional().nullable(),
+  officeLocation: z.string().max(200).optional().nullable(),
+  consultationHours: z.string().max(200).optional().nullable(),
+  publicEmail: z.string().email('Invalid public email').max(200).optional().nullable().or(z.literal('')),
+  publicPhone: z.string().max(50).optional().nullable().or(z.literal('')),
+  displayEmail: z.boolean().optional().default(false),
+  displayPhone: z.boolean().optional().default(false),
+  websiteUrl: z.string().url('Invalid website URL').max(500).optional().nullable().or(z.literal('')),
+  internalNotes: z.string().max(5000).optional().nullable(),
+  userId: z.string().optional().nullable(),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional().default('DRAFT'),
+  isActive: z.boolean().optional().default(true),
+  isFeatured: z.boolean().optional().default(false),
+  orderIndex: z.number().int().optional().default(0),
+  seoTitle: z.string().max(120).optional().nullable(),
+  seoDescription: z.string().max(300).optional().nullable(),
+  canonicalUrl: z.string().max(500).optional().nullable(),
+});
+export type CreateStaffProfileDto = z.infer<typeof CreateStaffProfileSchema>;
+
+export const UpdateStaffProfileSchema = CreateStaffProfileSchema.partial();
+export type UpdateStaffProfileDto = z.infer<typeof UpdateStaffProfileSchema>;
+
+export const StaffProfileQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  departmentId: z.string().optional(),
+  roleTitle: z.string().optional(),
+  subject: z.string().optional(),
+  search: z.string().max(100).optional(),
+  isActive: z.preprocess((val) => {
+    if (val === 'true' || val === true) return true;
+    if (val === 'false' || val === false) return false;
+    return undefined;
+  }, z.boolean().optional()),
+  isFeatured: z.preprocess((val) => {
+    if (val === 'true' || val === true) return true;
+    if (val === 'false' || val === false) return false;
+    return undefined;
+  }, z.boolean().optional()),
+});
+export type StaffProfileQueryDto = z.infer<typeof StaffProfileQuerySchema>;
+
 
 

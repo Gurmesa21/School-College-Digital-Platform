@@ -23,6 +23,7 @@ async function main() {
   const academicDepartmentsCount = await prisma.academicDepartment.count();
   const programmesCount = await prisma.programme.count();
   const coursesCount = await prisma.course.count();
+  const staffProfilesCount = await prisma.staffProfile.count();
 
   console.log('[DB Verification] Table Record Counts:');
   console.log(`  - tenants: ${tenantsCount}`);
@@ -43,6 +44,7 @@ async function main() {
   console.log(`  - academic_departments: ${academicDepartmentsCount}`);
   console.log(`  - programmes: ${programmesCount}`);
   console.log(`  - courses: ${coursesCount}`);
+  console.log(`  - staff_profiles: ${staffProfilesCount}`);
 
   const users = await prisma.user.findMany({
     select: {

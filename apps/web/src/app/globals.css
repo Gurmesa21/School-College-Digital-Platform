@@ -1157,3 +1157,30 @@ code {
     gap: 1.5rem !important;
   }
 }
+
+/* ==========================================================================
+   Staff Directory & Profiles (Day 10)
+   ========================================================================== */
+.staff-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.staff-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(56, 189, 248, 0.1);
+}
+
+.staff-photo-circle {
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(56, 189, 248, 0.4);
+}
+
+@media (max-width: 768px) {
+  .staff-profile-detail header {
+    flex-direction: column !important;
+    text-align: center !important;
+  }
+}
+

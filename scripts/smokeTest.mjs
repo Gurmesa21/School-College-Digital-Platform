@@ -489,6 +489,80 @@ async function run() {
     testCases.push({ name: 'Public Academics Frontend Page Render (200)', status: academicsPageRes.status, pass: pass29 });
     console.log(`  -> Status: ${academicsPageRes.status}, Pass: ${pass29}`);
 
+    // Test 30: Public Staff Directory Discovery (FR-ACAD-004)
+    console.log('Testing 30: GET http://localhost:4000/api/v1/tenant/public/staff');
+    const staffDirRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/staff', {
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Accept': 'application/json',
+      },
+    });
+    const staffDirJson = JSON.parse(staffDirRes.body);
+    const pass30 = staffDirRes.status === 200 && staffDirJson.success === true && Array.isArray(staffDirJson.data?.items) && staffDirJson.data.items.length >= 2;
+    testCases.push({ name: 'Public Staff Directory Discovery (200)', status: staffDirRes.status, pass: pass30 });
+    console.log(`  -> Status: ${staffDirRes.status}, Staff Count: ${staffDirJson.data?.items?.length}, Pass: ${pass30}`);
+
+    // Test 31: Public Staff Profile Detail with Approved Email Disclosure (FR-ACAD-003)
+    console.log('Testing 31: GET http://localhost:4000/api/v1/tenant/public/staff/dr-eleanor-vance');
+    const staffDetailRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/staff/dr-eleanor-vance', {
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Accept': 'application/json',
+      },
+    });
+    const staffDetailJson = JSON.parse(staffDetailRes.body);
+    const pass31 =
+      staffDetailRes.status === 200 &&
+      staffDetailJson.success === true &&
+      staffDetailJson.data?.slug === 'dr-eleanor-vance' &&
+      staffDetailJson.data?.publicEmail === 'e.vance@oxford.school.example';
+    testCases.push({ name: 'Public Staff Profile Detail & Approved Contact Disclosure (200)', status: staffDetailRes.status, pass: pass31 });
+    console.log(`  -> Status: ${staffDetailRes.status}, Email: ${staffDetailJson.data?.publicEmail}, Pass: ${pass31}`);
+
+    // Test 32: Privacy Redaction (Unapproved Phone is Redacted, Internal Notes Omitted) (FR-ACAD-003)
+    console.log('Testing 32: GET http://localhost:4000/api/v1/tenant/public/staff/marcus-sterling (Phone unapproved)');
+    const staffPrivacyRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/staff/marcus-sterling', {
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Accept': 'application/json',
+      },
+    });
+    const staffPrivacyJson = JSON.parse(staffPrivacyRes.body);
+    const pass32 =
+      staffPrivacyRes.status === 200 &&
+      staffPrivacyJson.success === true &&
+      staffPrivacyJson.data?.slug === 'marcus-sterling' &&
+      staffPrivacyJson.data?.publicEmail === 'm.sterling@oxford.school.example' &&
+      staffPrivacyJson.data?.publicPhone === null &&
+      staffPrivacyJson.data?.internalNotes === undefined;
+    testCases.push({ name: 'Staff Contact Privacy Redaction Verification (200)', status: staffPrivacyRes.status, pass: pass32 });
+    console.log(`  -> Status: ${staffPrivacyRes.status}, Phone Redacted: ${staffPrivacyJson.data?.publicPhone === null}, Pass: ${pass32}`);
+
+    // Test 33: Draft Staff Profile Fail-Closed Protection (FR-CMS-006, BR-008)
+    console.log('Testing 33: GET http://localhost:4000/api/v1/tenant/public/staff/helena-rostova (DRAFT)');
+    const staffDraftRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/staff/helena-rostova', {
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Accept': 'application/json',
+      },
+    });
+    const staffDraftJson = JSON.parse(staffDraftRes.body);
+    const staffDraftErrorCode = staffDraftJson.error?.code;
+    const pass33 = staffDraftRes.status === 404 && (staffDraftErrorCode === 'STAFF_NOT_FOUND' || staffDraftErrorCode === 'NOT_FOUND');
+    testCases.push({ name: 'Draft Staff Profile Fail-Closed Protection (404)', status: staffDraftRes.status, pass: pass33 });
+    console.log(`  -> Status: ${staffDraftRes.status}, Error Code: ${staffDraftErrorCode}, Pass: ${pass33}`);
+
+    // Test 34: Public Frontend Staff Directory Page Render (SSR)
+    console.log('Testing 34: GET http://localhost:3000/staff');
+    const staffPageRes = await fetchUrl('http://localhost:3000/staff');
+    const pass34 =
+      staffPageRes.status === 200 &&
+      (staffPageRes.body.includes('Faculty & Staff') ||
+        staffPageRes.body.includes('Faculty &amp; Staff') ||
+        (staffPageRes.body.includes('Faculty') && staffPageRes.body.includes('Staff')));
+    testCases.push({ name: 'Public Staff Frontend Page Render (200)', status: staffPageRes.status, pass: pass34 });
+    console.log(`  -> Status: ${staffPageRes.status}, Pass: ${pass34}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -502,7 +576,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 29 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 34 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');
