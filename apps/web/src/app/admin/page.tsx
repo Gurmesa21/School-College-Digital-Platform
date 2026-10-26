@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import AcademicAdminView from '@/components/AcademicAdminView';
 
 interface UserMember {
   id?: string;
@@ -236,7 +237,7 @@ interface FormSubmissionItem {
 }
 
 export default function TenantAdminPage() {
-  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'sections' | 'navigation' | 'media' | 'forms' | 'submissions'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'sections' | 'navigation' | 'media' | 'forms' | 'submissions' | 'academics'>('members');
   const [tenantSlug, setTenantSlug] = useState('oxford');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
 
@@ -1847,6 +1848,15 @@ export default function TenantAdminPage() {
         >
           Inquiries & Submissions
         </button>
+        <button
+          id="tab-academics-btn"
+          className={`tab-btn ${activeTab === 'academics' ? 'active' : ''}`}
+          onClick={() => setActiveTab('academics')}
+          aria-selected={activeTab === 'academics'}
+          role="tab"
+        >
+          Academic Catalogue
+        </button>
       </nav>
 
       {/* TAB 1: MEMBERS */}
@@ -3411,6 +3421,16 @@ export default function TenantAdminPage() {
             </div>
           )}
         </section>
+      )}
+
+      {/* TAB: ACADEMIC CATALOGUE */}
+      {activeTab === 'academics' && (
+        <AcademicAdminView
+          apiBaseUrl={apiBaseUrl}
+          tenantSlug={tenantSlug}
+          getHeaders={getHeaders}
+          setGlobalNotice={setGlobalNotice}
+        />
       )}
 
       {/* CMS PAGE EDITOR MODAL */}

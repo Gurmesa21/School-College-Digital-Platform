@@ -10,6 +10,7 @@ import { InMemoryMediaRepository } from './repositories/mediaRepository.js';
 import { InMemoryTaxonomyRepository } from './repositories/taxonomyRepository.js';
 import { InMemoryFormRepository } from './repositories/formRepository.js';
 import { InMemorySectionRepository } from './repositories/sectionRepository.js';
+import { InMemoryAcademicRepository } from './repositories/academicRepository.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { PERMISSIONS } from '@school/shared';
 
@@ -288,6 +289,7 @@ async function startServer() {
       taxonomyRepository: taxRepo,
       formRepository: formRepo,
       sectionRepository: sectionRepo,
+      academicRepository: new InMemoryAcademicRepository(),
       emailService,
     });
   } else {

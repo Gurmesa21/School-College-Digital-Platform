@@ -19,6 +19,10 @@ async function main() {
   const navigationMenuItemsCount = await prisma.navigationMenuItem.count();
   const categoriesCount = await prisma.category.count();
   const mediaAssetsCount = await prisma.mediaAsset.count();
+  const academicLevelsCount = await prisma.academicLevel.count();
+  const academicDepartmentsCount = await prisma.academicDepartment.count();
+  const programmesCount = await prisma.programme.count();
+  const coursesCount = await prisma.course.count();
 
   console.log('[DB Verification] Table Record Counts:');
   console.log(`  - tenants: ${tenantsCount}`);
@@ -35,6 +39,10 @@ async function main() {
   console.log(`  - navigation_menu_items: ${navigationMenuItemsCount}`);
   console.log(`  - categories: ${categoriesCount}`);
   console.log(`  - media_assets: ${mediaAssetsCount}`);
+  console.log(`  - academic_levels: ${academicLevelsCount}`);
+  console.log(`  - academic_departments: ${academicDepartmentsCount}`);
+  console.log(`  - programmes: ${programmesCount}`);
+  console.log(`  - courses: ${coursesCount}`);
 
   const users = await prisma.user.findMany({
     select: {

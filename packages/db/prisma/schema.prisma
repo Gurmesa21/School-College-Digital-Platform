@@ -137,6 +137,10 @@ model Tenant {
   forms           Form[]
   formSubmissions FormSubmission[]
   reusableSections ReusableSection[]
+  academicLevels   AcademicLevel[]
+  academicDepartments AcademicDepartment[]
+  programmes       Programme[]
+  courses          Course[]
 
   @@index([slug])
   @@index([status])
@@ -183,6 +187,8 @@ model User {
   reviewedSubmissions     FormSubmission[]         @relation("ReviewedSubmissions")
   authoredReusableSections ReusableSection[]        @relation("ReusableSectionAuthor")
   editedReusableSections   ReusableSection[]        @relation("ReusableSectionEditor")
+  authoredProgrammes       Programme[]              @relation("ProgrammeAuthor")
+  editedProgrammes         Programme[]              @relation("ProgrammeEditor")
 
   @@index([email])
   @@index([status])
@@ -533,6 +539,7 @@ model MediaAsset {
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   uploader      User?         @relation("UploadedMedia", fields: [uploaderId], references: [id], onDelete: SetNull)
   taxCategory   Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  programmes    Programme[]
 
   @@index([tenantId, category])
   @@index([tenantId, isPublic])
@@ -611,4 +618,147 @@ model FormSubmission {
   @@index([reviewedById])
   @@map("form_submissions")
 }
+
+model AcademicLevel {
+  id          String      @id @default(cuid())
+  tenantId    String
+  name        String
+  slug        String
+  levelType   String?
+  description String?
+  orderIndex  Int         @default(0)
+  minAge      Int?
+  maxAge      Int?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  programmes  Programme[]
+  courses     Course[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+  @@map("academic_levels")
+}
+
+model AcademicDepartment {
+  id          String               @id @default(cuid())
+  tenantId    String
+  name        String
+  slug        String
+  code        String?
+  description String?
+  parentId    String?
+  orderIndex  Int                  @default(0)
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent      AcademicDepartment?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    AcademicDepartment[] @relation("DepartmentHierarchy")
+  programmes  Programme[]
+  courses     Course[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, parentId])
+  @@map("academic_departments")
+}
+
+model Programme {
+  id                    String              @id @default(cuid())
+  tenantId              String
+  title                 String
+  slug                  String
+  summary               String?
+  description           String?
+  programmeType         String?
+  levelId               String?
+  departmentId          String?
+  duration              String?
+  entryRequirements     String?
+  qualificationsAwarded String?
+  curriculum            String?
+  tuitionFee            Float?
+  tuitionCurrency       String?             @default("USD")
+  tuitionPeriod         String?
+  tuitionDescription    String?
+  displayTuition        Boolean             @default(false)
+  heroMediaId           String?
+  status                PageStatus          @default(DRAFT)
+  isActive              Boolean             @default(true)
+  isFeatured            Boolean             @default(false)
+  orderIndex            Int                 @default(0)
+  publishedAt           DateTime?
+  archivedAt            DateTime?
+  seoTitle              String?
+  seoDescription        String?
+  canonicalUrl          String?
+  authorId              String?
+  lastEditorId          String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  tenant                Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  level                 AcademicLevel?      @relation(fields: [levelId], references: [id], onDelete: SetNull)
+  department            AcademicDepartment? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  heroMedia             MediaAsset?         @relation(fields: [heroMediaId], references: [id], onDelete: SetNull)
+  author                User?               @relation("ProgrammeAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  lastEditor            User?               @relation("ProgrammeEditor", fields: [lastEditorId], references: [id], onDelete: SetNull)
+  courses               ProgrammeCourse[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@index([tenantId, levelId])
+  @@index([tenantId, departmentId])
+  @@map("programmes")
+}
+
+model Course {
+  id           String              @id @default(cuid())
+  tenantId     String
+  code         String?
+  title        String
+  slug         String
+  summary      String?
+  description  String?
+  credits      Float?
+  hours        Int?
+  levelId      String?
+  departmentId String?
+  syllabus     String?
+  status       PageStatus          @default(DRAFT)
+  orderIndex   Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  level        AcademicLevel?      @relation(fields: [levelId], references: [id], onDelete: SetNull)
+  department   AcademicDepartment? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  programmes   ProgrammeCourse[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@index([tenantId, levelId])
+  @@index([tenantId, departmentId])
+  @@map("courses")
+}
+
+model ProgrammeCourse {
+  programmeId String
+  courseId    String
+  isRequired  Boolean   @default(true)
+  term        String?
+  orderIndex  Int       @default(0)
+
+  programme   Programme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([programmeId, courseId])
+  @@index([programmeId])
+  @@index([courseId])
+  @@map("programme_courses")
+}
+
 

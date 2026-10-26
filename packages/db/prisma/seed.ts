@@ -138,6 +138,11 @@ export const SYSTEM_PERMISSIONS: Array<{ code: string; category: string; descrip
   { code: 'cms:forms:read', category: 'cms', description: 'View form definitions and submissions' },
   { code: 'cms:forms:write', category: 'cms', description: 'Create, update, and manage dynamic forms' },
 
+  // Academic Catalogue & Structures (Day 9)
+  { code: 'academics:read', category: 'academics', description: 'View academic catalogue structures and draft programmes' },
+  { code: 'academics:write', category: 'academics', description: 'Create, edit, and configure academic structures and programmes' },
+  { code: 'academics:publish', category: 'academics', description: 'Publish academic programmes and catalogue records to public site' },
+
   // Analytics
   { code: 'analytics:view', category: 'analytics', description: 'View institution traffic and admissions analytics' },
 
@@ -185,6 +190,9 @@ export const SYSTEM_ROLES: Array<{
       'taxonomy:write',
       'cms:forms:read',
       'cms:forms:write',
+      'academics:read',
+      'academics:write',
+      'academics:publish',
       'admissions:read',
       'admissions:review',
       'admissions:manage',
@@ -206,6 +214,9 @@ export const SYSTEM_ROLES: Array<{
       'media:read',
       'taxonomy:read',
       'cms:forms:read',
+      'academics:read',
+      'academics:write',
+      'academics:publish',
       'admissions:read',
       'admissions:review',
       'analytics:view',
@@ -1174,7 +1185,361 @@ export async function seedDevelopmentData(): Promise<void> {
     console.log('  -> Seeded 3 Day 8 Reusable Sections (CTA Banner, FAQ Accordion, Stats Counter) for Oxford');
   }
 
-  console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, media, dynamic forms, and reusable sections seed completed idempotently.');
+  // --------------------------------------------------------------------------
+  // Day 9: Academic Catalogue & Flexible Structures (FR-ACAD-001, FR-ACAD-002)
+  // --------------------------------------------------------------------------
+  console.log('[Seed] Seeding Day 9 Flexible Academic Structures and Programmes...');
+
+  // 1. Oxford International School (Secondary / Cambridge)
+  const oxford = await prisma.tenant.findUnique({ where: { slug: 'oxford' } });
+  const oxfordAdmin = await prisma.user.findUnique({ where: { email: 'admin@oxford.edu' } });
+
+  if (oxford) {
+    const igcseLevel = await prisma.academicLevel.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'high-school-igcse' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        name: 'High School (IGCSE Grades 9-10)',
+        slug: 'high-school-igcse',
+        levelType: 'SECONDARY',
+        description: 'Upper secondary curriculum preparing students for international examinations.',
+        orderIndex: 1,
+        minAge: 14,
+        maxAge: 16,
+        isActive: true,
+      },
+    });
+
+    const aLevelsLevel = await prisma.academicLevel.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'sixth-form-a-levels' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        name: 'Sixth Form (A-Levels Grades 11-12)',
+        slug: 'sixth-form-a-levels',
+        levelType: 'SECONDARY',
+        description: 'Pre-university preparation with deep subject specialisation.',
+        orderIndex: 2,
+        minAge: 16,
+        maxAge: 18,
+        isActive: true,
+      },
+    });
+
+    const stemDept = await prisma.academicDepartment.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'stem-sciences' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        name: 'Department of STEM & Sciences',
+        slug: 'stem-sciences',
+        code: 'STEM',
+        description: 'Mathematics, Physics, Chemistry, Biology, and Computer Science disciplines.',
+        orderIndex: 1,
+        isActive: true,
+      },
+    });
+
+    const humanitiesDept = await prisma.academicDepartment.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'humanities-languages' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        name: 'Department of Humanities & Languages',
+        slug: 'humanities-languages',
+        code: 'HUM',
+        description: 'Literature, History, Global Perspectives, and Modern Languages.',
+        orderIndex: 2,
+        isActive: true,
+      },
+    });
+
+    const mathCourse = await prisma.course.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'advanced-mathematics' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        code: 'MATH-IGCSE',
+        title: 'Cambridge IGCSE Mathematics (Extended)',
+        slug: 'advanced-mathematics',
+        summary: 'Rigorous mathematical analysis covering algebra, geometry, trigonometry, and calculus basics.',
+        description: 'This course provides learners with a strong foundation for further mathematical studies, emphasizing problem-solving and mathematical reasoning.',
+        credits: 4.0,
+        hours: 150,
+        levelId: igcseLevel.id,
+        departmentId: stemDept.id,
+        status: PageStatus.PUBLISHED,
+        orderIndex: 1,
+      },
+    });
+
+    const physicsCourse = await prisma.course.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'cambridge-physics' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        code: 'PHYS-IGCSE',
+        title: 'Cambridge IGCSE Physics',
+        slug: 'cambridge-physics',
+        summary: 'Comprehensive laboratory and theoretical physics covering mechanics, thermodynamics, and electricity.',
+        credits: 4.0,
+        hours: 150,
+        levelId: igcseLevel.id,
+        departmentId: stemDept.id,
+        status: PageStatus.PUBLISHED,
+        orderIndex: 2,
+      },
+    });
+
+    const igcseProg = await prisma.programme.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'cambridge-igcse' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        title: 'Cambridge IGCSE Programme',
+        slug: 'cambridge-igcse',
+        summary: 'Globally recognized two-year upper secondary curriculum fostering independent inquiry and academic mastery.',
+        description: 'The Cambridge IGCSE programme at Oxford International School delivers a broad, balanced international education designed for students aged 14 to 16. Our learners undertake comprehensive studies across core sciences, mathematics, humanities, and languages, guided by Cambridge-certified educators with full laboratory integration.',
+        programmeType: 'Secondary Certificate',
+        levelId: igcseLevel.id,
+        departmentId: stemDept.id,
+        duration: '2 Academic Years (Grades 9-10)',
+        entryRequirements: 'Successful completion of Grade 8 or equivalent international middle school standing. Satisfactory performance in mathematics and English diagnostic assessments.',
+        qualificationsAwarded: 'Cambridge International General Certificate of Secondary Education (IGCSE)',
+        curriculum: 'Cambridge Assessment International Education (CAIE)',
+        tuitionFee: 3200,
+        tuitionCurrency: 'USD',
+        tuitionPeriod: 'Per Academic Year',
+        tuitionDescription: 'Includes Cambridge registration fees, laboratory usage, digital textbooks, and extracurricular sports club membership.',
+        displayTuition: true, // Authorized and approved for public display
+        status: PageStatus.PUBLISHED,
+        isActive: true,
+        isFeatured: true,
+        orderIndex: 1,
+        publishedAt: new Date(),
+        seoTitle: 'Cambridge IGCSE Programme | Oxford International School',
+        seoDescription: 'Accredited 2-year Cambridge IGCSE secondary curriculum with modern laboratories and global university pathways.',
+        authorId: oxfordAdmin?.id,
+      },
+    });
+
+    // Link courses to programme
+    await prisma.programmeCourse.upsert({
+      where: { programmeId_courseId: { programmeId: igcseProg.id, courseId: mathCourse.id } },
+      update: {},
+      create: {
+        programmeId: igcseProg.id,
+        courseId: mathCourse.id,
+        isRequired: true,
+        term: 'Year 1 - Semesters 1 & 2',
+        orderIndex: 1,
+      },
+    });
+
+    await prisma.programmeCourse.upsert({
+      where: { programmeId_courseId: { programmeId: igcseProg.id, courseId: physicsCourse.id } },
+      update: {},
+      create: {
+        programmeId: igcseProg.id,
+        courseId: physicsCourse.id,
+        isRequired: true,
+        term: 'Year 1 - Semesters 1 & 2',
+        orderIndex: 2,
+      },
+    });
+
+    // Seed A-Levels programme (tuition hidden/not authorized for public display)
+    await prisma.programme.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'international-a-levels' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        title: 'Cambridge International A-Levels',
+        slug: 'international-a-levels',
+        summary: 'Advanced pre-university qualifications recognized by top universities across the UK, US, Canada, and Europe.',
+        description: 'Our Sixth Form programme allows students to specialize deeply in three to four subjects. Rigorous academic tutoring, personalized university guidance, and independent research projects equip students for entry into the worlds premier universities.',
+        programmeType: 'Pre-University Diploma',
+        levelId: aLevelsLevel.id,
+        departmentId: stemDept.id,
+        duration: '2 Academic Years (Grades 11-12)',
+        entryRequirements: 'Minimum 5 IGCSE passes with grades A*-C, including mathematics and English.',
+        qualificationsAwarded: 'Cambridge International Advanced Level (A-Level)',
+        curriculum: 'Cambridge Assessment International Education (CAIE)',
+        tuitionFee: 4500,
+        tuitionCurrency: 'USD',
+        tuitionPeriod: 'Per Academic Year',
+        displayTuition: false, // Tuition not approved for public display (confidential / tailored aid)
+        status: PageStatus.PUBLISHED,
+        isActive: true,
+        isFeatured: false,
+        orderIndex: 2,
+        publishedAt: new Date(),
+        seoTitle: 'Cambridge International A-Levels | Oxford Sixth Form',
+        seoDescription: 'World-renowned Sixth Form pre-university qualifications preparing students for top international universities.',
+        authorId: oxfordAdmin?.id,
+      },
+    });
+
+    // Seed a Draft Programme (should not be returned publicly)
+    await prisma.programme.upsert({
+      where: { tenantId_slug: { tenantId: oxford.id, slug: 'robotics-and-ai-enrichment' } },
+      update: {},
+      create: {
+        tenantId: oxford.id,
+        title: 'Robotics & AI Advanced Enrichment Track',
+        slug: 'robotics-and-ai-enrichment',
+        summary: 'Elective STEM pathway focusing on autonomous robotics, microcontrollers, and machine learning principles.',
+        description: 'Internal draft syllabus currently undergoing faculty curriculum review.',
+        programmeType: 'Enrichment Track',
+        levelId: igcseLevel.id,
+        departmentId: stemDept.id,
+        duration: '1 Semester',
+        status: PageStatus.DRAFT,
+        isActive: true,
+        displayTuition: false,
+        orderIndex: 3,
+        authorId: oxfordAdmin?.id,
+      },
+    });
+
+    console.log('  -> Seeded Oxford Academic Structure (2 levels, 2 departments, 3 programmes, 2 courses)');
+  }
+
+  // 2. Little Explorers Kindergarten (Flexible Early Childhood - no college faculties)
+  const kgTenant = await prisma.tenant.findUnique({ where: { slug: 'little-explorers-kindergarten' } });
+  if (kgTenant) {
+    const earlyYearsLevel = await prisma.academicLevel.upsert({
+      where: { tenantId_slug: { tenantId: kgTenant.id, slug: 'foundation-years' } },
+      update: {},
+      create: {
+        tenantId: kgTenant.id,
+        name: 'Foundation Years (Ages 3-5)',
+        slug: 'foundation-years',
+        levelType: 'EARLY_CHILDHOOD',
+        description: 'Play-based early developmental learning nurturing curiosity, social skills, and motor development.',
+        orderIndex: 1,
+        minAge: 3,
+        maxAge: 5,
+        isActive: true,
+      },
+    });
+
+    const playActivityDept = await prisma.academicDepartment.upsert({
+      where: { tenantId_slug: { tenantId: kgTenant.id, slug: 'creative-play-activities' } },
+      update: {},
+      create: {
+        tenantId: kgTenant.id,
+        name: 'Creative Play & Early Learning Activities',
+        slug: 'creative-play-activities',
+        description: 'Montessori-inspired learning areas, sensory play stations, and early childhood motor activities.',
+        orderIndex: 1,
+        isActive: true,
+      },
+    });
+
+    await prisma.programme.upsert({
+      where: { tenantId_slug: { tenantId: kgTenant.id, slug: 'explorers-kindergarten' } },
+      update: {},
+      create: {
+        tenantId: kgTenant.id,
+        title: 'Little Explorers Full-Day Kindergarten',
+        slug: 'explorers-kindergarten',
+        summary: 'Nurturing full-day early childhood programme combining sensory exploration, phonics, and expressive arts.',
+        description: 'Our full-day kindergarten curriculum promotes holistic child development through structured discovery and creative play. Children develop foundational early literacy, numeracy intuition, and social empathy in safe, stimulating learning environments.',
+        programmeType: 'Early Learning Programme',
+        levelId: earlyYearsLevel.id,
+        departmentId: playActivityDept.id,
+        duration: '1 Academic Year (Full-Day 8:30 AM - 3:00 PM)',
+        entryRequirements: 'Child must be 3 years of age by commencement of term and toilet-trained.',
+        qualificationsAwarded: 'Early Childhood Completion Certificate',
+        curriculum: 'Reggio Emilia & Early Years Foundation Stage (EYFS)',
+        tuitionFee: 1800,
+        tuitionCurrency: 'USD',
+        tuitionPeriod: 'Per Term',
+        tuitionDescription: 'Includes organic morning snack, hot nutritious lunch, arts materials, and daily resting cot.',
+        displayTuition: true,
+        status: PageStatus.PUBLISHED,
+        isActive: true,
+        isFeatured: true,
+        orderIndex: 1,
+        publishedAt: new Date(),
+        seoTitle: 'Full-Day Kindergarten | Little Explorers',
+        seoDescription: 'Holistic early childhood foundation programme combining sensory exploration and play-based learning.',
+      },
+    });
+
+    console.log('  -> Seeded Little Explorers Kindergarten Structure (Early Childhood model without college faculties)');
+  }
+
+  // 3. Summit TVET & Vocational Institute (Practical training, certifications, duration, entry criteria)
+  const tvetTenant = await prisma.tenant.findUnique({ where: { slug: 'summit-tvet-institute' } });
+  if (tvetTenant) {
+    const tvetLevel = await prisma.academicLevel.upsert({
+      where: { tenantId_slug: { tenantId: tvetTenant.id, slug: 'vocational-diploma-level' } },
+      update: {},
+      create: {
+        tenantId: tvetTenant.id,
+        name: 'National Occupational Certificate Level III-IV',
+        slug: 'vocational-diploma-level',
+        levelType: 'TVET',
+        description: 'Industry-standard competency-based vocational training verified by national certification boards.',
+        orderIndex: 1,
+        minAge: 18,
+        maxAge: null,
+        isActive: true,
+      },
+    });
+
+    const autoDept = await prisma.academicDepartment.upsert({
+      where: { tenantId_slug: { tenantId: tvetTenant.id, slug: 'automotive-trades' } },
+      update: {},
+      create: {
+        tenantId: tvetTenant.id,
+        name: 'Division of Automotive & Mechanical Trades',
+        slug: 'automotive-trades',
+        code: 'AUTO',
+        description: 'Advanced workshops for vehicle electronics, engine overhauls, and hydraulic systems.',
+        orderIndex: 1,
+        isActive: true,
+      },
+    });
+
+    await prisma.programme.upsert({
+      where: { tenantId_slug: { tenantId: tvetTenant.id, slug: 'automotive-diagnostics-technology' } },
+      update: {},
+      create: {
+        tenantId: tvetTenant.id,
+        title: 'Automotive Diagnostics & Maintenance Technology',
+        slug: 'automotive-diagnostics-technology',
+        summary: 'Hands-on practical certification in computerized diagnostic equipment, hybrid powertrains, and braking systems.',
+        description: 'Summit TVETs flagship technical programme prepares certified automotive technicians through 70% workshop practicum and 30% theory. Students master OBD-II digital diagnostics, hybrid battery safety, automatic transmissions, and electronic fuel injection.',
+        programmeType: 'Technical Certification',
+        levelId: tvetLevel.id,
+        departmentId: autoDept.id,
+        duration: '12 Months (1,200 Practical Workshop Hours + 3-Month Industry Apprenticeship)',
+        entryRequirements: 'High school diploma or Grade 10 secondary school completion certificate. Basic aptitude in technical mechanics.',
+        qualificationsAwarded: 'National Occupational Competency Certificate (Level IV Technician)',
+        curriculum: 'National TVET Competency Standard & ASE Aligned',
+        tuitionFee: 950,
+        tuitionCurrency: 'USD',
+        tuitionPeriod: 'Total Course Tuition',
+        tuitionDescription: 'Includes heavy-duty safety gear, personal tool set, workshop consumable fluids, and national assessment fees.',
+        displayTuition: true,
+        status: PageStatus.PUBLISHED,
+        isActive: true,
+        isFeatured: true,
+        orderIndex: 1,
+        publishedAt: new Date(),
+        seoTitle: 'Automotive Diagnostics Technician Programme | Summit TVET',
+        seoDescription: 'Hands-on 12-month automotive technician certification with 70% workshop practicum and apprenticeship.',
+      },
+    });
+
+    console.log('  -> Seeded Summit TVET Structure (Vocational training, certification, practical duration, criteria)');
+  }
+
+  console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, media, dynamic forms, reusable sections, and academic catalogue seed completed idempotently.');
 }
 
 // Direct execution guard

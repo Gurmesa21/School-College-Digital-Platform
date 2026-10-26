@@ -435,6 +435,60 @@ async function run() {
     testCases.push({ name: 'Public Contact & Admissions Frontend Pages Render (200)', status: contactPageRes.status, pass: pass25 });
     console.log(`  -> Contact: ${contactPageRes.status}, Admissions: ${admissionsPageRes.status}, Pass: ${pass25}`);
 
+    // Test 26: Public Academic Catalogue Discovery (FR-ACAD-001, FR-ACAD-002)
+    console.log('Testing 26: GET http://localhost:4000/api/v1/tenant/public/academics/programmes');
+    const acadRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/academics/programmes', {
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Accept': 'application/json',
+      },
+    });
+    const acadJson = JSON.parse(acadRes.body);
+    const pass26 = acadRes.status === 200 && acadJson.success === true && Array.isArray(acadJson.data?.items) && acadJson.data.items.length > 0;
+    testCases.push({ name: 'Public Academic Catalogue Discovery (200)', status: acadRes.status, pass: pass26 });
+    console.log(`  -> Status: ${acadRes.status}, Programmes Count: ${acadJson.data?.items?.length}, Pass: ${pass26}`);
+
+    // Test 27: Public Programme Detail & Tuition Privacy (FR-ACAD-002)
+    console.log('Testing 27: GET http://localhost:4000/api/v1/tenant/public/academics/programmes/cambridge-igcse');
+    const progDetailRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/academics/programmes/cambridge-igcse', {
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Accept': 'application/json',
+      },
+    });
+    const progDetailJson = JSON.parse(progDetailRes.body);
+    const pass27 =
+      progDetailRes.status === 200 &&
+      progDetailJson.success === true &&
+      progDetailJson.data?.slug === 'cambridge-igcse' &&
+      progDetailJson.data?.displayTuition === true &&
+      typeof progDetailJson.data?.tuitionFee === 'number';
+    testCases.push({ name: 'Public Programme Detail & Approved Tuition Disclosure (200)', status: progDetailRes.status, pass: pass27 });
+    console.log(`  -> Status: ${progDetailRes.status}, Tuition Fee: ${progDetailJson.data?.tuitionFee}, Pass: ${pass27}`);
+
+    // Test 28: Draft Programme Fail-Closed Protection (FR-CMS-006, BR-008)
+    console.log('Testing 28: GET http://localhost:4000/api/v1/tenant/public/academics/programmes/robotics-and-ai-enrichment (DRAFT)');
+    const acadDraftRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/academics/programmes/robotics-and-ai-enrichment', {
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Accept': 'application/json',
+      },
+    });
+    const acadDraftJson = JSON.parse(acadDraftRes.body);
+    const draftErrorCode = acadDraftJson.error?.code;
+    const pass28 = acadDraftRes.status === 404 && (draftErrorCode === 'PROGRAMME_NOT_FOUND' || draftErrorCode === 'NOT_FOUND');
+    testCases.push({ name: 'Draft Programme Fail-Closed Protection (404)', status: acadDraftRes.status, pass: pass28 });
+    console.log(`  -> Status: ${acadDraftRes.status}, Error Code: ${draftErrorCode}, Pass: ${pass28}`);
+
+    // Test 29: Public Frontend Academics Catalogue Page (SSR)
+    console.log('Testing 29: GET http://localhost:3000/academics');
+    const academicsPageRes = await fetchUrl('http://localhost:3000/academics');
+    const pass29 =
+      academicsPageRes.status === 200 &&
+      academicsPageRes.body.includes('Academic Programmes');
+    testCases.push({ name: 'Public Academics Frontend Page Render (200)', status: academicsPageRes.status, pass: pass29 });
+    console.log(`  -> Status: ${academicsPageRes.status}, Pass: ${pass29}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -448,7 +502,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 25 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 29 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');

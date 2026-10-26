@@ -132,6 +132,11 @@ export const PERMISSIONS = {
   ADMISSIONS_REVIEW: 'admissions:review',
   ADMISSIONS_MANAGE: 'admissions:manage',
 
+  // Academic Catalogue & Structures (Day 9)
+  ACADEMICS_READ: 'academics:read',
+  ACADEMICS_WRITE: 'academics:write',
+  ACADEMICS_PUBLISH: 'academics:publish',
+
   // Analytics
   ANALYTICS_VIEW: 'analytics:view',
 
@@ -1195,4 +1200,275 @@ export interface FormSubmissionDto {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * --------------------------------------------------------------------------
+ * Academic Catalogue & Structures (Day 9)
+ * FR-ACAD-001, FR-ACAD-002, FR-CMS-002
+ * --------------------------------------------------------------------------
+ */
+
+export interface AcademicLevelDto {
+  id: string;
+  tenantId: string;
+  name: string;
+  slug: string;
+  levelType?: string | null;
+  description?: string | null;
+  orderIndex: number;
+  minAge?: number | null;
+  maxAge?: number | null;
+  ageRange?: string | null;
+  isActive: boolean;
+  programmesCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const CreateAcademicLevelSchema = z.object({
+  name: z.string().min(2, 'Level name must be at least 2 characters').max(100),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
+  levelType: z.string().max(50).optional().nullable(),
+  description: z.string().max(1000).optional().nullable(),
+  orderIndex: z.number().int().optional().default(0),
+  minAge: z.number().int().min(0).max(120).optional().nullable(),
+  maxAge: z.number().int().min(0).max(120).optional().nullable(),
+  isActive: z.boolean().optional().default(true),
+});
+export type CreateAcademicLevelDto = z.infer<typeof CreateAcademicLevelSchema>;
+
+export const UpdateAcademicLevelSchema = CreateAcademicLevelSchema.partial();
+export type UpdateAcademicLevelDto = z.infer<typeof UpdateAcademicLevelSchema>;
+
+export interface AcademicDepartmentDto {
+  id: string;
+  tenantId: string;
+  name: string;
+  slug: string;
+  code?: string | null;
+  departmentType?: string | null;
+  description?: string | null;
+  parentId?: string | null;
+  orderIndex: number;
+  isActive: boolean;
+  parent?: { id: string; name: string; slug: string } | null;
+  children?: Array<{ id: string; name: string; slug: string }>;
+  programmesCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const CreateAcademicDepartmentSchema = z.object({
+  name: z.string().min(2, 'Department name must be at least 2 characters').max(150),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
+  code: z.string().max(30).optional().nullable(),
+  description: z.string().max(1000).optional().nullable(),
+  parentId: z.string().optional().nullable(),
+  orderIndex: z.number().int().optional().default(0),
+  isActive: z.boolean().optional().default(true),
+});
+export type CreateAcademicDepartmentDto = z.infer<typeof CreateAcademicDepartmentSchema>;
+
+export const UpdateAcademicDepartmentSchema = CreateAcademicDepartmentSchema.partial();
+export type UpdateAcademicDepartmentDto = z.infer<typeof UpdateAcademicDepartmentSchema>;
+
+export interface CourseDto {
+  id: string;
+  tenantId: string;
+  code?: string | null;
+  title: string;
+  slug: string;
+  summary?: string | null;
+  description?: string | null;
+  credits?: number | null;
+  hours?: number | null;
+  levelId?: string | null;
+  departmentId?: string | null;
+  syllabus?: string | null;
+  isElective?: boolean;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  orderIndex: number;
+  level?: { id: string; name: string; slug: string } | null;
+  department?: { id: string; name: string; slug: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const CreateCourseSchema = z.object({
+  code: z.string().max(30).optional().nullable(),
+  title: z.string().min(2, 'Course title must be at least 2 characters').max(200),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
+  summary: z.string().max(500).optional().nullable(),
+  description: z.string().max(5000).optional().nullable(),
+  credits: z.number().min(0).max(100).optional().nullable(),
+  hours: z.number().int().min(0).max(2000).optional().nullable(),
+  levelId: z.string().optional().nullable(),
+  departmentId: z.string().optional().nullable(),
+  syllabus: z.string().max(10000).optional().nullable(),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional().default('DRAFT'),
+  orderIndex: z.number().int().optional().default(0),
+});
+export type CreateCourseDto = z.infer<typeof CreateCourseSchema>;
+
+export const UpdateCourseSchema = CreateCourseSchema.partial();
+export type UpdateCourseDto = z.infer<typeof UpdateCourseSchema>;
+
+export interface ProgrammeCourseDto {
+  programmeId: string;
+  courseId: string;
+  isRequired: boolean;
+  term?: string | null;
+  orderIndex: number;
+  course: CourseDto;
+}
+
+export interface ProgrammeDto {
+  id: string;
+  tenantId: string;
+  title: string;
+  slug: string;
+  summary?: string | null;
+  description?: string | null;
+  programmeType?: string | null;
+  levelId?: string | null;
+  departmentId?: string | null;
+  duration?: string | null;
+  entryRequirements?: string | null;
+  qualificationsAwarded?: string | null;
+  curriculum?: string | null;
+  tuitionFee?: number | null;
+  tuitionCurrency?: string | null;
+  tuitionPeriod?: string | null;
+  tuitionDescription?: string | null;
+  displayTuition: boolean;
+  heroMediaId?: string | null;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  isActive: boolean;
+  isFeatured: boolean;
+  orderIndex: number;
+  publishedAt?: string | null;
+  archivedAt?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+  authorId?: string | null;
+  lastEditorId?: string | null;
+  level?: AcademicLevelDto | null;
+  department?: AcademicDepartmentDto | null;
+  heroMedia?: {
+    id: string;
+    title: string;
+    publicUrl: string;
+    altText?: string | null;
+    caption?: string | null;
+  } | null;
+  courses?: ProgrammeCourseDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicProgrammeDto {
+  id: string;
+  title: string;
+  slug: string;
+  summary?: string | null;
+  description?: string | null;
+  programmeType?: string | null;
+  duration?: string | null;
+  entryRequirements?: string | null;
+  qualificationsAwarded?: string | null;
+  curriculum?: string | null;
+  displayTuition: boolean;
+  tuitionFee?: number | null;
+  tuitionCurrency?: string | null;
+  tuitionPeriod?: string | null;
+  tuitionDescription?: string | null;
+  isFeatured: boolean;
+  level?: {
+    id: string;
+    name: string;
+    slug: string;
+    levelType?: string | null;
+  } | null;
+  department?: {
+    id: string;
+    name: string;
+    slug: string;
+    code?: string | null;
+  } | null;
+  heroMedia?: {
+    id: string;
+    title: string;
+    publicUrl: string;
+    altText?: string | null;
+    caption?: string | null;
+  } | null;
+  courses?: Array<{
+    courseId: string;
+    isRequired: boolean;
+    term?: string | null;
+    title: string;
+    code?: string | null;
+    credits?: number | null;
+    summary?: string | null;
+  }>;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+}
+
+export const CreateProgrammeSchema = z.object({
+  title: z.string().min(2, 'Programme title must be at least 2 characters').max(200),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
+  summary: z.string().max(500).optional().nullable(),
+  description: z.string().max(20000).optional().nullable(),
+  programmeType: z.string().max(50).optional().nullable(),
+  levelId: z.string().optional().nullable(),
+  departmentId: z.string().optional().nullable(),
+  duration: z.string().max(100).optional().nullable(),
+  entryRequirements: z.string().max(5000).optional().nullable(),
+  qualificationsAwarded: z.string().max(200).optional().nullable(),
+  curriculum: z.string().max(200).optional().nullable(),
+  tuitionFee: z.number().min(0).optional().nullable(),
+  tuitionCurrency: z.string().max(10).optional().default('USD'),
+  tuitionPeriod: z.string().max(50).optional().nullable(),
+  tuitionDescription: z.string().max(1000).optional().nullable(),
+  displayTuition: z.boolean().optional().default(false),
+  heroMediaId: z.string().optional().nullable(),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional().default('DRAFT'),
+  isActive: z.boolean().optional().default(true),
+  isFeatured: z.boolean().optional().default(false),
+  orderIndex: z.number().int().optional().default(0),
+  seoTitle: z.string().max(120).optional().nullable(),
+  seoDescription: z.string().max(300).optional().nullable(),
+  canonicalUrl: z.string().max(500).optional().nullable(),
+});
+export type CreateProgrammeDto = z.infer<typeof CreateProgrammeSchema>;
+
+export const UpdateProgrammeSchema = CreateProgrammeSchema.partial();
+export type UpdateProgrammeDto = z.infer<typeof UpdateProgrammeSchema>;
+
+export const ProgrammeQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  levelId: z.string().optional(),
+  departmentId: z.string().optional(),
+  programmeType: z.string().optional(),
+  search: z.string().max(100).optional(),
+  isFeatured: z.preprocess((val) => {
+    if (val === 'true' || val === true) return true;
+    if (val === 'false' || val === false) return false;
+    return undefined;
+  }, z.boolean().optional()),
+});
+export type ProgrammeQueryDto = z.infer<typeof ProgrammeQuerySchema>;
+
+export const AssignCoursesToProgrammeSchema = z.object({
+  courseIds: z.array(z.string()).min(1),
+  isRequired: z.boolean().optional().default(true),
+  term: z.string().max(50).optional().nullable(),
+});
+export type AssignCoursesToProgrammeDto = z.infer<typeof AssignCoursesToProgrammeSchema>;
+
 
