@@ -181,6 +181,8 @@ interface MediaAssetItem {
   altText?: string | null;
   isDecorative: boolean;
   isPublic: boolean;
+  storagePolicy?: 'PUBLIC' | 'PRIVATE';
+  storageProvider?: string;
   caption?: string | null;
   tags?: string[];
   createdAt: string;
@@ -375,6 +377,22 @@ export default function TenantAdminPage() {
   const [mediaStorageUrl, setMediaStorageUrl] = useState('');
   const [mediaSaving, setMediaSaving] = useState(false);
   const [mediaModalError, setMediaModalError] = useState<string | null>(null);
+
+  // Day 11 Dual Storage & File Upload States
+  const [mediaFileBase64, setMediaFileBase64] = useState<string | null>(null);
+  const [mediaFileName, setMediaFileName] = useState<string>('');
+  const [mediaFileMime, setMediaFileMime] = useState<string>('');
+  const [mediaFileBytes, setMediaFileBytes] = useState<number>(0);
+  const [mediaStoragePolicy, setMediaStoragePolicy] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
+
+  // Day 11 File Replacement Modal States
+  const [isReplaceModalOpen, setIsReplaceModalOpen] = useState(false);
+  const [replacingAsset, setReplacingAsset] = useState<MediaAssetItem | null>(null);
+  const [replaceFileBase64, setReplaceFileBase64] = useState<string | null>(null);
+  const [replaceFileName, setReplaceFileName] = useState<string>('');
+  const [replaceFileMime, setReplaceFileMime] = useState<string>('');
+  const [replaceSaving, setReplaceSaving] = useState(false);
+  const [replaceModalError, setReplaceModalError] = useState<string | null>(null);
 
   // Day 6 Media Picker for CMS Sections
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
@@ -1561,10 +1579,53 @@ export default function TenantAdminPage() {
     setMediaAltText('');
     setMediaIsDecorative(false);
     setMediaIsPublic(true);
+    setMediaStoragePolicy('PUBLIC');
     setMediaCaption('');
-    setMediaStorageUrl('https://images.unsplash.com/photo-1541829070764-84a7d30dd3f3?auto=format&fit=crop&w=1200&q=80');
+    setMediaStorageUrl('');
+    setMediaFileBase64(null);
+    setMediaFileName('');
+    setMediaFileMime('');
+    setMediaFileBytes(0);
     setMediaModalError(null);
     setIsMediaModalOpen(true);
+  };
+
+  const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setMediaModalError('File size exceeds the 10MB limit.');
+      return;
+    }
+
+    setMediaFileName(file.name);
+    setMediaFileBytes(file.size);
+    setMediaFileMime(file.type || 'application/octet-stream');
+    setMediaModalError(null);
+
+    // Auto-populate title if empty
+    if (!mediaTitle.trim()) {
+      const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      setMediaTitle(baseName.replace(/[-_]/g, ' '));
+    }
+
+    // Auto-detect category from MIME
+    if (file.type.startsWith('image/')) {
+      setMediaCategory('IMAGE');
+    } else if (file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+      setMediaCategory('DOCUMENT');
+    } else if (file.type.startsWith('video/')) {
+      setMediaCategory('VIDEO');
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      setMediaFileBase64(base64);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveMedia = async (e: React.FormEvent) => {
@@ -1582,19 +1643,23 @@ export default function TenantAdminPage() {
     setMediaSaving(true);
     setMediaModalError(null);
     try {
+      const mime = mediaFileMime || (mediaCategory === 'DOCUMENT' ? 'application/pdf' : 'image/jpeg');
+      const sizeBytes = mediaFileBytes || 1024;
+      const effectivePolicy = mediaStoragePolicy || (mediaIsPublic ? 'PUBLIC' : 'PRIVATE');
+
       const payload: Record<string, any> = {
         title: mediaTitle.trim(),
         category: mediaCategory,
         altText: mediaIsDecorative ? undefined : mediaAltText.trim(),
         isDecorative: mediaIsDecorative,
-        isPublic: mediaIsPublic,
+        isPublic: effectivePolicy === 'PUBLIC',
+        storagePolicy: effectivePolicy,
         caption: mediaCaption.trim() || undefined,
-        storageKey: mediaStorageUrl.trim() || `uploads/${mediaCategory.toLowerCase()}-${Date.now()}.jpg`,
-        storagePath: mediaStorageUrl.trim() || `uploads/${mediaCategory.toLowerCase()}-${Date.now()}.jpg`,
-        filename: `${mediaTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${mediaCategory === 'DOCUMENT' ? 'pdf' : 'jpg'}`,
-        mimeType: mediaCategory === 'DOCUMENT' ? 'application/pdf' : 'image/jpeg',
-        fileSizeBytes: 1048576,
-        fileSize: 1048576,
+        fileName: mediaFileName || `${mediaTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        mimeType: mime,
+        fileSizeBytes: sizeBytes,
+        fileBase64: mediaFileBase64 || undefined,
+        storageKey: mediaStorageUrl.trim() || `pending-${Date.now()}`,
       };
 
       const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/media`, {
@@ -1611,7 +1676,7 @@ export default function TenantAdminPage() {
 
       setGlobalNotice({
         type: 'success',
-        message: `Media asset "${mediaTitle}" stored successfully.`,
+        message: `Media asset "${mediaTitle}" stored successfully (${effectivePolicy} storage).`,
       });
       setIsMediaModalOpen(false);
       fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
@@ -1620,6 +1685,102 @@ export default function TenantAdminPage() {
       setMediaModalError(message);
     } finally {
       setMediaSaving(false);
+    }
+  };
+
+  const handleOpenReplaceMedia = (asset: MediaAssetItem) => {
+    setReplacingAsset(asset);
+    setReplaceFileBase64(null);
+    setReplaceFileName('');
+    setReplaceFileMime('');
+    setReplaceModalError(null);
+    setIsReplaceModalOpen(true);
+  };
+
+  const handleReplaceFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setReplaceModalError('Replacement file exceeds 10MB limit.');
+      return;
+    }
+
+    setReplaceFileName(file.name);
+    setReplaceFileMime(file.type || 'application/octet-stream');
+    setReplaceModalError(null);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      setReplaceFileBase64(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleExecuteReplaceMedia = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replacingAsset || !replaceFileBase64) {
+      setReplaceModalError('Please select a replacement file.');
+      return;
+    }
+
+    setReplaceSaving(true);
+    setReplaceModalError(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/media/${replacingAsset.id}/replace`, {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({
+          fileBase64: replaceFileBase64,
+          mimeType: replaceFileMime || replacingAsset.mimeType,
+          fileName: replaceFileName || replacingAsset.title,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to replace media asset file');
+      }
+
+      setGlobalNotice({
+        type: 'success',
+        message: `File replaced successfully for "${replacingAsset.title}".`,
+      });
+      setIsReplaceModalOpen(false);
+      fetchMediaAssets(mediaCategoryFilter, mediaSearchQuery);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error replacing file';
+      setReplaceModalError(message);
+    } finally {
+      setReplaceSaving(false);
+    }
+  };
+
+  const handleGenerateSignedUrl = async (asset: MediaAssetItem) => {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/tenant/cms/media/${asset.id}/signed-url`, {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ expiresInSeconds: 900 }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Failed to generate signed download URL');
+      }
+
+      const signedUrl = `${apiBaseUrl}${data.data.url}`;
+      await navigator.clipboard?.writeText(signedUrl);
+      setGlobalNotice({
+        type: 'success',
+        message: `Generated 15-minute signed download URL for "${asset.title}". Copied to clipboard!`,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error generating signed URL';
+      setGlobalNotice({ type: 'error', message });
     }
   };
 
@@ -3012,6 +3173,7 @@ export default function TenantAdminPage() {
               {mediaAssets.map((asset) => {
                 const storagePath = asset.storagePath || asset.publicUrl || asset.storageKey || '';
                 const isImageLike = ['IMAGE', 'LOGO', 'BANNER'].includes(asset.category);
+                const isPrivate = !asset.isPublic || asset.storagePolicy === 'PRIVATE';
                 const displayUrl = asset.isPublic
                   ? `${apiBaseUrl}/api/v1/tenant/public/media/${asset.id}/file`
                   : `${apiBaseUrl}/api/v1/tenant/cms/media/${asset.id}/file`;
@@ -3022,7 +3184,14 @@ export default function TenantAdminPage() {
                 return (
                   <div key={asset.id} className="media-card" id={`media-card-${asset.id}`}>
                     <div className="media-thumbnail-container">
-                      {isImageLike ? (
+                      {isPrivate ? (
+                        <div style={{ textAlign: 'center', padding: '1rem' }}>
+                          <span style={{ fontSize: '2.2rem' }} role="img" aria-label="Restricted Private Asset">🔒</span>
+                          <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.25rem', fontWeight: 500 }}>
+                            Private Document
+                          </p>
+                        </div>
+                      ) : isImageLike ? (
                         <img
                           src={imageSrc}
                           alt={asset.altText || (asset.isDecorative ? '' : asset.title)}
@@ -3044,8 +3213,14 @@ export default function TenantAdminPage() {
                       </div>
                       <div className="media-badges">
                         <span className="badge badge-role">{asset.category}</span>
-                        <span className={`badge ${asset.isPublic ? 'badge-active' : 'badge-danger'}`}>
-                          {asset.isPublic ? 'PUBLIC' : 'RESTRICTED'}
+                        <span className={`badge ${isPrivate ? 'badge-danger' : 'badge-active'}`}>
+                          {isPrivate ? 'RESTRICTED' : 'PUBLIC'}
+                        </span>
+                        <span className="badge badge-secondary" title={`Storage policy: ${asset.storagePolicy || (asset.isPublic ? 'PUBLIC' : 'PRIVATE')}`}>
+                          {asset.storagePolicy || (asset.isPublic ? 'PUBLIC' : 'PRIVATE')}
+                        </span>
+                        <span className="badge badge-secondary" title={`Storage provider: ${asset.storageProvider || 'local'}`}>
+                          {asset.storageProvider || 'local'}
                         </span>
                         {asset.isDecorative ? (
                           <span className="badge badge-secondary" title="Decorative Asset (Alt text omitted)">Decorative</span>
@@ -3055,7 +3230,7 @@ export default function TenantAdminPage() {
                           <span className="badge badge-warning" title="Missing Alt Text">Needs Alt</span>
                         )}
                       </div>
-                      <div className="media-card-actions">
+                      <div className="media-card-actions" style={{ flexWrap: 'wrap', gap: '0.35rem' }}>
                         <button
                           id={`copy-url-${asset.id}`}
                           onClick={() => {
@@ -3067,6 +3242,24 @@ export default function TenantAdminPage() {
                         >
                           Copy Link
                         </button>
+                        <button
+                          id={`replace-asset-${asset.id}`}
+                          onClick={() => handleOpenReplaceMedia(asset)}
+                          className="btn btn-secondary btn-sm"
+                          title="Execute safe 2-phase file replacement"
+                        >
+                          Replace
+                        </button>
+                        {isPrivate && (
+                          <button
+                            id={`signed-url-${asset.id}`}
+                            onClick={() => handleGenerateSignedUrl(asset)}
+                            className="btn btn-secondary btn-sm"
+                            title="Generate 15-minute temporary signed download link"
+                          >
+                            Signed Link
+                          </button>
+                        )}
                         <a
                           id={`view-asset-${asset.id}`}
                           href={displayUrl}
@@ -4276,9 +4469,31 @@ export default function TenantAdminPage() {
                 </div>
               )}
 
+              <div className="form-group" style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '1rem', borderRadius: '8px', border: '1px dashed var(--border-subtle)', marginBottom: '1.25rem' }}>
+                <label htmlFor="media-file-input" className="form-label" style={{ fontWeight: 600 }}>
+                  Select File from Computer (Up to 10MB)
+                </label>
+                <input
+                  id="media-file-input"
+                  type="file"
+                  onChange={handleFileSelection}
+                  className="input"
+                  style={{ padding: '0.4rem' }}
+                />
+                {mediaFileName ? (
+                  <p style={{ color: '#10b981', fontSize: '0.82rem', marginTop: '0.4rem', fontWeight: 500 }}>
+                    ✓ Ready to upload: {mediaFileName} ({((mediaFileBytes || 0) / 1024).toFixed(1)} KB &bull; {mediaFileMime})
+                  </p>
+                ) : (
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: '0.25rem' }}>
+                    Supported formats: JPEG, PNG, WebP, GIF, SVG, PDF, DOC, DOCX, MP4, WebM.
+                  </p>
+                )}
+              </div>
+
               <div className="form-group">
                 <label htmlFor="media-url-input" className="form-label">
-                  File URL or Storage Path *
+                  Remote Storage URL / Key (Optional if file is selected)
                 </label>
                 <input
                   id="media-url-input"
@@ -4286,8 +4501,7 @@ export default function TenantAdminPage() {
                   value={mediaStorageUrl}
                   onChange={(e) => setMediaStorageUrl(e.target.value)}
                   className="input"
-                  placeholder="https://..."
-                  required
+                  placeholder="https://... or leave empty for local upload"
                 />
               </div>
 
@@ -4305,22 +4519,39 @@ export default function TenantAdminPage() {
                 />
               </div>
 
-              {/* Public vs. Restricted Switch */}
+              {/* Public vs. Restricted Policy Selector */}
               <div style={{ background: 'rgba(30, 41, 59, 0.4)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '0.85rem', marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input
-                    id="media-public-check"
-                    type="checkbox"
-                    checked={mediaIsPublic}
-                    onChange={(e) => setMediaIsPublic(e.target.checked)}
-                  />
-                  <label htmlFor="media-public-check" style={{ color: '#f8fafc', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer' }}>
-                    Public Media Asset (Accessible on public website without login)
+                <label className="form-label" style={{ marginBottom: '0.5rem', fontWeight: 600 }}>
+                  Storage Policy & Access Boundary *
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.88rem' }}>
+                    <input
+                      type="radio"
+                      name="mediaStoragePolicy"
+                      value="PUBLIC"
+                      checked={mediaStoragePolicy === 'PUBLIC'}
+                      onChange={() => {
+                        setMediaStoragePolicy('PUBLIC');
+                        setMediaIsPublic(true);
+                      }}
+                    />
+                    <span><strong>Public Media Asset:</strong> Saved to public storage. Publicly viewable on web pages without login.</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.88rem' }}>
+                    <input
+                      type="radio"
+                      name="mediaStoragePolicy"
+                      value="PRIVATE"
+                      checked={mediaStoragePolicy === 'PRIVATE'}
+                      onChange={() => {
+                        setMediaStoragePolicy('PRIVATE');
+                        setMediaIsPublic(false);
+                      }}
+                    />
+                    <span><strong>Private Document:</strong> Saved to isolated private storage. Inaccessible to anonymous visitors (returns 404). Requires authenticated staff credentials or signed download token.</span>
                   </label>
                 </div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
-                  Uncheck for sensitive, internal admissions, financial, or staff documents. Restricted assets return HTTP 404 to unauthenticated visitors.
-                </p>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
@@ -4339,6 +4570,83 @@ export default function TenantAdminPage() {
                   disabled={mediaSaving}
                 >
                   {mediaSaving ? 'Saving...' : 'Upload Asset'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FILE REPLACEMENT MODAL (Day 11 2-Phase Safe Replacement) */}
+      {isReplaceModalOpen && replacingAsset && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="replace-modal-title">
+          <div className="modal-content" style={{ maxWidth: '580px' }}>
+            <div className="modal-header">
+              <h2 id="replace-modal-title" style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
+                Replace Asset File — 2-Phase Safe Swap
+              </h2>
+              <button
+                onClick={() => setIsReplaceModalOpen(false)}
+                className="btn btn-sm btn-secondary"
+                aria-label="Close dialog"
+              >
+                &times;
+              </button>
+            </div>
+
+            {replaceModalError && (
+              <div className="alert alert-error" role="alert" style={{ marginBottom: '1.25rem' }}>
+                <span>{replaceModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleExecuteReplaceMedia}>
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(15, 23, 42, 0.6)', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+                <p style={{ fontSize: '0.85rem', color: '#e2e8f0', margin: 0 }}>
+                  Replacing file for: <strong>{replacingAsset.title}</strong>
+                </p>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem', marginBottom: 0 }}>
+                  Policy: <code>{replacingAsset.storagePolicy || (replacingAsset.isPublic ? 'PUBLIC' : 'PRIVATE')}</code> &bull; MIME: <code>{replacingAsset.mimeType}</code>
+                </p>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label htmlFor="replace-file-input" className="form-label" style={{ fontWeight: 600 }}>
+                  Choose Replacement File *
+                </label>
+                <input
+                  id="replace-file-input"
+                  type="file"
+                  onChange={handleReplaceFileSelection}
+                  className="input"
+                  required
+                />
+                {replaceFileName && (
+                  <p style={{ color: '#10b981', fontSize: '0.82rem', marginTop: '0.35rem' }}>
+                    Selected replacement: {replaceFileName} ({replaceFileMime})
+                  </p>
+                )}
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: '0.25rem' }}>
+                  The existing file is safely preserved until the new file is verified, uploaded, and the database record is updated.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsReplaceModalOpen(false)}
+                  className="btn btn-secondary"
+                  disabled={replaceSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="submit-replace-btn"
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={replaceSaving || !replaceFileBase64}
+                >
+                  {replaceSaving ? 'Replacing...' : 'Confirm Safe Replacement'}
                 </button>
               </div>
             </form>

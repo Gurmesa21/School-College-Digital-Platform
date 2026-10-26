@@ -896,6 +896,9 @@ export const ALLOWED_MIME_TYPES = [
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
+export const StoragePolicyEnum = z.enum(['PUBLIC', 'PRIVATE']);
+export type StoragePolicy = z.infer<typeof StoragePolicyEnum>;
+
 export const CreateMediaSchema = z
   .object({
     title: z.string().min(1, 'Title is required').max(200),
@@ -905,11 +908,17 @@ export const CreateMediaSchema = z
     mimeType: z.string().refine((val) => ALLOWED_MIME_TYPES.includes(val as any), {
       message: 'Unsupported MIME type',
     }),
-    fileSizeBytes: z.number().int().positive().max(MAX_FILE_SIZE_BYTES, 'File exceeds 10MB limit'),
+    fileSizeBytes: z
+      .number()
+      .int()
+      .positive('EMPTY_FILE: File size must be greater than 0 bytes')
+      .max(MAX_FILE_SIZE_BYTES, 'FILE_TOO_LARGE: File exceeds 10MB limit'),
     storageKey: z.string().min(1),
     publicUrl: z.string().default(''),
     isPublic: z.boolean().default(true),
     isDecorative: z.boolean().default(false),
+    storagePolicy: StoragePolicyEnum.default('PUBLIC').optional(),
+    storageProvider: z.string().default('local').optional(),
     categoryId: z.string().optional().nullable(),
   })
   .refine(
@@ -933,8 +942,14 @@ export const UpdateMediaSchema = z
     altText: z.string().max(300).optional().nullable(),
     caption: z.string().max(500).optional().nullable(),
     category: MediaCategoryEnum.optional(),
+    mimeType: z.string().optional(),
+    fileSizeBytes: z.number().int().optional(),
+    storageKey: z.string().optional(),
+    publicUrl: z.string().optional(),
     isPublic: z.boolean().optional(),
     isDecorative: z.boolean().optional(),
+    storagePolicy: StoragePolicyEnum.optional(),
+    storageProvider: z.string().optional(),
     categoryId: z.string().optional().nullable(),
   })
   .refine(
@@ -956,6 +971,7 @@ export const MediaQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   category: MediaCategoryEnum.optional(),
   isPublic: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  storagePolicy: StoragePolicyEnum.optional(),
   categoryId: z.string().optional(),
   search: z.string().max(100).optional(),
 });
@@ -975,6 +991,8 @@ export interface MediaAssetDto {
   publicUrl: string;
   isPublic: boolean;
   isDecorative: boolean;
+  storagePolicy: 'PUBLIC' | 'PRIVATE';
+  storageProvider: string;
   categoryId: string | null;
   createdAt: string;
   updatedAt: string;

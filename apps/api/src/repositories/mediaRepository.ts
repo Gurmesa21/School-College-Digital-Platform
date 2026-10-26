@@ -28,6 +28,9 @@ export class PrismaMediaRepository implements IMediaRepository {
     if (query.isPublic !== undefined) {
       where.isPublic = query.isPublic;
     }
+    if (query.storagePolicy) {
+      where.storagePolicy = query.storagePolicy;
+    }
     if (query.categoryId) {
       where.categoryId = query.categoryId;
     }
@@ -71,6 +74,8 @@ export class PrismaMediaRepository implements IMediaRepository {
       publicUrl: r.publicUrl,
       isPublic: r.isPublic,
       isDecorative: r.isDecorative,
+      storagePolicy: (r.storagePolicy as any) || (r.isPublic ? 'PUBLIC' : 'PRIVATE'),
+      storageProvider: r.storageProvider || 'local',
       categoryId: r.categoryId,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
@@ -116,6 +121,8 @@ export class PrismaMediaRepository implements IMediaRepository {
       publicUrl: r.publicUrl,
       isPublic: r.isPublic,
       isDecorative: r.isDecorative,
+      storagePolicy: (r.storagePolicy as any) || (r.isPublic ? 'PUBLIC' : 'PRIVATE'),
+      storageProvider: r.storageProvider || 'local',
       categoryId: r.categoryId,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
@@ -125,6 +132,10 @@ export class PrismaMediaRepository implements IMediaRepository {
   }
 
   async createMedia(tenantId: string, uploaderId: string | null, data: CreateMediaDto): Promise<MediaAssetDto> {
+    const isPublic = data.isPublic ?? true;
+    const storagePolicy = data.storagePolicy || (isPublic ? 'PUBLIC' : 'PRIVATE');
+    const storageProvider = data.storageProvider || 'local';
+
     const r = await prisma.mediaAsset.create({
       data: {
         tenantId,
@@ -137,8 +148,10 @@ export class PrismaMediaRepository implements IMediaRepository {
         fileSizeBytes: data.fileSizeBytes,
         storageKey: data.storageKey,
         publicUrl: data.publicUrl || '',
-        isPublic: data.isPublic ?? true,
+        isPublic,
         isDecorative: data.isDecorative ?? false,
+        storagePolicy,
+        storageProvider,
         categoryId: data.categoryId || null,
       },
       include: {
@@ -165,6 +178,8 @@ export class PrismaMediaRepository implements IMediaRepository {
       publicUrl: r.publicUrl,
       isPublic: r.isPublic,
       isDecorative: r.isDecorative,
+      storagePolicy: (r.storagePolicy as any) || (r.isPublic ? 'PUBLIC' : 'PRIVATE'),
+      storageProvider: r.storageProvider || 'local',
       categoryId: r.categoryId,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
@@ -190,6 +205,12 @@ export class PrismaMediaRepository implements IMediaRepository {
         category: data.category !== undefined ? (data.category as any) : undefined,
         isPublic: data.isPublic !== undefined ? data.isPublic : undefined,
         isDecorative: data.isDecorative !== undefined ? data.isDecorative : undefined,
+        storagePolicy: data.storagePolicy !== undefined ? data.storagePolicy : undefined,
+        storageProvider: data.storageProvider !== undefined ? data.storageProvider : undefined,
+        storageKey: data.storageKey !== undefined ? data.storageKey : undefined,
+        publicUrl: data.publicUrl !== undefined ? data.publicUrl : undefined,
+        fileSizeBytes: data.fileSizeBytes !== undefined ? data.fileSizeBytes : undefined,
+        mimeType: data.mimeType !== undefined ? data.mimeType : undefined,
         categoryId: data.categoryId !== undefined ? data.categoryId : undefined,
       },
       include: {
@@ -216,6 +237,8 @@ export class PrismaMediaRepository implements IMediaRepository {
       publicUrl: r.publicUrl,
       isPublic: r.isPublic,
       isDecorative: r.isDecorative,
+      storagePolicy: (r.storagePolicy as any) || (r.isPublic ? 'PUBLIC' : 'PRIVATE'),
+      storageProvider: r.storageProvider || 'local',
       categoryId: r.categoryId,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
@@ -253,13 +276,19 @@ export class InMemoryMediaRepository implements IMediaRepository {
     publicUrl: string;
     isPublic: boolean;
     isDecorative: boolean;
+    storagePolicy: 'PUBLIC' | 'PRIVATE';
+    storageProvider: string;
     categoryId: string | null;
     createdAt: string;
     updatedAt: string;
   }> = [];
 
   constructor(initialAssets: any[] = []) {
-    this.assets = [...initialAssets];
+    this.assets = initialAssets.map((a) => ({
+      ...a,
+      storagePolicy: a.storagePolicy || (a.isPublic === false ? 'PRIVATE' : 'PUBLIC'),
+      storageProvider: a.storageProvider || 'local',
+    }));
   }
 
   async listMedia(tenantId: string, query: MediaQueryDto): Promise<PaginatedData<MediaAssetDto>> {
@@ -272,6 +301,9 @@ export class InMemoryMediaRepository implements IMediaRepository {
     }
     if (query.isPublic !== undefined) {
       filtered = filtered.filter((a) => a.isPublic === query.isPublic);
+    }
+    if (query.storagePolicy) {
+      filtered = filtered.filter((a) => a.storagePolicy === query.storagePolicy);
     }
     if (query.categoryId) {
       filtered = filtered.filter((a) => a.categoryId === query.categoryId);
@@ -317,6 +349,10 @@ export class InMemoryMediaRepository implements IMediaRepository {
 
   async createMedia(tenantId: string, uploaderId: string | null, data: CreateMediaDto): Promise<MediaAssetDto> {
     const now = new Date().toISOString();
+    const isPublic = data.isPublic ?? true;
+    const storagePolicy = (data.storagePolicy as any) || (isPublic ? 'PUBLIC' : 'PRIVATE');
+    const storageProvider = data.storageProvider || 'local';
+
     const asset = {
       id: `media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       tenantId,
@@ -329,8 +365,10 @@ export class InMemoryMediaRepository implements IMediaRepository {
       fileSizeBytes: data.fileSizeBytes,
       storageKey: data.storageKey,
       publicUrl: data.publicUrl || '',
-      isPublic: data.isPublic ?? true,
+      isPublic,
       isDecorative: data.isDecorative ?? false,
+      storagePolicy,
+      storageProvider,
       categoryId: data.categoryId || null,
       createdAt: now,
       updatedAt: now,
@@ -354,6 +392,12 @@ export class InMemoryMediaRepository implements IMediaRepository {
     if (data.category !== undefined) asset.category = data.category;
     if (data.isPublic !== undefined) asset.isPublic = data.isPublic;
     if (data.isDecorative !== undefined) asset.isDecorative = data.isDecorative;
+    if (data.storagePolicy !== undefined) asset.storagePolicy = data.storagePolicy;
+    if (data.storageProvider !== undefined) asset.storageProvider = data.storageProvider;
+    if (data.storageKey !== undefined) asset.storageKey = data.storageKey;
+    if (data.publicUrl !== undefined) asset.publicUrl = data.publicUrl;
+    if (data.fileSizeBytes !== undefined) asset.fileSizeBytes = data.fileSizeBytes;
+    if (data.mimeType !== undefined) asset.mimeType = data.mimeType;
     if (data.categoryId !== undefined) asset.categoryId = data.categoryId;
     asset.updatedAt = new Date().toISOString();
 

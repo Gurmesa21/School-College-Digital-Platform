@@ -813,6 +813,8 @@ export async function seedDevelopmentData(): Promise<void> {
           publicUrl: media.publicUrl,
           isPublic: media.isPublic,
           isDecorative: media.isDecorative,
+          storagePolicy: media.isPublic ? 'PUBLIC' : 'PRIVATE',
+          storageProvider: 'local',
         },
       });
     }
@@ -1578,6 +1580,8 @@ export async function seedDevelopmentData(): Promise<void> {
         publicUrl: '/api/v1/tenant/public/media/staff-eleanor-vance.jpg',
         isPublic: true,
         isDecorative: false,
+        storagePolicy: 'PUBLIC',
+        storageProvider: 'local',
       },
     });
 

@@ -563,6 +563,98 @@ async function run() {
     testCases.push({ name: 'Public Staff Frontend Page Render (200)', status: staffPageRes.status, pass: pass34 });
     console.log(`  -> Status: ${staffPageRes.status}, Pass: ${pass34}`);
 
+    // Test 35: Day 11 Public Media Asset Delivery with Cache Headers (FR-MEDIA-003)
+    console.log('Testing 35: GET http://localhost:4000/api/v1/tenant/public/media/oxford-crest.png');
+    const publicMediaRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/media/oxford-crest.png', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const pass35 =
+      publicMediaRes.status === 200 &&
+      publicMediaRes.headers['content-type'] === 'image/png' &&
+      publicMediaRes.headers['cache-control']?.includes('public');
+    testCases.push({ name: 'Public Media Asset Delivery & Cache Headers (200)', status: publicMediaRes.status, pass: pass35 });
+    console.log(`  -> Status: ${publicMediaRes.status}, Content-Type: ${publicMediaRes.headers['content-type']}, Cache-Control: ${publicMediaRes.headers['cache-control']}, Pass: ${pass35}`);
+
+    // Test 36: Day 11 Access-Controlled Private Document Fail-Closed Boundary (FR-MEDIA-003)
+    console.log('Testing 36: GET http://localhost:4000/api/v1/tenant/public/media/confidential-admissions-rubric.pdf (Private Document)');
+    const privateDocRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/media/confidential-admissions-rubric.pdf', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const pass36 = privateDocRes.status === 404;
+    testCases.push({ name: 'Private Document Anonymous Access Denied Fail-Closed (404)', status: privateDocRes.status, pass: pass36 });
+    console.log(`  -> Status: ${privateDocRes.status}, Pass: ${pass36}`);
+
+    // Test 37: Day 11 Media Library Administration API & Dual Storage Metadata
+    console.log('Testing 37: GET http://localhost:4000/api/v1/tenant/cms/media');
+    const mediaAdminRes = await fetchUrl('http://localhost:4000/api/v1/tenant/cms/media', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Cookie: cookieString,
+      },
+    });
+    const mediaAdminJson = JSON.parse(mediaAdminRes.body);
+    const pass37 =
+      mediaAdminRes.status === 200 &&
+      mediaAdminJson.success === true &&
+      Array.isArray(mediaAdminJson.data?.items) &&
+      mediaAdminJson.data.items.some((item) => item.storagePolicy === 'PUBLIC') &&
+      mediaAdminJson.data.items.some((item) => item.storagePolicy === 'PRIVATE');
+    testCases.push({ name: 'Admin Media Library Dual-Storage Metadata (200)', status: mediaAdminRes.status, pass: pass37 });
+    console.log(`  -> Status: ${mediaAdminRes.status}, Items: ${mediaAdminJson.data?.items?.length}, Dual Policy Verified: ${pass37}`);
+
+    // Test 38: Day 11 Safe 2-Phase Replacement & Short-Lived Signed Download URLs
+    console.log('Testing 38: Upload, signed download URL, and purge lifecycle');
+    const validPngB64 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]).toString('base64');
+    const uploadSmokeRes = await fetchUrl('http://localhost:4000/api/v1/tenant/cms/media', {
+      method: 'POST',
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Cookie: cookieString,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: 'Smoke Test Dual Storage Asset',
+        altText: 'A smoke test graphic',
+        category: 'IMAGE',
+        mimeType: 'image/png',
+        fileBase64: validPngB64,
+        isPublic: false,
+        storagePolicy: 'PRIVATE',
+      }),
+    });
+    const uploadSmokeJson = JSON.parse(uploadSmokeRes.body);
+    const smokeAssetId = uploadSmokeJson.data?.id;
+
+    // Signed URL generation
+    const signedUrlRes = await fetchUrl(`http://localhost:4000/api/v1/tenant/cms/media/${smokeAssetId}/signed-url`, {
+      method: 'POST',
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Cookie: cookieString,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ expiresInSeconds: 900 }),
+    });
+    const signedUrlJson = JSON.parse(signedUrlRes.body);
+
+    // Delete smoke test asset
+    const deleteSmokeRes = await fetchUrl(`http://localhost:4000/api/v1/tenant/cms/media/${smokeAssetId}`, {
+      method: 'DELETE',
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Cookie: cookieString,
+      },
+    });
+
+    const pass38 =
+      uploadSmokeRes.status === 201 &&
+      uploadSmokeJson.data?.storagePolicy === 'PRIVATE' &&
+      signedUrlRes.status === 200 &&
+      signedUrlJson.data?.url?.includes('/download-signed') &&
+      deleteSmokeRes.status === 200;
+    testCases.push({ name: 'Dual-Storage Upload, Signed URL & Purge Lifecycle (201/200)', status: uploadSmokeRes.status, pass: pass38 });
+    console.log(`  -> Status: Upload ${uploadSmokeRes.status}, Signed ${signedUrlRes.status}, Delete ${deleteSmokeRes.status}, Pass: ${pass38}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -576,7 +668,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 34 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 38 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');

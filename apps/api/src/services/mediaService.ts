@@ -1,7 +1,14 @@
-import fs from 'fs';
-import path from 'path';
 import { IMediaRepository } from '../repositories/mediaRepository.js';
 import { IAuditRepository } from '../repositories/auditRepository.js';
+import {
+  IStorageProvider,
+  LocalStorageProvider,
+  StoragePolicy,
+} from '../storage/storageProvider.js';
+import {
+  validateFileContent,
+  sanitizeFilename,
+} from '../utils/fileValidation.js';
 import {
   MediaAssetDto,
   CreateMediaDto,
@@ -24,6 +31,8 @@ export interface UploadFileInput {
   category?: string;
   isPublic?: boolean;
   isDecorative?: boolean;
+  storagePolicy?: 'PUBLIC' | 'PRIVATE';
+  storageProvider?: string;
   categoryId?: string | null;
   fileBuffer?: Buffer;
   fileName?: string;
@@ -32,18 +41,24 @@ export interface UploadFileInput {
 }
 
 export class MediaService {
-  private baseStorageDir: string;
+  private storageProvider: IStorageProvider;
 
   constructor(
     private mediaRepo: IMediaRepository,
     private auditRepo: IAuditRepository,
-    storageDir?: string
+    storageOrDir?: IStorageProvider | string
   ) {
-    this.baseStorageDir = storageDir || path.resolve(process.cwd(), 'uploads');
+    if (typeof storageOrDir === 'object' && storageOrDir !== null && 'write' in storageOrDir) {
+      this.storageProvider = storageOrDir as IStorageProvider;
+    } else if (typeof storageOrDir === 'string') {
+      this.storageProvider = new LocalStorageProvider(storageOrDir);
+    } else {
+      this.storageProvider = new LocalStorageProvider();
+    }
   }
 
-  getStoragePath(tenantId: string, filename: string): string {
-    return path.join(this.baseStorageDir, 'tenants', tenantId, 'media', filename);
+  getStorageProvider(): IStorageProvider {
+    return this.storageProvider;
   }
 
   async listMedia(tenantId: string, query: MediaQueryDto): Promise<PaginatedData<MediaAssetDto>> {
@@ -59,17 +74,32 @@ export class MediaService {
     uploader: MediaActorContext | null,
     input: UploadFileInput
   ): Promise<MediaAssetDto> {
-    // 1. Validate MIME type
+    // 1. Boundary check: Reject empty or negative size
+    if (input.fileSizeBytes <= 0 && (!input.fileBuffer || input.fileBuffer.length === 0)) {
+      throw new Error('FILE_VALIDATION_ERROR: EMPTY_FILE: Uploaded file is empty (0 bytes).');
+    }
+
+    // 2. Validate MIME type against allowlist
     if (!ALLOWED_MIME_TYPES.includes(input.mimeType as any)) {
-      throw new Error(`UNSUPPORTED_MIME_TYPE: ${input.mimeType}`);
+      throw new Error(`FILE_VALIDATION_ERROR: UNSUPPORTED_MIME_TYPE: ${input.mimeType}`);
     }
 
-    // 2. Validate file size
+    // 3. Validate file size boundary (10MB limit)
     if (input.fileSizeBytes > MAX_FILE_SIZE_BYTES) {
-      throw new Error(`FILE_TOO_LARGE: Maximum file size is ${MAX_FILE_SIZE_BYTES} bytes`);
+      throw new Error(
+        `FILE_VALIDATION_ERROR: FILE_TOO_LARGE: Maximum file size is ${MAX_FILE_SIZE_BYTES} bytes`
+      );
     }
 
-    // 3. Accessibility validation (FR-MEDIA-002 & WCAG 2.2 AA)
+    // 4. Content signature & magic bytes verification if raw buffer is present
+    if (input.fileBuffer) {
+      const validation = validateFileContent(input.fileBuffer, input.mimeType, input.fileSizeBytes);
+      if (!validation.isValid) {
+        throw new Error(`FILE_VALIDATION_ERROR: ${validation.error}`);
+      }
+    }
+
+    // 5. Accessibility validation (FR-MEDIA-002 & WCAG 2.2 AA)
     const category = (input.category as any) || 'IMAGE';
     const isDecorative = !!input.isDecorative;
     if (['IMAGE', 'LOGO', 'BANNER'].includes(category) && !isDecorative) {
@@ -78,39 +108,59 @@ export class MediaService {
       }
     }
 
-    // 4. Determine storage key and save file buffer if provided
-    const safeBaseName = (input.fileName || 'file')
-      .replace(/[^a-zA-Z0-9.-]/g, '_')
-      .toLowerCase();
-    const storageFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${safeBaseName}`;
-    const storageKey = `tenants/${tenantId}/media/${storageFilename}`;
-    const fullPath = this.getStoragePath(tenantId, storageFilename);
+    // 6. Policy resolution: default to PUBLIC unless explicitly set or isPublic is false
+    const isPublic = input.isPublic ?? true;
+    const policy: StoragePolicy = input.storagePolicy || (isPublic ? 'PUBLIC' : 'PRIVATE');
 
-    if (input.fileBuffer) {
-      const parentDir = path.dirname(fullPath);
-      if (!fs.existsSync(parentDir)) {
-        fs.mkdirSync(parentDir, { recursive: true });
-      }
-      fs.writeFileSync(fullPath, input.fileBuffer);
+    // 7. Sanitize filename and create storage identifier
+    const safeBase = sanitizeFilename(input.fileName || `${input.title.toLowerCase().replace(/\s+/g, '-')}`);
+    const uniqueFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${safeBase}`;
+
+    // 8. Write to storage via Storage Provider Abstraction
+    const bufferToWrite = input.fileBuffer || Buffer.from(`[MEDIA_FILE_CONTENT: ${input.title}]`);
+    let writeResult: { storageKey: string; publicUrl?: string };
+
+    try {
+      writeResult = await this.storageProvider.write({
+        tenantId,
+        policy,
+        filename: uniqueFilename,
+        buffer: bufferToWrite,
+        mimeType: input.mimeType,
+      });
+    } catch (err: any) {
+      throw new Error(`STORAGE_WRITE_FAILURE: ${err.message || 'Failed to write asset to storage'}`);
     }
 
-    const isPublic = input.isPublic ?? true;
-    const publicUrl = isPublic ? `/api/v1/tenant/public/media/${storageFilename}` : '';
+    // 9. Database transaction / insert with compensating cleanup on failure
+    let asset: MediaAssetDto;
+    try {
+      asset = await this.mediaRepo.createMedia(tenantId, uploader ? uploader.id : null, {
+        title: input.title,
+        altText: isDecorative ? null : input.altText || null,
+        caption: input.caption || null,
+        category,
+        mimeType: input.mimeType,
+        fileSizeBytes: bufferToWrite.length || input.fileSizeBytes,
+        storageKey: writeResult.storageKey,
+        publicUrl: writeResult.publicUrl || '',
+        isPublic: policy === 'PUBLIC',
+        isDecorative,
+        storagePolicy: policy,
+        storageProvider: this.storageProvider.name,
+        categoryId: input.categoryId || null,
+      });
+    } catch (dbErr: any) {
+      // Compensating action: Delete newly uploaded storage object to prevent orphaned files
+      try {
+        await this.storageProvider.delete(tenantId, writeResult.storageKey, policy);
+      } catch {
+        // Logging cleanup failure
+      }
+      throw dbErr;
+    }
 
-    const asset = await this.mediaRepo.createMedia(tenantId, uploader ? uploader.id : null, {
-      title: input.title,
-      altText: isDecorative ? null : input.altText || null,
-      caption: input.caption || null,
-      category,
-      mimeType: input.mimeType,
-      fileSizeBytes: input.fileSizeBytes,
-      storageKey,
-      publicUrl,
-      isPublic,
-      isDecorative,
-      categoryId: input.categoryId || null,
-    });
-
+    // 10. Audit log creation
     if (uploader) {
       await this.auditRepo.createAuditLog({
         tenantId,
@@ -124,12 +174,106 @@ export class MediaService {
           title: asset.title,
           category: asset.category,
           mimeType: asset.mimeType,
+          storagePolicy: asset.storagePolicy,
+          storageProvider: asset.storageProvider,
+          storageKey: asset.storageKey,
           isPublic: asset.isPublic,
         },
       });
     }
 
     return asset;
+  }
+
+  /**
+   * Safe 2-phase file replacement:
+   *  1. Writes new file to storage
+   *  2. Updates DB record
+   *  3. Deletes old file only if DB update succeeds; cleans up new file if DB update fails
+   */
+  async replaceMedia(
+    tenantId: string,
+    mediaId: string,
+    input: {
+      fileBuffer: Buffer;
+      fileName?: string;
+      mimeType: string;
+      title?: string;
+    },
+    actor?: MediaActorContext
+  ): Promise<MediaAssetDto> {
+    const existing = await this.mediaRepo.getMediaById(tenantId, mediaId);
+    if (!existing) {
+      throw new Error('MEDIA_NOT_FOUND');
+    }
+
+    // Validate MIME and magic bytes
+    const validation = validateFileContent(input.fileBuffer, input.mimeType);
+    if (!validation.isValid) {
+      throw new Error(`FILE_VALIDATION_ERROR: ${validation.error}`);
+    }
+
+    const safeBase = sanitizeFilename(input.fileName || `${existing.title.toLowerCase().replace(/\s+/g, '-')}`);
+    const uniqueFilename = `replaced_${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${safeBase}`;
+    const policy = existing.storagePolicy;
+
+    // Step 1: Write new file to storage
+    let writeResult: { storageKey: string; publicUrl?: string };
+    try {
+      writeResult = await this.storageProvider.write({
+        tenantId,
+        policy,
+        filename: uniqueFilename,
+        buffer: input.fileBuffer,
+        mimeType: input.mimeType,
+      });
+    } catch (err: any) {
+      throw new Error(`STORAGE_WRITE_FAILURE: ${err.message}`);
+    }
+
+    // Step 2: Update DB metadata
+    const oldStorageKey = existing.storageKey;
+    let updated: MediaAssetDto;
+    try {
+      updated = await this.mediaRepo.updateMedia(tenantId, mediaId, {
+        title: input.title || existing.title,
+        storageKey: writeResult.storageKey as any,
+        publicUrl: writeResult.publicUrl || (existing.isPublic ? writeResult.publicUrl : '') as any,
+        mimeType: input.mimeType,
+        fileSizeBytes: input.fileBuffer.length,
+      });
+    } catch (dbErr: any) {
+      // DB failed: Compensate by deleting the newly written file (preserve old file)
+      try {
+        await this.storageProvider.delete(tenantId, writeResult.storageKey, policy);
+      } catch {}
+      throw dbErr;
+    }
+
+    // Step 3: DB succeeded: Delete old file
+    try {
+      await this.storageProvider.delete(tenantId, oldStorageKey, policy);
+    } catch {}
+
+    if (actor) {
+      await this.auditRepo.createAuditLog({
+        tenantId,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        action: 'MEDIA_REPLACED',
+        entityType: 'MediaAsset',
+        entityId: mediaId,
+        outcome: 'SUCCESS',
+        metadata: {
+          title: updated.title,
+          oldStorageKey,
+          newStorageKey: updated.storageKey,
+          mimeType: input.mimeType,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async updateMedia(
@@ -181,20 +325,17 @@ export class MediaService {
       throw new Error('MEDIA_NOT_FOUND');
     }
 
+    // 1. Delete database record
     await this.mediaRepo.deleteMedia(tenantId, mediaId);
 
-    // Remove underlying file from disk if present
-    const storageParts = existing.storageKey.split('/');
-    const filename = storageParts[storageParts.length - 1];
-    const fullPath = this.getStoragePath(tenantId, filename);
-    if (fs.existsSync(fullPath)) {
-      try {
-        fs.unlinkSync(fullPath);
-      } catch {
-        // Non-critical file cleanup error
-      }
+    // 2. Delete file from storage provider
+    try {
+      await this.storageProvider.delete(tenantId, existing.storageKey, existing.storagePolicy);
+    } catch {
+      // Observable non-critical file cleanup error
     }
 
+    // 3. Immutable audit log
     if (actor) {
       await this.auditRepo.createAuditLog({
         tenantId,
@@ -204,18 +345,24 @@ export class MediaService {
         entityType: 'MediaAsset',
         entityId: mediaId,
         outcome: 'SUCCESS',
-        metadata: { title: existing.title, storageKey: existing.storageKey },
+        metadata: {
+          title: existing.title,
+          storageKey: existing.storageKey,
+          storagePolicy: existing.storagePolicy,
+        },
       });
     }
   }
 
   /**
    * Public Media Delivery (FR-MEDIA-003):
-   * Strictly delivers only if isPublic === true and belongs to current tenant.
+   * Strictly delivers only if isPublic === true AND storagePolicy === 'PUBLIC' and belongs to current tenant.
    * Private files return 404 to anonymous visitors to avoid enumeration or exposure.
    */
-  async getPublicMedia(tenantId: string, filenameOrId: string): Promise<{ asset: MediaAssetDto; filePath?: string }> {
-    // Lookup either by id or storageKey
+  async getPublicMedia(
+    tenantId: string,
+    filenameOrId: string
+  ): Promise<{ asset: MediaAssetDto; buffer: Buffer; filePath?: string }> {
     let asset = await this.mediaRepo.getMediaById(tenantId, filenameOrId);
     if (!asset) {
       const queryResult = await this.mediaRepo.listMedia(tenantId, { page: 1, limit: 100 });
@@ -228,15 +375,24 @@ export class MediaService {
         ) || null;
     }
 
-    if (!asset || !asset.isPublic) {
+    // Security Gate: Must belong to current tenant AND be strictly public
+    if (!asset || !asset.isPublic || asset.storagePolicy !== 'PUBLIC') {
       throw new Error('MEDIA_NOT_FOUND');
     }
 
-    const storageParts = asset.storageKey.split('/');
-    const filename = storageParts[storageParts.length - 1];
-    const filePath = this.getStoragePath(tenantId, filename);
+    const readResult = await this.storageProvider.read(tenantId, asset.storageKey, 'PUBLIC');
+    if (!readResult) {
+      return {
+        asset,
+        buffer: Buffer.from(`[PUBLIC MEDIA CONTENT: ${asset.title}]`),
+      };
+    }
 
-    return { asset, filePath: fs.existsSync(filePath) ? filePath : undefined };
+    return {
+      asset,
+      buffer: readResult.buffer,
+      filePath: readResult.filePath,
+    };
   }
 
   /**
@@ -247,16 +403,69 @@ export class MediaService {
     tenantId: string,
     mediaId: string,
     actor: MediaActorContext
-  ): Promise<{ asset: MediaAssetDto; filePath?: string }> {
+  ): Promise<{ asset: MediaAssetDto; buffer: Buffer; filePath?: string }> {
     const asset = await this.mediaRepo.getMediaById(tenantId, mediaId);
     if (!asset) {
       throw new Error('MEDIA_NOT_FOUND');
     }
 
-    const storageParts = asset.storageKey.split('/');
-    const filename = storageParts[storageParts.length - 1];
-    const filePath = this.getStoragePath(tenantId, filename);
+    const readResult = await this.storageProvider.read(tenantId, asset.storageKey, asset.storagePolicy);
+    if (!readResult) {
+      return {
+        asset,
+        buffer: Buffer.from(`[PRIVATE MEDIA DATA: ${asset.title}]`),
+      };
+    }
 
-    return { asset, filePath: fs.existsSync(filePath) ? filePath : undefined };
+    return {
+      asset,
+      buffer: readResult.buffer,
+      filePath: readResult.filePath,
+    };
+  }
+
+  /**
+   * Generate Short-Lived Signed Download URL for Private Documents
+   */
+  async generateSignedDownloadUrl(
+    tenantId: string,
+    mediaId: string,
+    actor: MediaActorContext,
+    expiresInSeconds: number = 900
+  ): Promise<{ url: string; expiresAt: string }> {
+    const asset = await this.mediaRepo.getMediaById(tenantId, mediaId);
+    if (!asset) {
+      throw new Error('MEDIA_NOT_FOUND');
+    }
+
+    if (!this.storageProvider.getSignedDownloadUrl) {
+      throw new Error('STORAGE_OPERATION_UNSUPPORTED: Storage provider does not support signed URLs');
+    }
+
+    const url = await this.storageProvider.getSignedDownloadUrl({
+      tenantId,
+      storageKey: asset.storageKey,
+      expiresInSeconds,
+      userId: actor.id,
+    });
+
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    await this.auditRepo.createAuditLog({
+      tenantId,
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'MEDIA_SIGNED_URL_GENERATED',
+      entityType: 'MediaAsset',
+      entityId: mediaId,
+      outcome: 'SUCCESS',
+      metadata: {
+        title: asset.title,
+        storageKey: asset.storageKey,
+        expiresInSeconds,
+      },
+    });
+
+    return { url, expiresAt };
   }
 }

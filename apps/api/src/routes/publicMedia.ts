@@ -28,7 +28,7 @@ export function createPublicMediaRouter(mediaService: MediaService): Router {
       if (result.filePath && fs.existsSync(result.filePath)) {
         fs.createReadStream(result.filePath).pipe(res);
       } else {
-        res.send(Buffer.from(`[PUBLIC MEDIA CONTENT: ${result.asset.title}]`));
+        res.send(result.buffer);
       }
     } catch (err: any) {
       if (err.message && err.message.includes('MEDIA_NOT_FOUND')) {
@@ -60,7 +60,7 @@ export function createPublicMediaRouter(mediaService: MediaService): Router {
       if (result.filePath && fs.existsSync(result.filePath)) {
         fs.createReadStream(result.filePath).pipe(res);
       } else {
-        res.send(Buffer.from(`[PUBLIC MEDIA CONTENT: ${result.asset.title}]`));
+        res.send(result.buffer);
       }
     } catch (err: any) {
       if (err.message && err.message.includes('MEDIA_NOT_FOUND')) {
