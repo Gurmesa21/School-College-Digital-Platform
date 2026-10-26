@@ -1773,7 +1773,13 @@ export default function TenantAdminPage() {
       }
 
       const signedUrl = `${apiBaseUrl}${data.data.url}`;
-      await navigator.clipboard?.writeText(signedUrl);
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(signedUrl);
+        }
+      } catch {
+        // In headless CI or non-secure contexts, clipboard write may fail gracefully
+      }
       setGlobalNotice({
         type: 'success',
         message: `Generated 15-minute signed download URL for "${asset.title}". Copied to clipboard!`,

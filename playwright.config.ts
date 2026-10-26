@@ -17,6 +17,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         channel: process.env.CI ? undefined : 'chrome',
+        permissions: ['clipboard-read', 'clipboard-write'],
         launchOptions: {
           args: ['--no-sandbox', '--disable-setuid-sandbox'],
         },

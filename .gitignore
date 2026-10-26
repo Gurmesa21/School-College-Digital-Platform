@@ -39,3 +39,4 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 prisma/*.db
+uploads/

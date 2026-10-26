@@ -109,7 +109,7 @@ test.describe('Day 6: Dynamic Navigation Menus, Media Library Asset Management &
     // Filter by DOCUMENT
     await page.locator('#media-chip-document').click();
     await page.waitForTimeout(500);
-    const docCard = page.locator('.media-card:has-text("Confidential")');
+    const docCard = page.locator('.media-card:has-text("Confidential Admissions Criteria")');
     await expect(docCard).toBeVisible();
     await expect(docCard).toContainText('RESTRICTED'); // Private access-controlled document
 
