@@ -12,6 +12,9 @@ import { InMemoryFormRepository } from './repositories/formRepository.js';
 import { InMemorySectionRepository } from './repositories/sectionRepository.js';
 import { InMemoryAcademicRepository } from './repositories/academicRepository.js';
 import { InMemoryStaffRepository } from './repositories/staffRepository.js';
+import { InMemoryNewsRepository } from './repositories/newsRepository.js';
+import { InMemoryAnnouncementRepository } from './repositories/announcementRepository.js';
+import { InMemoryEventRepository } from './repositories/eventRepository.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { PERMISSIONS } from '@school/shared';
 
@@ -294,6 +297,9 @@ async function startServer() {
       sectionRepository: sectionRepo,
       academicRepository: new InMemoryAcademicRepository(),
       staffRepository: new InMemoryStaffRepository(),
+      newsRepository: new InMemoryNewsRepository(),
+      announcementRepository: new InMemoryAnnouncementRepository(),
+      eventRepository: new InMemoryEventRepository(),
       emailService,
     });
   } else {

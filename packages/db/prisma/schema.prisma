@@ -111,6 +111,20 @@ enum SubmissionStatus {
   ARCHIVED
 }
 
+enum AnnouncementPriority {
+  LOW
+  NORMAL
+  HIGH
+  EMERGENCY
+}
+
+enum AnnouncementAudience {
+  GENERAL
+  STUDENTS
+  PARENTS
+  STAFF
+}
+
 model Tenant {
   id              String          @id @default(cuid())
   slug            String          @unique
@@ -142,6 +156,9 @@ model Tenant {
   programmes       Programme[]
   courses          Course[]
   staffProfiles    StaffProfile[]
+  newsArticles     NewsArticle[]
+  announcements    Announcement[]
+  events           EventItem[]
 
   @@index([slug])
   @@index([status])
@@ -193,6 +210,12 @@ model User {
   staffProfiles           StaffProfile[]           @relation("StaffUserAccount")
   authoredStaff           StaffProfile[]           @relation("StaffAuthor")
   editedStaff             StaffProfile[]           @relation("StaffEditor")
+  authoredNews            NewsArticle[]            @relation("NewsAuthor")
+  editedNews              NewsArticle[]            @relation("NewsEditor")
+  authoredAnnouncements   Announcement[]           @relation("AnnouncementAuthor")
+  editedAnnouncements     Announcement[]           @relation("AnnouncementEditor")
+  authoredEvents          EventItem[]              @relation("EventAuthor")
+  editedEvents            EventItem[]              @relation("EventEditor")
 
   @@index([email])
   @@index([status])
@@ -547,6 +570,8 @@ model MediaAsset {
   taxCategory   Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   programmes    Programme[]
   staffProfiles StaffProfile[]
+  newsArticles  NewsArticle[]
+  events        EventItem[]
 
   @@index([tenantId, category])
   @@index([tenantId, isPublic])
@@ -816,6 +841,102 @@ model StaffProfile {
   @@index([tenantId, departmentId])
   @@index([tenantId, orderIndex])
   @@map("staff_profiles")
+}
+
+model NewsArticle {
+  id              String      @id @default(cuid())
+  tenantId        String
+  title           String
+  slug            String
+  summary         String?
+  body            String
+  authorName      String?
+  publishedAt     DateTime?
+  archivedAt      DateTime?
+  featuredMediaId String?
+  tags            String[]    @default([])
+  relatedIds      String[]    @default([])
+  status          PageStatus  @default(DRAFT)
+  seoTitle        String?
+  seoDescription  String?
+  canonicalUrl    String?
+  authorId        String?
+  lastEditorId    String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  featuredMedia   MediaAsset? @relation(fields: [featuredMediaId], references: [id], onDelete: SetNull)
+  author          User?       @relation("NewsAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  lastEditor      User?       @relation("NewsEditor", fields: [lastEditorId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@index([tenantId, publishedAt])
+  @@map("news_articles")
+}
+
+model Announcement {
+  id           String               @id @default(cuid())
+  tenantId     String
+  title        String
+  content      String
+  priority     AnnouncementPriority @default(NORMAL)
+  audience     AnnouncementAudience @default(GENERAL)
+  isPinned     Boolean              @default(false)
+  startsAt     DateTime?
+  expiresAt    DateTime?
+  status       PageStatus           @default(DRAFT)
+  authorId     String?
+  lastEditorId String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  author       User?                @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  lastEditor   User?                @relation("AnnouncementEditor", fields: [lastEditorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([tenantId, priority])
+  @@index([tenantId, startsAt, expiresAt])
+  @@map("announcements")
+}
+
+model EventItem {
+  id                 String      @id @default(cuid())
+  tenantId           String
+  title              String
+  slug               String
+  description        String?
+  startsAt           DateTime
+  endsAt             DateTime
+  timezone           String      @default("UTC")
+  location           String?
+  category           String      @default("GENERAL")
+  coverMediaId       String?
+  contactName        String?
+  contactEmail       String?
+  contactPhone       String?
+  capacity           Int?
+  isRegistrationOpen Boolean     @default(false)
+  registrationUrl    String?
+  status             PageStatus  @default(DRAFT)
+  authorId           String?
+  lastEditorId       String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  tenant             Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  coverMedia         MediaAsset? @relation(fields: [coverMediaId], references: [id], onDelete: SetNull)
+  author             User?       @relation("EventAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  lastEditor         User?       @relation("EventEditor", fields: [lastEditorId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@index([tenantId, startsAt])
+  @@index([tenantId, endsAt])
+  @@index([tenantId, category])
+  @@map("events")
 }
 
 

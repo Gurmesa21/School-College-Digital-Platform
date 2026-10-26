@@ -4,6 +4,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import AcademicAdminView from '@/components/AcademicAdminView';
 import StaffAdminView from '@/components/StaffAdminView';
+import NewsAdminView from '@/components/NewsAdminView';
+import AnnouncementAdminView from '@/components/AnnouncementAdminView';
+import EventAdminView from '@/components/EventAdminView';
 
 interface UserMember {
   id?: string;
@@ -240,7 +243,22 @@ interface FormSubmissionItem {
 }
 
 export default function TenantAdminPage() {
-  const [activeTab, setActiveTab] = useState<'members' | 'invitations' | 'audit' | 'pages' | 'sections' | 'navigation' | 'media' | 'forms' | 'submissions' | 'academics' | 'staff'>('members');
+  const [activeTab, setActiveTab] = useState<
+    | 'members'
+    | 'invitations'
+    | 'audit'
+    | 'pages'
+    | 'sections'
+    | 'navigation'
+    | 'media'
+    | 'forms'
+    | 'submissions'
+    | 'academics'
+    | 'staff'
+    | 'news'
+    | 'announcements'
+    | 'events'
+  >('members');
   const [tenantSlug, setTenantSlug] = useState('oxford');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
 
@@ -2034,6 +2052,33 @@ export default function TenantAdminPage() {
         >
           Staff & Profiles
         </button>
+        <button
+          id="tab-news-btn"
+          className={`tab-btn ${activeTab === 'news' ? 'active' : ''}`}
+          onClick={() => setActiveTab('news')}
+          aria-selected={activeTab === 'news'}
+          role="tab"
+        >
+          Editorial News
+        </button>
+        <button
+          id="tab-announcements-btn"
+          className={`tab-btn ${activeTab === 'announcements' ? 'active' : ''}`}
+          onClick={() => setActiveTab('announcements')}
+          aria-selected={activeTab === 'announcements'}
+          role="tab"
+        >
+          Announcements & Notices
+        </button>
+        <button
+          id="tab-events-btn"
+          className={`tab-btn ${activeTab === 'events' ? 'active' : ''}`}
+          onClick={() => setActiveTab('events')}
+          aria-selected={activeTab === 'events'}
+          role="tab"
+        >
+          Events Calendar
+        </button>
       </nav>
 
       {/* TAB 1: MEMBERS */}
@@ -3645,6 +3690,36 @@ export default function TenantAdminPage() {
       {/* TAB: STAFF DIRECTORY & PROFILES */}
       {activeTab === 'staff' && (
         <StaffAdminView
+          apiBaseUrl={apiBaseUrl}
+          tenantSlug={tenantSlug}
+          getHeaders={getHeaders}
+          setGlobalNotice={setGlobalNotice}
+        />
+      )}
+
+      {/* TAB: EDITORIAL NEWS */}
+      {activeTab === 'news' && (
+        <NewsAdminView
+          apiBaseUrl={apiBaseUrl}
+          tenantSlug={tenantSlug}
+          getHeaders={getHeaders}
+          setGlobalNotice={setGlobalNotice}
+        />
+      )}
+
+      {/* TAB: OPERATIONAL ANNOUNCEMENTS */}
+      {activeTab === 'announcements' && (
+        <AnnouncementAdminView
+          apiBaseUrl={apiBaseUrl}
+          tenantSlug={tenantSlug}
+          getHeaders={getHeaders}
+          setGlobalNotice={setGlobalNotice}
+        />
+      )}
+
+      {/* TAB: EVENTS CALENDAR */}
+      {activeTab === 'events' && (
+        <EventAdminView
           apiBaseUrl={apiBaseUrl}
           tenantSlug={tenantSlug}
           getHeaders={getHeaders}

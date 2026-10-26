@@ -12,6 +12,8 @@ import {
   FormType,
   FormFieldType,
   SubmissionStatus,
+  AnnouncementPriority,
+  AnnouncementAudience,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -148,6 +150,17 @@ export const SYSTEM_PERMISSIONS: Array<{ code: string; category: string; descrip
   { code: 'staff:write', category: 'staff', description: 'Create, edit, and configure staff member profiles' },
   { code: 'staff:publish', category: 'staff', description: 'Publish or archive staff profiles on the public directory' },
 
+  // News, Notices & Events (Day 12)
+  { code: 'news:read', category: 'news', description: 'View news articles and unpublished drafts' },
+  { code: 'news:write', category: 'news', description: 'Create and edit news stories' },
+  { code: 'news:publish', category: 'news', description: 'Publish news stories to public website' },
+  { code: 'announcements:read', category: 'announcements', description: 'View operational announcements and drafts' },
+  { code: 'announcements:write', category: 'announcements', description: 'Create and edit operational announcements' },
+  { code: 'announcements:publish', category: 'announcements', description: 'Publish notices to active banners and feeds' },
+  { code: 'events:read', category: 'events', description: 'View institutional calendar events and drafts' },
+  { code: 'events:write', category: 'events', description: 'Create and edit institutional calendar events' },
+  { code: 'events:publish', category: 'events', description: 'Publish calendar events to public directory' },
+
   // Analytics
   { code: 'analytics:view', category: 'analytics', description: 'View institution traffic and admissions analytics' },
 
@@ -201,6 +214,15 @@ export const SYSTEM_ROLES: Array<{
       'staff:read',
       'staff:write',
       'staff:publish',
+      'news:read',
+      'news:write',
+      'news:publish',
+      'announcements:read',
+      'announcements:write',
+      'announcements:publish',
+      'events:read',
+      'events:write',
+      'events:publish',
       'admissions:read',
       'admissions:review',
       'admissions:manage',
@@ -228,6 +250,15 @@ export const SYSTEM_ROLES: Array<{
       'staff:read',
       'staff:write',
       'staff:publish',
+      'news:read',
+      'news:write',
+      'news:publish',
+      'announcements:read',
+      'announcements:write',
+      'announcements:publish',
+      'events:read',
+      'events:write',
+      'events:publish',
       'admissions:read',
       'admissions:review',
       'analytics:view',
@@ -259,6 +290,11 @@ export const SYSTEM_ROLES: Array<{
       'media:write',
       'taxonomy:read',
       'staff:read',
+      'news:read',
+      'news:write',
+      'announcements:read',
+      'events:read',
+      'events:write',
     ],
   },
 ];
@@ -1740,6 +1776,297 @@ export async function seedDevelopmentData(): Promise<void> {
     });
 
     console.log('  -> Seeded Summit TVET Staff Profile (David Miller)');
+  }
+
+  // 13. Seed News, Notices & Events (Day 12)
+  console.log('[Seed] Seeding news articles, announcements, and events for Oxford International School...');
+  if (oxfordTenant) {
+    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@oxford.edu' } });
+
+    // Feature media for news
+    const newsMedia = await prisma.mediaAsset.upsert({
+      where: { id: `media-seed-${oxfordTenant.id}-stem-wing` },
+      update: {},
+      create: {
+        id: `media-seed-${oxfordTenant.id}-stem-wing`,
+        tenantId: oxfordTenant.id,
+        uploaderId: adminUser?.id,
+        title: 'New STEM Innovation Wing Opening Ceremony',
+        altText: 'Students and faculty cutting ribbon for the new Oxford STEM Innovation Wing',
+        caption: 'Oxford International School unveils state-of-the-art laboratory facilities',
+        category: MediaCategory.IMAGE,
+        mimeType: 'image/jpeg',
+        fileSizeBytes: 245000,
+        storageKey: `tenants/${oxfordTenant.id}/media/stem-wing-opening.jpg`,
+        publicUrl: '/api/v1/tenant/public/media/stem-wing-opening.jpg',
+        isPublic: true,
+        isDecorative: false,
+        storagePolicy: 'PUBLIC',
+        storageProvider: 'local',
+      },
+    });
+
+    // Feature media for events
+    const eventMedia = await prisma.mediaAsset.upsert({
+      where: { id: `media-seed-${oxfordTenant.id}-open-house` },
+      update: {},
+      create: {
+        id: `media-seed-${oxfordTenant.id}-open-house`,
+        tenantId: oxfordTenant.id,
+        uploaderId: adminUser?.id,
+        title: 'Oxford Campus Open House Banner',
+        altText: 'Aerial view of Oxford International School campus with prospective students and families',
+        caption: 'Join us for our comprehensive campus open day tour and faculty presentations',
+        category: MediaCategory.BANNER,
+        mimeType: 'image/jpeg',
+        fileSizeBytes: 310000,
+        storageKey: `tenants/${oxfordTenant.id}/media/open-house-banner.jpg`,
+        publicUrl: '/api/v1/tenant/public/media/open-house-banner.jpg',
+        isPublic: true,
+        isDecorative: false,
+        storagePolicy: 'PUBLIC',
+        storageProvider: 'local',
+      },
+    });
+
+    // Seed News Articles (FR-COM-001)
+    await prisma.newsArticle.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'stem-innovation-wing-inauguration' } },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        title: 'Oxford Unveils Cutting-Edge STEM Innovation Wing',
+        slug: 'stem-innovation-wing-inauguration',
+        summary: 'A multi-million dollar advancement providing robotics laboratories, biotechnology cleanrooms, and computational physics workstations for all secondary students.',
+        body: 'Oxford International School proudly celebrated the formal opening of the new STEM Innovation Wing this week. The multi-story facility integrates advanced robotics testing arenas, high-precision biotechnology laboratories, and sustainable architectural design.\n\nDuring the inaugural address, Dr. Eleanor Vance emphasized our commitment to inquiry-driven learning: "This wing transforms abstract scientific theory into experiential breakthrough discovery. Our students will now design and test real-world solutions directly on campus."\n\nAdmissions tours for the new facility commence next month for enrolled and prospective families.',
+        authorName: 'Oxford Communications Office',
+        publishedAt: new Date('2026-09-15T09:00:00Z'),
+        featuredMediaId: newsMedia.id,
+        tags: ['STEM', 'Campus Development', 'Academics', 'Innovation'],
+        status: PageStatus.PUBLISHED,
+        seoTitle: 'New STEM Innovation Wing | Oxford International School News',
+        seoDescription: 'Read about the new STEM Innovation Wing at Oxford International School, featuring robotics and biotechnology laboratories.',
+        authorId: adminUser?.id,
+      },
+    });
+
+    await prisma.newsArticle.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'annual-science-symposium-winners-2026' } },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        title: 'Winners Announced for 2026 Annual Science & Mathematics Symposium',
+        slug: 'annual-science-symposium-winners-2026',
+        summary: 'Over 120 student projects were exhibited, culminating in top honors for renewable energy harvesting and algorithmic bioinformatics.',
+        body: 'The 2026 Oxford Annual Science and Mathematics Symposium concluded with an exceptional showcase of investigative rigour. Students from Grades 9 through 12 presented peer-reviewed research before an invited panel of university academics and industry researchers.\n\nFirst prize in Applied Sciences was awarded to Grade 11 student Marcus Chen for his prototype on ambient piezoelectric kinetic energy harvesting in high-traffic campus walkways. The Mathematics & Computing prize was awarded to Grade 12 student Sophia Patel for algorithmic modelling of local microclimate rainfall variations.\n\nCongratulations to all exhibitors and faculty mentors for their tireless dedication.',
+        authorName: 'Academic Review Committee',
+        publishedAt: new Date('2026-10-01T14:30:00Z'),
+        featuredMediaId: newsMedia.id,
+        tags: ['Academics', 'Awards', 'Science', 'Student Life'],
+        status: PageStatus.PUBLISHED,
+        seoTitle: '2026 Science Symposium Winners | Oxford International School',
+        seoDescription: 'Celebrating student excellence and investigative research at the 2026 Oxford Annual Science Symposium.',
+        authorId: adminUser?.id,
+      },
+    });
+
+    await prisma.newsArticle.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'summer-internship-partnerships-draft' } },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        title: 'Draft: 2027 International Summer Internship Opportunities',
+        slug: 'summer-internship-partnerships-draft',
+        summary: 'Preliminary internal draft of university and corporate summer research placements for senior scholars.',
+        body: 'This is an unapproved editorial draft describing forthcoming university laboratory partnerships. Not for public distribution or release until institutional agreements are countersigned.',
+        authorName: 'College Counselling Team',
+        publishedAt: null,
+        tags: ['Careers', 'Internal', 'Draft'],
+        status: PageStatus.DRAFT,
+        authorId: adminUser?.id,
+      },
+    });
+
+    // Seed Operational Announcements (FR-COM-002)
+    // 1. High-priority active emergency notice
+    await prisma.announcement.upsert({
+      where: { id: `announcement-seed-${oxfordTenant.id}-adverse-weather` },
+      update: {},
+      create: {
+        id: `announcement-seed-${oxfordTenant.id}-adverse-weather`,
+        tenantId: oxfordTenant.id,
+        title: 'Adverse Weather Alert: Morning Bus Transit Route Adjustments',
+        content: 'Due to severe seasonal storms, morning transport routes 4 and 7 will operate with a 20-minute safety delay. All campus buildings remain open on regular schedule with indoor student reception.',
+        priority: AnnouncementPriority.EMERGENCY,
+        audience: AnnouncementAudience.GENERAL,
+        isPinned: true,
+        startsAt: new Date('2026-10-25T00:00:00Z'),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Active for 7 days
+        status: PageStatus.PUBLISHED,
+        authorId: adminUser?.id,
+      },
+    });
+
+    // 2. Standard active student notice
+    await prisma.announcement.upsert({
+      where: { id: `announcement-seed-${oxfordTenant.id}-library-hours` },
+      update: {},
+      create: {
+        id: `announcement-seed-${oxfordTenant.id}-library-hours`,
+        tenantId: oxfordTenant.id,
+        title: 'Extended Evening Library Study Hours During Midterm Assessment',
+        content: 'The Senior Campus Library and Quiet Study Atrium will remain open until 8:30 PM Mondays through Thursdays. Faculty tutors will be available for drop-in consultations.',
+        priority: AnnouncementPriority.NORMAL,
+        audience: AnnouncementAudience.STUDENTS,
+        isPinned: false,
+        startsAt: new Date('2026-10-20T00:00:00Z'),
+        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // Active for 14 days
+        status: PageStatus.PUBLISHED,
+        authorId: adminUser?.id,
+      },
+    });
+
+    // 3. Expired notice (historical record retained, stops appearing in active placements)
+    await prisma.announcement.upsert({
+      where: { id: `announcement-seed-${oxfordTenant.id}-term1-uniform-sale` },
+      update: {},
+      create: {
+        id: `announcement-seed-${oxfordTenant.id}-term1-uniform-sale`,
+        tenantId: oxfordTenant.id,
+        title: 'Past Notice: Term 1 Official Uniform Exchange & Book Fair',
+        content: 'The annual community uniform resale and textbook exchange will run from 9:00 AM to 1:00 PM at the Gymnasium concourse.',
+        priority: AnnouncementPriority.LOW,
+        audience: AnnouncementAudience.PARENTS,
+        isPinned: false,
+        startsAt: new Date('2026-09-01T08:00:00Z'),
+        expiresAt: new Date('2026-09-05T17:00:00Z'), // Past expired date!
+        status: PageStatus.PUBLISHED,
+        authorId: adminUser?.id,
+      },
+    });
+
+    // 4. Draft announcement
+    await prisma.announcement.upsert({
+      where: { id: `announcement-seed-${oxfordTenant.id}-term2-schedule-draft` },
+      update: {},
+      create: {
+        id: `announcement-seed-${oxfordTenant.id}-term2-schedule-draft`,
+        tenantId: oxfordTenant.id,
+        title: 'Draft Notice: Preliminary Term 2 Examination Timetable',
+        content: 'Draft internal schedule under faculty review. Not yet approved for student distribution.',
+        priority: AnnouncementPriority.NORMAL,
+        audience: AnnouncementAudience.STAFF,
+        isPinned: false,
+        status: PageStatus.DRAFT,
+        authorId: adminUser?.id,
+      },
+    });
+
+    // Seed Events Calendar (FR-EVT-001)
+    // 1. Upcoming Open House with explicit timezone & registration
+    await prisma.eventItem.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'oxford-autumn-open-house-2026' } },
+      update: {
+        timezone: 'Europe/London',
+      },
+      create: {
+        tenantId: oxfordTenant.id,
+        title: 'Oxford Autumn Campus Open Day & Admissions Showcase',
+        slug: 'oxford-autumn-open-house-2026',
+        description: 'Explore our academic divisions, meet department chairs, inspect laboratory spaces, and speak directly with our admissions and scholarship officers.',
+        startsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days in future
+        endsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000), // 4 hour event
+        timezone: 'Europe/London',
+        location: 'Main Auditorium & Quadrangle, Oxford Campus',
+        category: 'ADMISSIONS',
+        coverMediaId: eventMedia.id,
+        contactName: 'Admissions Directorate',
+        contactEmail: 'admissions@oxford.edu',
+        contactPhone: '+44 1865 200100',
+        capacity: 250,
+        isRegistrationOpen: true,
+        registrationUrl: '/forms/admissions-inquiry',
+        status: PageStatus.PUBLISHED,
+        authorId: adminUser?.id,
+      },
+    });
+
+    // 2. Upcoming Multi-day Athletics Championship
+    await prisma.eventItem.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'inter-school-track-and-field-championship' } },
+      update: {
+        timezone: 'Europe/London',
+      },
+      create: {
+        tenantId: oxfordTenant.id,
+        title: 'Inter-School Track & Field Invitational Championship',
+        slug: 'inter-school-track-and-field-championship',
+        description: 'A 2-day athletic competition featuring sprint relays, hurdle finals, high jump, and field events across 8 visiting secondary schools.',
+        startsAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // Spans 2 days
+        timezone: 'Europe/London',
+        location: 'Oxford Sports Complex Athletics Arena',
+        category: 'SPORTS',
+        coverMediaId: eventMedia.id,
+        contactName: 'Athletics Department',
+        contactEmail: 'athletics@oxford.edu',
+        contactPhone: '+44 1865 200105',
+        capacity: 800,
+        isRegistrationOpen: false,
+        status: PageStatus.PUBLISHED,
+        authorId: adminUser?.id,
+      },
+    });
+
+    // 3. Past Historical Event (Historical record retained, past date)
+    await prisma.eventItem.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'class-of-2026-commencement-gala' } },
+      update: {
+        timezone: 'Europe/London',
+      },
+      create: {
+        tenantId: oxfordTenant.id,
+        title: 'Class of 2026 Annual Commencement & Valedictory Gala',
+        slug: 'class-of-2026-commencement-gala',
+        description: 'Formal graduation ceremonies honouring our senior diploma recipients, academic medalists, and distinguished alumni fellows.',
+        startsAt: new Date('2026-06-20T10:00:00Z'),
+        endsAt: new Date('2026-06-20T16:00:00Z'),
+        timezone: 'Europe/London',
+        location: 'Great Hall & Riverside Grounds',
+        category: 'COMMENCEMENT',
+        coverMediaId: eventMedia.id,
+        contactName: 'Registrar Office',
+        contactEmail: 'registrar@oxford.edu',
+        contactPhone: '+44 1865 200102',
+        capacity: 600,
+        isRegistrationOpen: false,
+        status: PageStatus.PUBLISHED,
+        authorId: adminUser?.id,
+      },
+    });
+
+    // 4. Draft Event
+    await prisma.eventItem.upsert({
+      where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'alumni-networking-symposium-draft' } },
+      update: {},
+      create: {
+        tenantId: oxfordTenant.id,
+        title: 'Draft: Oxford Alumni Global Mentorship Evening',
+        slug: 'alumni-networking-symposium-draft',
+        description: 'Draft schedule for panel discussions connecting senior students with graduates in medicine, law, and engineering.',
+        startsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000),
+        timezone: 'UTC',
+        location: 'Oxford Fellows Lounge',
+        category: 'COMMUNITY',
+        status: PageStatus.DRAFT,
+        authorId: adminUser?.id,
+      },
+    });
+
+    console.log('  -> Seeded Oxford News Articles (2 published, 1 draft)');
+    console.log('  -> Seeded Oxford Announcements (1 emergency pinned, 1 standard active, 1 expired, 1 draft)');
+    console.log('  -> Seeded Oxford Events (1 upcoming open day, 1 multi-day athletics, 1 past graduation, 1 draft)');
   }
 
   console.log('[Seed] Development multi-tenant, RBAC, user, CMS, navigation, media, dynamic forms, reusable sections, and academic catalogue seed completed idempotently.');

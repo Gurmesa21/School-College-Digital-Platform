@@ -142,6 +142,17 @@ export const PERMISSIONS = {
   STAFF_WRITE: 'staff:write',
   STAFF_PUBLISH: 'staff:publish',
 
+  // News, Notices & Events (Day 12)
+  NEWS_READ: 'news:read',
+  NEWS_WRITE: 'news:write',
+  NEWS_PUBLISH: 'news:publish',
+  ANNOUNCEMENTS_READ: 'announcements:read',
+  ANNOUNCEMENTS_WRITE: 'announcements:write',
+  ANNOUNCEMENTS_PUBLISH: 'announcements:publish',
+  EVENTS_READ: 'events:read',
+  EVENTS_WRITE: 'events:write',
+  EVENTS_PUBLISH: 'events:publish',
+
   // Analytics
   ANALYTICS_VIEW: 'analytics:view',
 
@@ -1627,6 +1638,341 @@ export const StaffProfileQuerySchema = z.object({
   }, z.boolean().optional()),
 });
 export type StaffProfileQueryDto = z.infer<typeof StaffProfileQuerySchema>;
+
+// ============================================================================
+// DAY 12: NEWS, NOTICES & EVENT CALENDAR
+// ============================================================================
+
+export const AnnouncementPriorityEnum = z.enum(['LOW', 'NORMAL', 'HIGH', 'EMERGENCY']);
+export type AnnouncementPriority = z.infer<typeof AnnouncementPriorityEnum>;
+
+export const AnnouncementAudienceEnum = z.enum(['GENERAL', 'STUDENTS', 'PARENTS', 'STAFF']);
+export type AnnouncementAudience = z.infer<typeof AnnouncementAudienceEnum>;
+
+// ----------------------------------------------------------------------------
+// FR-COM-001: Editorial News
+// ----------------------------------------------------------------------------
+
+export interface NewsArticleDto {
+  id: string;
+  tenantId: string;
+  title: string;
+  slug: string;
+  summary: string | null;
+  body: string;
+  authorName: string | null;
+  publishedAt: string | null;
+  archivedAt: string | null;
+  featuredMediaId: string | null;
+  tags: string[];
+  relatedIds: string[];
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  seoTitle: string | null;
+  seoDescription: string | null;
+  canonicalUrl: string | null;
+  authorId: string | null;
+  lastEditorId: string | null;
+  featuredMedia?: {
+    id: string;
+    title: string;
+    publicUrl: string;
+    altText: string | null;
+    caption: string | null;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicNewsArticleDto {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string | null;
+  body: string;
+  authorName: string | null;
+  publishedAt: string;
+  featuredMedia: {
+    id: string;
+    title: string;
+    publicUrl: string;
+    altText: string | null;
+    caption: string | null;
+  } | null;
+  tags: string[];
+  relatedArticles?: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    summary: string | null;
+    publishedAt: string;
+  }>;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  canonicalUrl: string | null;
+}
+
+export const CreateNewsArticleSchema = z.object({
+  title: z.string().min(2, 'Title must be at least 2 characters').max(200),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
+  summary: z.string().max(1000).optional().nullable(),
+  body: z.string().min(5, 'Story body must be at least 5 characters'),
+  authorName: z.string().max(100).optional().nullable(),
+  publishedAt: z.string().datetime({ offset: true }).optional().nullable().or(z.string().datetime().optional().nullable()),
+  featuredMediaId: z.string().optional().nullable(),
+  tags: z.array(z.string().max(50)).optional().default([]),
+  relatedIds: z.array(z.string()).optional().default([]),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional().default('DRAFT'),
+  seoTitle: z.string().max(120).optional().nullable(),
+  seoDescription: z.string().max(300).optional().nullable(),
+  canonicalUrl: z.string().max(500).optional().nullable(),
+});
+export type CreateNewsArticleDto = z.infer<typeof CreateNewsArticleSchema>;
+
+export const UpdateNewsArticleSchema = CreateNewsArticleSchema.partial();
+export type UpdateNewsArticleDto = z.infer<typeof UpdateNewsArticleSchema>;
+
+export const NewsArticleQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  tag: z.string().optional(),
+  year: z.coerce.number().int().optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  search: z.string().max(100).optional(),
+});
+export type NewsArticleQueryDto = z.infer<typeof NewsArticleQuerySchema>;
+
+// ----------------------------------------------------------------------------
+// FR-COM-002: Operational Announcements
+// ----------------------------------------------------------------------------
+
+export interface AnnouncementDto {
+  id: string;
+  tenantId: string;
+  title: string;
+  content: string;
+  priority: AnnouncementPriority;
+  audience: AnnouncementAudience;
+  isPinned: boolean;
+  startsAt: string | null;
+  expiresAt: string | null;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  authorId: string | null;
+  lastEditorId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicAnnouncementDto {
+  id: string;
+  title: string;
+  content: string;
+  priority: AnnouncementPriority;
+  audience: AnnouncementAudience;
+  isPinned: boolean;
+  startsAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export const CreateAnnouncementSchema = z
+  .object({
+    title: z.string().min(2, 'Title must be at least 2 characters').max(200),
+    content: z.string().min(2, 'Content must be at least 2 characters').max(5000),
+    priority: AnnouncementPriorityEnum.optional().default('NORMAL'),
+    audience: AnnouncementAudienceEnum.optional().default('GENERAL'),
+    isPinned: z.boolean().optional().default(false),
+    startsAt: z.string().datetime({ offset: true }).optional().nullable().or(z.string().datetime().optional().nullable()),
+    expiresAt: z.string().datetime({ offset: true }).optional().nullable().or(z.string().datetime().optional().nullable()),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional().default('DRAFT'),
+  })
+  .refine(
+    (data) => {
+      if (data.startsAt && data.expiresAt) {
+        return new Date(data.expiresAt) > new Date(data.startsAt);
+      }
+      return true;
+    },
+    {
+      message: 'Announcement expiry time must be after the start time',
+      path: ['expiresAt'],
+    }
+  );
+export type CreateAnnouncementDto = z.infer<typeof CreateAnnouncementSchema>;
+
+export const UpdateAnnouncementSchema = z
+  .object({
+    title: z.string().min(2).max(200).optional(),
+    content: z.string().min(2).max(5000).optional(),
+    priority: AnnouncementPriorityEnum.optional(),
+    audience: AnnouncementAudienceEnum.optional(),
+    isPinned: z.boolean().optional(),
+    startsAt: z.string().datetime({ offset: true }).optional().nullable().or(z.string().datetime().optional().nullable()),
+    expiresAt: z.string().datetime({ offset: true }).optional().nullable().or(z.string().datetime().optional().nullable()),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.startsAt && data.expiresAt) {
+        return new Date(data.expiresAt) > new Date(data.startsAt);
+      }
+      return true;
+    },
+    {
+      message: 'Announcement expiry time must be after the start time',
+      path: ['expiresAt'],
+    }
+  );
+export type UpdateAnnouncementDto = z.infer<typeof UpdateAnnouncementSchema>;
+
+export const AnnouncementQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  priority: AnnouncementPriorityEnum.optional(),
+  audience: AnnouncementAudienceEnum.optional(),
+  search: z.string().max(100).optional(),
+  activeOnly: z.preprocess((val) => {
+    if (val === 'true' || val === true) return true;
+    if (val === 'false' || val === false) return false;
+    return undefined;
+  }, z.boolean().optional()),
+});
+export type AnnouncementQueryDto = z.infer<typeof AnnouncementQuerySchema>;
+
+// ----------------------------------------------------------------------------
+// FR-EVT-001: Events Calendar
+// ----------------------------------------------------------------------------
+
+export interface EventItemDto {
+  id: string;
+  tenantId: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string;
+  timezone: string;
+  location: string | null;
+  category: string;
+  coverMediaId: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  capacity: number | null;
+  isRegistrationOpen: boolean;
+  registrationUrl: string | null;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  authorId: string | null;
+  lastEditorId: string | null;
+  coverMedia?: {
+    id: string;
+    title: string;
+    publicUrl: string;
+    altText: string | null;
+    caption: string | null;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicEventItemDto {
+  id: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string;
+  timezone: string;
+  location: string | null;
+  category: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  capacity: number | null;
+  isRegistrationOpen: boolean;
+  registrationUrl: string | null;
+  coverMedia: {
+    id: string;
+    title: string;
+    publicUrl: string;
+    altText: string | null;
+    caption: string | null;
+  } | null;
+}
+
+export const CreateEventSchema = z
+  .object({
+    title: z.string().min(2, 'Event title must be at least 2 characters').max(200),
+    slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
+    description: z.string().max(10000).optional().nullable(),
+    startsAt: z.string().datetime({ offset: true }).or(z.string().datetime()),
+    endsAt: z.string().datetime({ offset: true }).or(z.string().datetime()),
+    timezone: z.string().min(2).max(50).default('UTC'),
+    location: z.string().max(200).optional().nullable(),
+    category: z.string().max(50).optional().default('GENERAL'),
+    coverMediaId: z.string().optional().nullable(),
+    contactName: z.string().max(100).optional().nullable(),
+    contactEmail: z.string().email('Invalid contact email').max(200).optional().nullable().or(z.literal('')),
+    contactPhone: z.string().max(50).optional().nullable().or(z.literal('')),
+    capacity: z.coerce.number().int().positive().optional().nullable(),
+    isRegistrationOpen: z.boolean().optional().default(false),
+    registrationUrl: z.string().url('Invalid registration URL').max(500).optional().nullable().or(z.literal('')),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional().default('DRAFT'),
+  })
+  .refine(
+    (data) => {
+      return new Date(data.endsAt) >= new Date(data.startsAt);
+    },
+    {
+      message: 'Event end time must be at or after the start time',
+      path: ['endsAt'],
+    }
+  );
+export type CreateEventDto = z.infer<typeof CreateEventSchema>;
+
+export const UpdateEventSchema = z
+  .object({
+    title: z.string().min(2).max(200).optional(),
+    slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
+    description: z.string().max(10000).optional().nullable(),
+    startsAt: z.string().datetime({ offset: true }).or(z.string().datetime()).optional(),
+    endsAt: z.string().datetime({ offset: true }).or(z.string().datetime()).optional(),
+    timezone: z.string().min(2).max(50).optional(),
+    location: z.string().max(200).optional().nullable(),
+    category: z.string().max(50).optional(),
+    coverMediaId: z.string().optional().nullable(),
+    contactName: z.string().max(100).optional().nullable(),
+    contactEmail: z.string().email().max(200).optional().nullable().or(z.literal('')),
+    contactPhone: z.string().max(50).optional().nullable().or(z.literal('')),
+    capacity: z.coerce.number().int().positive().optional().nullable(),
+    isRegistrationOpen: z.boolean().optional(),
+    registrationUrl: z.string().url().max(500).optional().nullable().or(z.literal('')),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.startsAt && data.endsAt) {
+        return new Date(data.endsAt) >= new Date(data.startsAt);
+      }
+      return true;
+    },
+    {
+      message: 'Event end time must be at or after the start time',
+      path: ['endsAt'],
+    }
+  );
+export type UpdateEventDto = z.infer<typeof UpdateEventSchema>;
+
+export const EventQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  category: z.string().optional(),
+  timeframe: z.enum(['upcoming', 'past', 'all']).optional().default('upcoming'),
+  search: z.string().max(100).optional(),
+});
+export type EventQueryDto = z.infer<typeof EventQuerySchema>;
 
 
 

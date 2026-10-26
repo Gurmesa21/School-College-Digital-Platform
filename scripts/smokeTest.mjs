@@ -655,6 +655,91 @@ async function run() {
     testCases.push({ name: 'Dual-Storage Upload, Signed URL & Purge Lifecycle (201/200)', status: uploadSmokeRes.status, pass: pass38 });
     console.log(`  -> Status: Upload ${uploadSmokeRes.status}, Signed ${signedUrlRes.status}, Delete ${deleteSmokeRes.status}, Pass: ${pass38}`);
 
+    // Test 39: Day 12 Editorial News Public Endpoints (FR-COM-001)
+    console.log('Testing 39: News public listing, archive timeline, and article detail');
+    const newsListRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/news', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const newsListJson = JSON.parse(newsListRes.body);
+    const newsArchiveRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/news/archive', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const newsArchiveJson = JSON.parse(newsArchiveRes.body);
+    const newsDetailRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/news/stem-innovation-wing-inauguration', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const newsDetailJson = JSON.parse(newsDetailRes.body);
+    const pass39 =
+      newsListRes.status === 200 &&
+      newsListJson.success === true &&
+      newsListJson.data.items.length >= 1 &&
+      newsArchiveRes.status === 200 &&
+      newsArchiveJson.success === true &&
+      newsDetailRes.status === 200 &&
+      newsDetailJson.data?.slug === 'stem-innovation-wing-inauguration';
+    testCases.push({ name: 'Public News Listing, Archive & Detail (200)', status: newsDetailRes.status, pass: pass39 });
+    console.log(`  -> Status: List ${newsListRes.status}, Archive ${newsArchiveRes.status}, Detail ${newsDetailRes.status}, Pass: ${pass39}`);
+
+    // Test 40: Day 12 Operational Announcements Fail-Closed Expiry (FR-COM-002)
+    console.log('Testing 40: Announcements public active placement window filtering');
+    const annListRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/announcements', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const annListJson = JSON.parse(annListRes.body);
+    const activeItems = annListJson.data || [];
+    const hasEmergency = activeItems.some((a) => a.priority === 'EMERGENCY' && a.isPinned);
+    const hasExpired = activeItems.some((a) => a.title.includes('Expired'));
+    const pass40 = annListRes.status === 200 && annListJson.success === true && hasEmergency && !hasExpired;
+    testCases.push({ name: 'Public Announcements Display Window & Expiry Filter (200)', status: annListRes.status, pass: pass40 });
+    console.log(`  -> Status: ${annListRes.status}, Active Count: ${activeItems.length}, Has Emergency: ${hasEmergency}, Excludes Expired: ${!hasExpired}, Pass: ${pass40}`);
+
+    // Test 41: Day 12 Events Calendar & RFC 5545 iCalendar (.ics) Export (FR-EVT-001, FR-EVT-002)
+    console.log('Testing 41: Events calendar listing, detail, and iCal RFC 5545 export');
+    const evtListRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/events', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const evtListJson = JSON.parse(evtListRes.body);
+    const evtDetailRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/events/oxford-autumn-open-house-2026', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const evtDetailJson = JSON.parse(evtDetailRes.body);
+    const evtIcsRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/events/oxford-autumn-open-house-2026/ics', {
+      headers: { Host: 'oxford.localhost:4000' },
+    });
+    const pass41 =
+      evtListRes.status === 200 &&
+      evtListJson.success === true &&
+      evtDetailRes.status === 200 &&
+      Boolean(evtDetailJson.data?.timezone) &&
+      evtIcsRes.status === 200 &&
+      evtIcsRes.headers['content-type']?.includes('text/calendar') &&
+      evtIcsRes.body.includes('BEGIN:VCALENDAR') &&
+      evtIcsRes.body.includes('BEGIN:VEVENT');
+    testCases.push({ name: 'Public Events Calendar & RFC 5545 iCal Export (200)', status: evtIcsRes.status, pass: pass41 });
+    console.log(`  -> Status: List ${evtListRes.status}, Detail ${evtDetailRes.status}, ICS ${evtIcsRes.status}, Pass: ${pass41}`);
+
+    // Test 42: Day 12 Frontend SSR Web Pages (/news, /news/[slug], /events, /events/[slug])
+    console.log('Testing 42: Frontend public SSR page responses');
+    const webNewsRes = await fetchUrl('http://localhost:3000/news', {
+      headers: { Host: 'oxford.localhost:3000' },
+    });
+    const webNewsDetailRes = await fetchUrl('http://localhost:3000/news/stem-innovation-wing-inauguration', {
+      headers: { Host: 'oxford.localhost:3000' },
+    });
+    const webEventsRes = await fetchUrl('http://localhost:3000/events', {
+      headers: { Host: 'oxford.localhost:3000' },
+    });
+    const webEventDetailRes = await fetchUrl('http://localhost:3000/events/oxford-autumn-open-house-2026', {
+      headers: { Host: 'oxford.localhost:3000' },
+    });
+    const pass42 =
+      webNewsRes.status === 200 &&
+      webNewsDetailRes.status === 200 &&
+      webEventsRes.status === 200 &&
+      webEventDetailRes.status === 200;
+    testCases.push({ name: 'Frontend SSR Pages for News & Events (200)', status: webNewsRes.status, pass: pass42 });
+    console.log(`  -> Status: /news ${webNewsRes.status}, /news/[slug] ${webNewsDetailRes.status}, /events ${webEventsRes.status}, /events/[slug] ${webEventDetailRes.status}, Pass: ${pass42}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -668,7 +753,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 38 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 42 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');
