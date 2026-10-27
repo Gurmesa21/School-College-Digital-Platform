@@ -59,13 +59,20 @@ export function createPublicFormsRouter(formService: FormService): Router {
         req.socket.remoteAddress ||
         '127.0.0.1';
       const userAgent = req.headers['user-agent'];
+      const idempotencyKey =
+        (req.headers['x-idempotency-key'] as string)?.trim() || parsed.data.idempotencyKey;
 
-      const result = await formService.submitPublicForm(tenantId, slug, parsed.data, {
-        ip: clientIp,
-        userAgent,
-        tenantName: req.tenant?.name,
-        contactEmail: req.tenant?.contactEmail || undefined,
-      });
+      const result = await formService.submitPublicForm(
+        tenantId,
+        slug,
+        { ...parsed.data, idempotencyKey },
+        {
+          ip: clientIp,
+          userAgent,
+          tenantName: req.tenant?.name,
+          contactEmail: req.tenant?.contactEmail || undefined,
+        }
+      );
 
       res.status(201).json({
         success: true,
@@ -88,6 +95,16 @@ export function createPublicFormsRouter(formService: FormService): Router {
           success: false,
           error: {
             code: 'FORM_NOT_FOUND',
+            message: err.message,
+          },
+        });
+        return;
+      }
+      if (err.message && err.message.includes('Routing configuration error')) {
+        res.status(422).json({
+          success: false,
+          error: {
+            code: 'ROUTING_CONFIG_ERROR',
             message: err.message,
           },
         });

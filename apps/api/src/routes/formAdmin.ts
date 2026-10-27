@@ -123,6 +123,40 @@ export function createFormAdminRouter(
     }
   );
 
+  // POST /api/v1/tenant/cms/forms/submissions/:id/retry-notification (Retry failed delivery)
+  router.post(
+    '/submissions/:id/retry-notification',
+    requirePermission([PERMISSIONS.CMS_FORMS_WRITE, PERMISSIONS.ADMISSIONS_REVIEW]),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const tenantId = req.tenant!.id;
+        const updated = await formService.retrySubmissionNotification(
+          tenantId,
+          { id: req.user!.id, email: req.user!.email },
+          req.params.id
+        );
+
+        res.json({ success: true, data: updated });
+      } catch (err: any) {
+        if (err.message && err.message.includes('not found')) {
+          res.status(404).json({
+            success: false,
+            error: { code: 'SUBMISSION_NOT_FOUND', message: err.message },
+          });
+          return;
+        }
+        if (err.message && err.message.includes('retry failed')) {
+          res.status(502).json({
+            success: false,
+            error: { code: 'NOTIFICATION_RETRY_FAILED', message: err.message },
+          });
+          return;
+        }
+        next(err);
+      }
+    }
+  );
+
   // -----------------------------------------------------------------
   // Form Definitions Endpoints
   // -----------------------------------------------------------------

@@ -111,6 +111,14 @@ enum SubmissionStatus {
   ARCHIVED
 }
 
+enum SubmissionDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  SIMULATED
+  SKIPPED
+}
+
 enum AnnouncementPriority {
   LOW
   NORMAL
@@ -588,6 +596,7 @@ model Form {
   description      String?
   type             FormType         @default(GENERAL_ENQUIRY)
   recipientEmails  String[]         @default([])
+  routingRules     Json?
   isPublished      Boolean          @default(true)
   successMessage   String?
   submitButtonText String           @default("Submit")
@@ -626,27 +635,37 @@ model FormField {
 }
 
 model FormSubmission {
-  id             String           @id @default(cuid())
-  tenantId       String
-  formId         String
-  data           Json
-  status         SubmissionStatus @default(PENDING)
-  submitterEmail String?
-  submitterName  String?
-  submitterPhone String?
-  ipAddressHash  String?
-  userAgent      String?
-  adminNotes     String?
-  reviewedById   String?
-  reviewedAt     DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                    String                   @id @default(cuid())
+  tenantId              String
+  formId                String
+  data                  Json
+  category              String?
+  routedTo              String[]                 @default([])
+  deliveryStatus        SubmissionDeliveryStatus @default(PENDING)
+  deliveryAttempts      Int                      @default(0)
+  lastDeliveryAttemptAt DateTime?
+  deliveryError         String?
+  idempotencyKey        String?
+  status                SubmissionStatus         @default(PENDING)
+  submitterEmail        String?
+  submitterName         String?
+  submitterPhone        String?
+  ipAddressHash         String?
+  userAgent             String?
+  adminNotes            String?
+  reviewedById          String?
+  reviewedAt            DateTime?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
 
-  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  form           Form             @relation(fields: [formId], references: [id], onDelete: Cascade)
-  reviewedBy     User?            @relation("ReviewedSubmissions", fields: [reviewedById], references: [id], onDelete: SetNull)
+  tenant                Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  form                  Form                     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                    @relation("ReviewedSubmissions", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status])
+  @@index([tenantId, category])
+  @@index([tenantId, deliveryStatus])
+  @@index([tenantId, formId, idempotencyKey])
   @@index([formId, createdAt])
   @@index([reviewedById])
   @@map("form_submissions")

@@ -155,7 +155,7 @@ export function createApp(options: AppOptions = {}): Express {
       origin: envConfig.CORS_ORIGIN,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Tenant-Id', 'x-tenant-id', 'Accept'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Tenant-Id', 'x-tenant-id', 'X-Idempotency-Key', 'x-idempotency-key', 'Accept'],
     })
   );
 

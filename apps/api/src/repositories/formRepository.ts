@@ -1,4 +1,4 @@
-import { prisma, FormType, FormFieldType, SubmissionStatus } from '@school/db';
+import { prisma, FormType, FormFieldType, SubmissionStatus, SubmissionDeliveryStatus } from '@school/db';
 import {
   FormDto,
   PublicFormDto,
@@ -8,6 +8,7 @@ import {
   FormSubmissionDto,
   FormSubmissionQueryDto,
   UpdateSubmissionStatusDto,
+  FormRoutingRule,
   PaginatedData,
 } from '@school/shared';
 
@@ -21,11 +22,20 @@ export interface IFormRepository {
   deleteForm(tenantId: string, formId: string): Promise<void>;
   listSubmissions(tenantId: string, query: FormSubmissionQueryDto): Promise<PaginatedData<FormSubmissionDto>>;
   getSubmissionById(tenantId: string, submissionId: string): Promise<FormSubmissionDto | null>;
+  findSubmissionByIdempotencyKey(
+    tenantId: string,
+    formId: string,
+    idempotencyKey: string
+  ): Promise<FormSubmissionDto | null>;
   createSubmission(
     tenantId: string,
     formId: string,
     data: Record<string, unknown>,
     meta: {
+      category?: string;
+      routedTo?: string[];
+      deliveryStatus?: SubmissionDeliveryStatus;
+      idempotencyKey?: string;
       submitterEmail?: string;
       submitterName?: string;
       submitterPhone?: string;
@@ -38,6 +48,16 @@ export interface IFormRepository {
     submissionId: string,
     reviewerId: string,
     data: UpdateSubmissionStatusDto
+  ): Promise<FormSubmissionDto>;
+  updateSubmissionDelivery(
+    tenantId: string,
+    submissionId: string,
+    status: SubmissionDeliveryStatus,
+    meta?: {
+      deliveryError?: string | null;
+      incrementAttempts?: boolean;
+      routedTo?: string[];
+    }
   ): Promise<FormSubmissionDto>;
 }
 
@@ -70,6 +90,7 @@ export class PrismaFormRepository implements IFormRepository {
       description: form.description,
       type: form.type as any,
       recipientEmails: form.recipientEmails || [],
+      routingRules: (form.routingRules as FormRoutingRule[]) || null,
       isPublished: form.isPublished,
       successMessage: form.successMessage,
       submitButtonText: form.submitButtonText,
@@ -88,6 +109,13 @@ export class PrismaFormRepository implements IFormRepository {
       formTitle: sub.form?.title,
       formType: sub.form?.type as any,
       data: (sub.data as Record<string, unknown>) || {},
+      category: sub.category ?? null,
+      routedTo: sub.routedTo || [],
+      deliveryStatus: (sub.deliveryStatus as any) || 'PENDING',
+      deliveryAttempts: sub.deliveryAttempts || 0,
+      lastDeliveryAttemptAt: sub.lastDeliveryAttemptAt ? sub.lastDeliveryAttemptAt.toISOString() : null,
+      deliveryError: sub.deliveryError ?? null,
+      idempotencyKey: sub.idempotencyKey ?? null,
       status: sub.status as any,
       submitterEmail: sub.submitterEmail,
       submitterName: sub.submitterName,
@@ -175,7 +203,7 @@ export class PrismaFormRepository implements IFormRepository {
       isPublished: form.isPublished,
       successMessage: form.successMessage,
       submitButtonText: form.submitButtonText,
-      fields: form.fields.map((f) => this.mapFormField(f)),
+      fields: (form.fields || []).map((f) => this.mapFormField(f)),
     };
   }
 
@@ -186,27 +214,26 @@ export class PrismaFormRepository implements IFormRepository {
         title: data.title,
         slug: data.slug,
         description: data.description,
-        type: data.type as FormType,
-        recipientEmails: data.recipientEmails,
-        isPublished: data.isPublished,
+        type: data.type ? (data.type as FormType) : FormType.GENERAL_ENQUIRY,
+        recipientEmails: data.recipientEmails || [],
+        routingRules: data.routingRules ? (data.routingRules as any) : undefined,
+        isPublished: data.isPublished ?? true,
         successMessage: data.successMessage,
-        submitButtonText: data.submitButtonText,
-        fields: data.fields && data.fields.length > 0
-          ? {
-              create: data.fields.map((f, idx) => ({
-                name: f.name,
-                label: f.label,
-                fieldType: f.fieldType as FormFieldType,
-                placeholder: f.placeholder,
-                helpText: f.helpText,
-                defaultValue: f.defaultValue,
-                isRequired: f.isRequired,
-                validationRules: f.validationRules as any,
-                options: f.options as any,
-                orderIndex: f.orderIndex ?? idx,
-              })),
-            }
-          : undefined,
+        submitButtonText: data.submitButtonText || 'Submit',
+        fields: {
+          create: (data.fields || []).map((f, idx) => ({
+            name: f.name,
+            label: f.label,
+            fieldType: f.fieldType as FormFieldType,
+            placeholder: f.placeholder,
+            helpText: f.helpText,
+            defaultValue: f.defaultValue,
+            isRequired: f.isRequired ?? false,
+            validationRules: f.validationRules as any,
+            options: f.options as any,
+            orderIndex: f.orderIndex ?? idx,
+          })),
+        },
       },
       include: {
         fields: {
@@ -253,6 +280,7 @@ export class PrismaFormRepository implements IFormRepository {
           description: data.description,
           type: data.type ? (data.type as FormType) : undefined,
           recipientEmails: data.recipientEmails,
+          routingRules: data.routingRules !== undefined ? (data.routingRules as any) : undefined,
           isPublished: data.isPublished,
           successMessage: data.successMessage,
           submitButtonText: data.submitButtonText,
@@ -289,12 +317,19 @@ export class PrismaFormRepository implements IFormRepository {
     if (query.formId) {
       where.formId = query.formId;
     }
+    if (query.category) {
+      where.category = query.category;
+    }
+    if (query.deliveryStatus) {
+      where.deliveryStatus = query.deliveryStatus as SubmissionDeliveryStatus;
+    }
     if (query.search) {
       where.OR = [
         { submitterName: { contains: query.search, mode: 'insensitive' } },
         { submitterEmail: { contains: query.search, mode: 'insensitive' } },
         { submitterPhone: { contains: query.search, mode: 'insensitive' } },
         { adminNotes: { contains: query.search, mode: 'insensitive' } },
+        { category: { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
@@ -342,11 +377,36 @@ export class PrismaFormRepository implements IFormRepository {
     return this.mapSubmission(record);
   }
 
+  async findSubmissionByIdempotencyKey(
+    tenantId: string,
+    formId: string,
+    idempotencyKey: string
+  ): Promise<FormSubmissionDto | null> {
+    const record = await prisma.formSubmission.findFirst({
+      where: { tenantId, formId, idempotencyKey },
+      include: {
+        form: {
+          select: { title: true, type: true },
+        },
+        reviewedBy: {
+          select: { firstName: true, lastName: true, email: true },
+        },
+      },
+    });
+
+    if (!record) return null;
+    return this.mapSubmission(record);
+  }
+
   async createSubmission(
     tenantId: string,
     formId: string,
     data: Record<string, unknown>,
     meta: {
+      category?: string;
+      routedTo?: string[];
+      deliveryStatus?: SubmissionDeliveryStatus;
+      idempotencyKey?: string;
       submitterEmail?: string;
       submitterName?: string;
       submitterPhone?: string;
@@ -359,6 +419,10 @@ export class PrismaFormRepository implements IFormRepository {
         tenantId,
         formId,
         data: data as any,
+        category: meta.category,
+        routedTo: meta.routedTo || [],
+        deliveryStatus: meta.deliveryStatus || SubmissionDeliveryStatus.PENDING,
+        idempotencyKey: meta.idempotencyKey,
         status: SubmissionStatus.PENDING,
         submitterEmail: meta.submitterEmail,
         submitterName: meta.submitterName,
@@ -402,11 +466,56 @@ export class PrismaFormRepository implements IFormRepository {
 
     return this.mapSubmission(updated);
   }
+
+  async updateSubmissionDelivery(
+    tenantId: string,
+    submissionId: string,
+    status: SubmissionDeliveryStatus,
+    meta?: {
+      deliveryError?: string | null;
+      incrementAttempts?: boolean;
+      routedTo?: string[];
+    }
+  ): Promise<FormSubmissionDto> {
+    const dataToUpdate: any = {
+      deliveryStatus: status,
+      lastDeliveryAttemptAt: new Date(),
+    };
+    if (meta?.deliveryError !== undefined) {
+      dataToUpdate.deliveryError = meta.deliveryError;
+    }
+    if (meta?.incrementAttempts) {
+      dataToUpdate.deliveryAttempts = { increment: 1 };
+    }
+    if (meta?.routedTo) {
+      dataToUpdate.routedTo = meta.routedTo;
+    }
+
+    const updated = await prisma.formSubmission.update({
+      where: { id: submissionId, tenantId },
+      data: dataToUpdate,
+      include: {
+        form: {
+          select: { title: true, type: true },
+        },
+        reviewedBy: {
+          select: { firstName: true, lastName: true, email: true },
+        },
+      },
+    });
+
+    return this.mapSubmission(updated);
+  }
 }
 
 export class InMemoryFormRepository implements IFormRepository {
   private forms: FormDto[] = [];
   private submissions: FormSubmissionDto[] = [];
+
+  constructor(initialForms: FormDto[] = [], initialSubmissions: FormSubmissionDto[] = []) {
+    this.forms = [...initialForms];
+    this.submissions = [...initialSubmissions];
+  }
 
   async listForms(tenantId: string): Promise<FormDto[]> {
     return this.forms
@@ -480,6 +589,7 @@ export class InMemoryFormRepository implements IFormRepository {
       description: data.description || null,
       type: data.type,
       recipientEmails: data.recipientEmails,
+      routingRules: data.routingRules || null,
       isPublished: data.isPublished,
       successMessage: data.successMessage || null,
       submitButtonText: data.submitButtonText,
@@ -529,6 +639,7 @@ export class InMemoryFormRepository implements IFormRepository {
       description: data.description !== undefined ? data.description : current.description,
       type: data.type ?? current.type,
       recipientEmails: data.recipientEmails ?? current.recipientEmails,
+      routingRules: data.routingRules !== undefined ? data.routingRules : current.routingRules,
       isPublished: data.isPublished !== undefined ? data.isPublished : current.isPublished,
       successMessage: data.successMessage !== undefined ? data.successMessage : current.successMessage,
       submitButtonText: data.submitButtonText ?? current.submitButtonText,
@@ -560,6 +671,12 @@ export class InMemoryFormRepository implements IFormRepository {
     if (query.formId) {
       items = items.filter((s) => s.formId === query.formId);
     }
+    if (query.category) {
+      items = items.filter((s) => s.category?.toLowerCase() === query.category?.toLowerCase());
+    }
+    if (query.deliveryStatus) {
+      items = items.filter((s) => s.deliveryStatus === query.deliveryStatus);
+    }
     if (query.search) {
       const q = query.search.toLowerCase();
       items = items.filter(
@@ -567,7 +684,8 @@ export class InMemoryFormRepository implements IFormRepository {
           (s.submitterName && s.submitterName.toLowerCase().includes(q)) ||
           (s.submitterEmail && s.submitterEmail.toLowerCase().includes(q)) ||
           (s.submitterPhone && s.submitterPhone.toLowerCase().includes(q)) ||
-          (s.adminNotes && s.adminNotes.toLowerCase().includes(q))
+          (s.adminNotes && s.adminNotes.toLowerCase().includes(q)) ||
+          (s.category && s.category.toLowerCase().includes(q))
       );
     }
 
@@ -593,11 +711,26 @@ export class InMemoryFormRepository implements IFormRepository {
     return s || null;
   }
 
+  async findSubmissionByIdempotencyKey(
+    tenantId: string,
+    formId: string,
+    idempotencyKey: string
+  ): Promise<FormSubmissionDto | null> {
+    const s = this.submissions.find(
+      (item) => item.tenantId === tenantId && item.formId === formId && item.idempotencyKey === idempotencyKey
+    );
+    return s || null;
+  }
+
   async createSubmission(
     tenantId: string,
     formId: string,
     data: Record<string, unknown>,
     meta: {
+      category?: string;
+      routedTo?: string[];
+      deliveryStatus?: SubmissionDeliveryStatus;
+      idempotencyKey?: string;
       submitterEmail?: string;
       submitterName?: string;
       submitterPhone?: string;
@@ -615,6 +748,13 @@ export class InMemoryFormRepository implements IFormRepository {
       formTitle: form?.title,
       formType: form?.type,
       data,
+      category: meta.category || null,
+      routedTo: meta.routedTo || [],
+      deliveryStatus: (meta.deliveryStatus as any) || 'PENDING',
+      deliveryAttempts: 0,
+      lastDeliveryAttemptAt: null,
+      deliveryError: null,
+      idempotencyKey: meta.idempotencyKey || null,
       status: 'PENDING',
       submitterEmail: meta.submitterEmail || null,
       submitterName: meta.submitterName || null,
@@ -657,5 +797,36 @@ export class InMemoryFormRepository implements IFormRepository {
     this.submissions[idx] = updated;
     return updated;
   }
-}
 
+  async updateSubmissionDelivery(
+    tenantId: string,
+    submissionId: string,
+    status: SubmissionDeliveryStatus,
+    meta?: {
+      deliveryError?: string | null;
+      incrementAttempts?: boolean;
+      routedTo?: string[];
+    }
+  ): Promise<FormSubmissionDto> {
+    const idx = this.submissions.findIndex((s) => s.id === submissionId && s.tenantId === tenantId);
+    if (idx === -1) {
+      throw new Error('Form submission not found');
+    }
+
+    const current = this.submissions[idx];
+    const now = new Date().toISOString();
+
+    const updated: FormSubmissionDto = {
+      ...current,
+      deliveryStatus: status as any,
+      lastDeliveryAttemptAt: now,
+      deliveryAttempts: meta?.incrementAttempts ? (current.deliveryAttempts || 0) + 1 : current.deliveryAttempts,
+      deliveryError: meta?.deliveryError !== undefined ? meta.deliveryError : current.deliveryError,
+      routedTo: meta?.routedTo || current.routedTo,
+      updatedAt: now,
+    };
+
+    this.submissions[idx] = updated;
+    return updated;
+  }
+}

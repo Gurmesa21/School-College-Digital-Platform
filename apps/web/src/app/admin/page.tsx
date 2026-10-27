@@ -206,6 +206,13 @@ interface FormFieldItem {
   orderIndex: number;
 }
 
+interface FormRoutingRuleItem {
+  category: string;
+  label?: string;
+  recipientEmails: string[];
+  isDefault?: boolean;
+}
+
 interface FormItem {
   id: string;
   tenantId: string;
@@ -214,6 +221,7 @@ interface FormItem {
   description: string | null;
   type: 'GENERAL_ENQUIRY' | 'ADMISSIONS_INQUIRY' | 'CONTACT_US' | 'APPLICATION' | 'FEEDBACK' | 'OTHER';
   recipientEmails: string[];
+  routingRules?: FormRoutingRuleItem[] | null;
   isPublished: boolean;
   successMessage: string | null;
   submitButtonText: string;
@@ -229,6 +237,13 @@ interface FormSubmissionItem {
   formId: string;
   formTitle?: string;
   formType?: string;
+  category?: string | null;
+  routedTo?: string[];
+  deliveryStatus?: 'PENDING' | 'DELIVERED' | 'FAILED' | 'SIMULATED' | 'SKIPPED';
+  deliveryAttempts?: number;
+  lastDeliveryAttemptAt?: string | null;
+  deliveryError?: string | null;
+  idempotencyKey?: string | null;
   data: Record<string, unknown>;
   status: 'PENDING' | 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'ARCHIVED';
   submitterEmail: string | null;
@@ -433,6 +448,7 @@ export default function TenantAdminPage() {
   const [formBuilderSuccessMsg, setFormBuilderSuccessMsg] = useState('');
   const [formBuilderBtnText, setFormBuilderBtnText] = useState('Submit');
   const [formBuilderFields, setFormBuilderFields] = useState<FormFieldItem[]>([]);
+  const [formBuilderRoutingRules, setFormBuilderRoutingRules] = useState<FormRoutingRuleItem[]>([]);
   const [formModalError, setFormModalError] = useState<string | null>(null);
   const [formSaving, setFormSaving] = useState(false);
 
@@ -449,6 +465,7 @@ export default function TenantAdminPage() {
   const [reviewStatus, setReviewStatus] = useState<FormSubmissionItem['status']>('PENDING');
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [retryNotificationLoading, setRetryNotificationLoading] = useState(false);
   const [reviewModalError, setReviewModalError] = useState<string | null>(null);
 
   // Helper for API request headers
@@ -3370,6 +3387,7 @@ export default function TenantAdminPage() {
                     { name: 'email', label: 'Email Address', fieldType: 'EMAIL', isRequired: true, orderIndex: 1 },
                     { name: 'message', label: 'Message', fieldType: 'TEXTAREA', isRequired: true, orderIndex: 2 },
                   ]);
+                  setFormBuilderRoutingRules([]);
                   setFormModalError(null);
                   setIsFormModalOpen(true);
                 }}
@@ -3482,6 +3500,16 @@ export default function TenantAdminPage() {
                                   options: field.options || null,
                                   orderIndex: field.orderIndex,
                                 }))
+                              );
+                              setFormBuilderRoutingRules(
+                                Array.isArray(f.routingRules)
+                                  ? (f.routingRules as FormRoutingRuleItem[]).map((r) => ({
+                                      category: r.category,
+                                      label: r.label || '',
+                                      recipientEmails: Array.isArray(r.recipientEmails) ? r.recipientEmails : [],
+                                      isDefault: !!r.isDefault,
+                                    }))
+                                  : []
                               );
                               setFormModalError(null);
                               setIsFormModalOpen(true);
@@ -3614,8 +3642,9 @@ export default function TenantAdminPage() {
                 <thead>
                   <tr>
                     <th>Submitter</th>
-                    <th>Form Name</th>
+                    <th>Form &amp; Category</th>
                     <th>Status</th>
+                    <th>Delivery</th>
                     <th>Submitted Date</th>
                     <th>Reviewer</th>
                     <th>Actions</th>
@@ -3629,7 +3658,12 @@ export default function TenantAdminPage() {
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{sub.submitterEmail || 'No email provided'}</div>
                       </td>
                       <td>
-                        <span style={{ fontWeight: 500 }}>{sub.formTitle || 'General Form'}</span>
+                        <div style={{ fontWeight: 500 }}>{sub.formTitle || 'General Form'}</div>
+                        {sub.category && (
+                          <span className="badge badge-info" style={{ fontSize: '0.7rem', marginTop: '0.2rem', display: 'inline-block' }}>
+                            {sub.category}
+                          </span>
+                        )}
                       </td>
                       <td>
                         <span
@@ -3644,6 +3678,22 @@ export default function TenantAdminPage() {
                           }`}
                         >
                           {sub.status.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            sub.deliveryStatus === 'DELIVERED'
+                              ? 'badge-success'
+                              : sub.deliveryStatus === 'SIMULATED'
+                              ? 'badge-info'
+                              : sub.deliveryStatus === 'FAILED'
+                              ? 'badge-danger'
+                              : 'badge-secondary'
+                          }`}
+                          style={{ fontSize: '0.72rem' }}
+                        >
+                          {sub.deliveryStatus || 'PENDING'}
                         </span>
                       </td>
                       <td style={{ fontSize: '0.85rem' }}>
@@ -4862,6 +4912,17 @@ export default function TenantAdminPage() {
                     description: formBuilderDesc.trim() || null,
                     type: formBuilderType,
                     recipientEmails: recipients,
+                    routingRules:
+                      formBuilderRoutingRules.length > 0
+                        ? formBuilderRoutingRules
+                            .filter((r) => r.category.trim().length > 0 && r.recipientEmails.length > 0)
+                            .map((r) => ({
+                              category: r.category.trim().toUpperCase(),
+                              label: r.label?.trim() || undefined,
+                              recipientEmails: r.recipientEmails.map((e) => e.trim()).filter(Boolean),
+                              isDefault: !!r.isDefault,
+                            }))
+                        : undefined,
                     isPublished: formBuilderPublished,
                     successMessage: formBuilderSuccessMsg.trim() || null,
                     submitButtonText: formBuilderBtnText.trim() || 'Submit',
@@ -5022,6 +5083,135 @@ export default function TenantAdminPage() {
                     Publish Form (Open for submissions)
                   </label>
                 </div>
+              </div>
+
+              {/* Day 13 Department & Category Recipient Routing */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc' }}>
+                      Department &amp; Category Routing Rules ({formBuilderRoutingRules.length})
+                    </h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.15rem' }}>
+                      Route enquiries directly to admissions, finance, or department mailboxes without exposing recipient addresses to the public.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="add-routing-rule-btn"
+                    onClick={() => {
+                      setFormBuilderRoutingRules([
+                        ...formBuilderRoutingRules,
+                        {
+                          category: 'GENERAL',
+                          label: 'General Inquiries',
+                          recipientEmails: ['info@school.edu'],
+                          isDefault: formBuilderRoutingRules.length === 0,
+                        },
+                      ]);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    + Add Routing Rule
+                  </button>
+                </div>
+
+                {formBuilderRoutingRules.length === 0 ? (
+                  <div style={{ padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px dashed var(--border-color)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    No category routing rules configured. All enquiries will route to the general recipient emails above.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {formBuilderRoutingRules.map((rule, rIdx) => (
+                      <div
+                        key={rIdx}
+                        style={{
+                          padding: '0.75rem 1rem',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: 'rgba(255,255,255,0.02)',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr)) auto 36px',
+                          gap: '0.75rem',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <div>
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Category Key *</label>
+                          <input
+                            type="text"
+                            value={rule.category}
+                            placeholder="e.g. ADMISSIONS"
+                            onChange={(e) => {
+                              const next = [...formBuilderRoutingRules];
+                              next[rIdx].category = e.target.value.toUpperCase();
+                              setFormBuilderRoutingRules(next);
+                            }}
+                            className="form-input"
+                            style={{ padding: '0.35rem 0.5rem', fontSize: '0.85rem' }}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Display Label</label>
+                          <input
+                            type="text"
+                            value={rule.label || ''}
+                            placeholder="e.g. Admissions Office"
+                            onChange={(e) => {
+                              const next = [...formBuilderRoutingRules];
+                              next[rIdx].label = e.target.value;
+                              setFormBuilderRoutingRules(next);
+                            }}
+                            className="form-input"
+                            style={{ padding: '0.35rem 0.5rem', fontSize: '0.85rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Target Emails (comma separated) *</label>
+                          <input
+                            type="text"
+                            value={rule.recipientEmails.join(', ')}
+                            placeholder="admissions@school.edu"
+                            onChange={(e) => {
+                              const next = [...formBuilderRoutingRules];
+                              next[rIdx].recipientEmails = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
+                              setFormBuilderRoutingRules(next);
+                            }}
+                            className="form-input"
+                            style={{ padding: '0.35rem 0.5rem', fontSize: '0.85rem' }}
+                            required
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Default</label>
+                          <input
+                            type="checkbox"
+                            checked={!!rule.isDefault}
+                            onChange={(e) => {
+                              const next = formBuilderRoutingRules.map((item, idx) => ({
+                                ...item,
+                                isDefault: idx === rIdx ? e.target.checked : false,
+                              }));
+                              setFormBuilderRoutingRules(next);
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormBuilderRoutingRules(formBuilderRoutingRules.filter((_, idx) => idx !== rIdx));
+                          }}
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          title="Delete Routing Rule"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Dynamic Field Builder Rows */}
@@ -5233,7 +5423,119 @@ export default function TenantAdminPage() {
                     {new Date(selectedSubmission.createdAt).toLocaleString()}
                   </div>
                 </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Enquiry Category</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {selectedSubmission.category ? (
+                      <span className="badge badge-info" style={{ fontSize: '0.75rem' }}>
+                        {selectedSubmission.category}
+                      </span>
+                    ) : (
+                      'General Enquiry'
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Routed Recipient(s)</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.82rem', wordBreak: 'break-all' }}>
+                    {selectedSubmission.routedTo && selectedSubmission.routedTo.length > 0
+                      ? selectedSubmission.routedTo.join(', ')
+                      : 'Default institution mailbox'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Notification Delivery</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
+                    <span
+                      className={`badge ${
+                        selectedSubmission.deliveryStatus === 'DELIVERED'
+                          ? 'badge-success'
+                          : selectedSubmission.deliveryStatus === 'SIMULATED'
+                          ? 'badge-info'
+                          : selectedSubmission.deliveryStatus === 'FAILED'
+                          ? 'badge-danger'
+                          : 'badge-secondary'
+                      }`}
+                      style={{ fontSize: '0.75rem' }}
+                    >
+                      {selectedSubmission.deliveryStatus || 'PENDING'}
+                    </span>
+                    {selectedSubmission.deliveryAttempts ? (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        ({selectedSubmission.deliveryAttempts} attempt{selectedSubmission.deliveryAttempts > 1 ? 's' : ''})
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button
+                    type="button"
+                    id="retry-notification-btn"
+                    disabled={retryNotificationLoading}
+                    onClick={async () => {
+                      setRetryNotificationLoading(true);
+                      try {
+                        const res = await fetch(
+                          `${apiBaseUrl}/api/v1/tenant/cms/forms/submissions/${selectedSubmission.id}/retry-notification`,
+                          {
+                            method: 'POST',
+                            headers: getHeaders(),
+                            credentials: 'include',
+                          }
+                        );
+                        const json = await res.json();
+                        if (!res.ok || !json.success) {
+                          throw new Error(json.error?.message || 'Failed to retry notification dispatch');
+                        }
+                        setGlobalNotice({
+                          type: 'success',
+                          message: `Notification retried successfully. Status: ${json.data?.deliveryStatus}`,
+                        });
+                        setSelectedSubmission((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                deliveryStatus: json.data?.deliveryStatus,
+                                deliveryAttempts: json.data?.deliveryAttempts,
+                                lastDeliveryAttemptAt: json.data?.lastDeliveryAttemptAt,
+                                deliveryError: json.data?.deliveryError,
+                                routedTo: json.data?.routedTo,
+                              }
+                            : null
+                        );
+                        fetchSubmissions(submissionStatusFilter, submissionSearchQuery);
+                      } catch (err: any) {
+                        setGlobalNotice({
+                          type: 'error',
+                          message: err.message || 'Notification retry failed',
+                        });
+                      } finally {
+                        setRetryNotificationLoading(false);
+                      }
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                  >
+                    {retryNotificationLoading ? 'Retrying...' : '↻ Retry Notification'}
+                  </button>
+                </div>
               </div>
+
+              {selectedSubmission.deliveryError && (
+                <div
+                  style={{
+                    padding: '0.6rem 0.9rem',
+                    marginBottom: '1.25rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    color: 'var(--danger)',
+                  }}
+                >
+                  <strong>Delivery Failure Reason:</strong> {selectedSubmission.deliveryError}
+                </div>
+              )}
 
               {/* Form Data Fields Table */}
               <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem', color: '#f8fafc' }}>

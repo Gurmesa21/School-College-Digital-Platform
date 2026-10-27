@@ -20,6 +20,7 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [submissionRef, setSubmissionRef] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -120,16 +121,24 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
 
     setSubmitting(true);
     try {
+      // Generate client-side idempotency key
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `idmp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
       const res = await fetch(`${apiUrl}/api/v1/tenant/public/forms/${slug}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-tenant-id': tenantSlug,
+          'x-idempotency-key': idempotencyKey,
           'Accept': 'application/json',
         },
         body: JSON.stringify({
           data: formData,
           _hp_company: honeypot, // Honeypot trap
+          idempotencyKey,
         }),
       });
 
@@ -149,6 +158,7 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
         return;
       }
 
+      setSubmissionRef(json.data?.referenceNumber || null);
       setSubmitSuccess(json.data?.message || form.successMessage || 'Submission received successfully!');
       if (onSuccess) onSuccess();
     } catch (err: any) {
@@ -214,6 +224,24 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-main)' }}>
           Submission Successful
         </h2>
+        {submissionRef && (
+          <div
+            id="submission-reference-badge"
+            style={{
+              margin: '0 auto 1.25rem auto',
+              padding: '0.5rem 1.25rem',
+              backgroundColor: 'rgba(255, 255, 255, 0.06)',
+              borderRadius: '8px',
+              display: 'inline-block',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+            }}
+          >
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Reference Code: </span>
+            <strong style={{ fontSize: '1rem', color: 'var(--text-main)', letterSpacing: '0.05em' }}>
+              {submissionRef}
+            </strong>
+          </div>
+        )}
         <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '2rem' }}>
           {submitSuccess}
         </p>
@@ -222,6 +250,7 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
           className="btn btn-primary"
           onClick={() => {
             setSubmitSuccess(null);
+            setSubmissionRef(null);
             const reset: Record<string, any> = {};
             form.fields.forEach((f) => {
               reset[f.name] = f.defaultValue || '';

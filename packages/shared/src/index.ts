@@ -423,11 +423,24 @@ export type AuditLogQueryDto = z.infer<typeof AuditLogQuerySchema>;
 export interface FormSubmissionEmailNotification {
   formTitle: string;
   formType: string;
+  category?: string;
   submitterName?: string;
   submitterEmail?: string;
+  submitterPhone?: string;
   submittedAt: string;
   data: Record<string, unknown>;
   tenantName: string;
+  routedTo: string[];
+  submissionId?: string;
+}
+
+export interface FormSubmissionConfirmationNotification {
+  submitterName?: string;
+  formTitle: string;
+  tenantName: string;
+  category?: string;
+  referenceNumber?: string;
+  confirmationMessage?: string;
 }
 
 export interface IEmailService {
@@ -445,12 +458,7 @@ export interface IEmailService {
   ): Promise<void>;
   sendSubmissionConfirmation(
     toEmail: string,
-    notification: {
-      submitterName?: string;
-      formTitle: string;
-      tenantName: string;
-      confirmationMessage?: string;
-    }
+    notification: FormSubmissionConfirmationNotification
   ): Promise<void>;
 }
 
@@ -1136,6 +1144,23 @@ export interface FormFieldDto {
   updatedAt: string;
 }
 
+export const FormRoutingRuleSchema = z.object({
+  category: z.string().min(1, 'Category key is required').max(50),
+  label: z.string().max(100).optional(),
+  recipientEmails: z.array(z.string().email('Valid recipient email required')).min(1, 'At least one recipient email required'),
+  isDefault: z.boolean().optional().default(false),
+});
+export type FormRoutingRule = z.infer<typeof FormRoutingRuleSchema>;
+
+export const SubmissionDeliveryStatusEnum = z.enum([
+  'PENDING',
+  'DELIVERED',
+  'FAILED',
+  'SIMULATED',
+  'SKIPPED',
+]);
+export type SubmissionDeliveryStatus = z.infer<typeof SubmissionDeliveryStatusEnum>;
+
 export const CreateFormSchema = z.object({
   title: z.string().min(1, 'Title is required').max(150),
   slug: z
@@ -1146,6 +1171,7 @@ export const CreateFormSchema = z.object({
   description: z.string().max(1000).optional().nullable(),
   type: FormTypeEnum.default('GENERAL_ENQUIRY'),
   recipientEmails: z.array(z.string().email('Valid recipient email required')).default([]),
+  routingRules: z.array(FormRoutingRuleSchema).optional().nullable(),
   isPublished: z.boolean().default(true),
   successMessage: z.string().max(500).optional().nullable(),
   submitButtonText: z.string().max(50).default('Submit'),
@@ -1159,6 +1185,7 @@ export const UpdateFormSchema = z.object({
   description: z.string().max(1000).optional().nullable(),
   type: FormTypeEnum.optional(),
   recipientEmails: z.array(z.string().email()).optional(),
+  routingRules: z.array(FormRoutingRuleSchema).optional().nullable(),
   isPublished: z.boolean().optional(),
   successMessage: z.string().max(500).optional().nullable(),
   submitButtonText: z.string().max(50).optional(),
@@ -1174,6 +1201,7 @@ export interface FormDto {
   description: string | null;
   type: FormType;
   recipientEmails: string[];
+  routingRules?: FormRoutingRule[] | null;
   isPublished: boolean;
   successMessage: string | null;
   submitButtonText: string;
@@ -1198,6 +1226,7 @@ export interface PublicFormDto {
 export const PublicSubmitFormSchema = z.object({
   data: z.record(z.unknown()),
   _hp_company: z.string().optional(),
+  idempotencyKey: z.string().max(128).optional(),
 });
 export type PublicSubmitFormDto = z.infer<typeof PublicSubmitFormSchema>;
 
@@ -1212,6 +1241,8 @@ export const FormSubmissionQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   status: SubmissionStatusEnum.optional(),
   formId: z.string().optional(),
+  category: z.string().optional(),
+  deliveryStatus: SubmissionDeliveryStatusEnum.optional(),
   search: z.string().max(100).optional(),
 });
 export type FormSubmissionQueryDto = z.infer<typeof FormSubmissionQuerySchema>;
@@ -1223,6 +1254,13 @@ export interface FormSubmissionDto {
   formTitle?: string;
   formType?: FormType;
   data: Record<string, unknown>;
+  category?: string | null;
+  routedTo: string[];
+  deliveryStatus: SubmissionDeliveryStatus;
+  deliveryAttempts: number;
+  lastDeliveryAttemptAt: string | null;
+  deliveryError: string | null;
+  idempotencyKey: string | null;
   status: SubmissionStatus;
   submitterEmail: string | null;
   submitterName: string | null;

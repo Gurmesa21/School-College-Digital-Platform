@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('[DB Verification] Connecting to PostgreSQL at port 55432...');
+  console.log('[DB Verification] Connecting to PostgreSQL database...');
 
   const tenantsCount = await prisma.tenant.count();
   const domainsCount = await prisma.tenantDomain.count();
