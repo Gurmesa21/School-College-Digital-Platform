@@ -2012,5 +2012,85 @@ export const EventQuerySchema = z.object({
 });
 export type EventQueryDto = z.infer<typeof EventQuerySchema>;
 
+// ============================================================================
+// 14. Tenant-Scoped Public Search (FR-SRCH-001, UC-PUB-02, BR-001, BR-002)
+// ============================================================================
+
+export type SearchResultType =
+  | 'PAGE'
+  | 'PROGRAMME'
+  | 'STAFF'
+  | 'NEWS'
+  | 'EVENT'
+  | 'ANNOUNCEMENT'
+  | 'DOCUMENT'
+  | 'FORM';
+
+export interface SearchResultItemDto {
+  id: string;
+  type: SearchResultType;
+  title: string;
+  summary: string | null;
+  url: string;
+  slug: string;
+  publishedAt?: string | null;
+  score?: number;
+  metadata?: {
+    departmentName?: string | null;
+    roleTitle?: string | null;
+    levelName?: string | null;
+    eventDate?: string | null;
+    eventLocation?: string | null;
+    category?: string | null;
+    tags?: string[];
+    fileSizeBytes?: number | null;
+    mimeType?: string | null;
+    displayTuition?: boolean;
+    tuitionFee?: number | null;
+    tuitionCurrency?: string | null;
+    tuitionPeriod?: string | null;
+    displayEmail?: boolean;
+    publicEmail?: string | null;
+    displayPhone?: boolean;
+    publicPhone?: string | null;
+  };
+}
+
+export const SearchQuerySchema = z.object({
+  q: z
+    .string()
+    .transform((val) => val.normalize('NFKC').replace(/\s+/g, ' ').trim())
+    .pipe(
+      z
+        .string()
+        .min(1, 'Search query cannot be empty')
+        .max(100, 'Search query cannot exceed 100 characters')
+    ),
+  type: z
+    .enum(['ALL', 'PAGE', 'PROGRAMME', 'STAFF', 'NEWS', 'EVENT', 'ANNOUNCEMENT', 'DOCUMENT', 'FORM'])
+    .default('ALL'),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  sort: z.enum(['relevance', 'newest', 'oldest', 'title']).default('relevance'),
+});
+
+export type SearchQueryDto = z.infer<typeof SearchQuerySchema>;
+
+export interface SearchFacetsDto {
+  totalByContentType: Record<SearchResultType, number>;
+}
+
+export interface SearchResponseData {
+  query: string;
+  type: string;
+  items: SearchResultItemDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  facets: SearchFacetsDto;
+}
+
+
 
 

@@ -854,6 +854,66 @@ async function run() {
     testCases.push({ name: 'Admin Submissions Review & Notification Retry (200)', status: retryStatus, pass: pass45 });
     console.log(`  -> List: ${adminSubsRes.status}, Items: ${subsList.length}, Retry: ${retryStatus}, Pass: ${pass45}`);
 
+    // Test 46: Day 14 Live Public Search Multi-Type Query (FR-SRCH-001, UC-PUB-02)
+    console.log('Testing 46: Public search multi-type query (/api/v1/tenant/public/search?q=Science)');
+    const searchRes1 = await fetchUrl('http://localhost:4000/api/v1/tenant/public/search?q=Science', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Accept: 'application/json',
+      },
+    });
+    const searchJson1 = JSON.parse(searchRes1.body);
+    const pass46 =
+      searchRes1.status === 200 &&
+      searchJson1.success === true &&
+      Array.isArray(searchJson1.data?.items) &&
+      searchJson1.data.total >= 1 &&
+      Boolean(searchJson1.data.facets);
+    testCases.push({ name: 'Public Search Multi-Type Query (200)', status: searchRes1.status, pass: pass46 });
+    console.log(`  -> Search Results: ${searchJson1.data?.total || 0}, Status: ${searchRes1.status}, Pass: ${pass46}`);
+
+    // Test 47: Day 14 Content-Type Filtered Search
+    console.log('Testing 47: Public search filtered by type=PROGRAMME');
+    const searchRes2 = await fetchUrl('http://localhost:4000/api/v1/tenant/public/search?q=Science&type=PROGRAMME', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Accept: 'application/json',
+      },
+    });
+    const searchJson2 = JSON.parse(searchRes2.body);
+    const progOnly = (searchJson2.data?.items || []).every((i) => i.type === 'PROGRAMME');
+    const pass47 = searchRes2.status === 200 && searchJson2.success === true && progOnly;
+    testCases.push({ name: 'Public Search Content-Type Filter (200)', status: searchRes2.status, pass: pass47 });
+    console.log(`  -> Filtered Items: ${searchJson2.data?.items?.length || 0}, All PROGRAMME: ${progOnly}, Pass: ${pass47}`);
+
+    // Test 48: Day 14 Empty Result Safe Handling
+    console.log('Testing 48: Public search non-matching query handling');
+    const searchRes3 = await fetchUrl('http://localhost:4000/api/v1/tenant/public/search?q=NonExistentQueryXYZ123', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Accept: 'application/json',
+      },
+    });
+    const searchJson3 = JSON.parse(searchRes3.body);
+    const pass48 =
+      searchRes3.status === 200 &&
+      searchJson3.success === true &&
+      Array.isArray(searchJson3.data?.items) &&
+      searchJson3.data.total === 0;
+    testCases.push({ name: 'Public Search Empty Result Handling (200)', status: searchRes3.status, pass: pass48 });
+    console.log(`  -> Status: ${searchRes3.status}, Total: ${searchJson3.data?.total}, Pass: ${pass48}`);
+
+    // Test 49: Day 14 Web Frontend Search Route
+    console.log('Testing 49: Web frontend search route (GET http://localhost:3000/search?q=Science)');
+    const webSearchRes = await fetchUrl('http://localhost:3000/search?q=Science', {
+      headers: {
+        Host: 'oxford.localhost:3000',
+      },
+    });
+    const pass49 = webSearchRes.status === 200 && webSearchRes.body.includes('Institutional Search');
+    testCases.push({ name: 'Web Search Frontend Page (200)', status: webSearchRes.status, pass: pass49 });
+    console.log(`  -> Web Search Status: ${webSearchRes.status}, Pass: ${pass49}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -867,7 +927,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 45 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 49 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');

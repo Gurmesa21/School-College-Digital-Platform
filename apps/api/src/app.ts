@@ -20,6 +20,7 @@ import { IStaffRepository, PrismaStaffRepository } from './repositories/staffRep
 import { INewsRepository, PrismaNewsRepository } from './repositories/newsRepository.js';
 import { IAnnouncementRepository, PrismaAnnouncementRepository } from './repositories/announcementRepository.js';
 import { IEventRepository, PrismaEventRepository } from './repositories/eventRepository.js';
+import { ISearchRepository, PrismaSearchRepository } from './repositories/searchRepository.js';
 import { AuthService } from './services/authService.js';
 import { UserAdminService } from './services/userAdminService.js';
 import { CmsService } from './services/cmsService.js';
@@ -32,6 +33,7 @@ import { StaffService } from './services/staffService.js';
 import { NewsService } from './services/newsService.js';
 import { AnnouncementService } from './services/announcementService.js';
 import { EventService } from './services/eventService.js';
+import { SearchService } from './services/searchService.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { healthRouter } from './routes/health.js';
 import { createTenantRouter } from './routes/tenant.js';
@@ -58,6 +60,7 @@ import { createAnnouncementAdminRouter } from './routes/announcementAdmin.js';
 import { createPublicAnnouncementsRouter } from './routes/publicAnnouncements.js';
 import { createEventAdminRouter } from './routes/eventAdmin.js';
 import { createPublicEventsRouter } from './routes/publicEvents.js';
+import { createPublicSearchRouter } from './routes/publicSearch.js';
 
 export interface AppOptions {
   repository?: ITenantRepository;
@@ -74,6 +77,7 @@ export interface AppOptions {
   newsRepository?: INewsRepository;
   announcementRepository?: IAnnouncementRepository;
   eventRepository?: IEventRepository;
+  searchRepository?: ISearchRepository;
   emailService?: IEmailService;
   authService?: AuthService;
   userAdminService?: UserAdminService;
@@ -87,6 +91,7 @@ export interface AppOptions {
   newsService?: NewsService;
   announcementService?: AnnouncementService;
   eventService?: EventService;
+  searchService?: SearchService;
   envConfig?: EnvConfig;
 }
 
@@ -108,6 +113,7 @@ export function createApp(options: AppOptions = {}): Express {
   const newsRepository = options.newsRepository || new PrismaNewsRepository();
   const announcementRepository = options.announcementRepository || new PrismaAnnouncementRepository();
   const eventRepository = options.eventRepository || new PrismaEventRepository();
+  const searchRepository = options.searchRepository || new PrismaSearchRepository();
 
   const sectionService =
     options.sectionService || new SectionService(sectionRepository, auditRepository);
@@ -125,6 +131,9 @@ export function createApp(options: AppOptions = {}): Express {
   const eventService =
     options.eventService ||
     new EventService(eventRepository, auditRepository, mediaRepository);
+  const searchService =
+    options.searchService ||
+    new SearchService(searchRepository, auditRepository);
 
   const emailService = options.emailService || new InMemoryEmailService();
   const authService = options.authService || new AuthService(authRepository, emailService);
@@ -202,6 +211,7 @@ export function createApp(options: AppOptions = {}): Express {
   const publicNewsRouter = createPublicNewsRouter(newsService);
   const publicAnnouncementsRouter = createPublicAnnouncementsRouter(announcementService);
   const publicEventsRouter = createPublicEventsRouter(eventService);
+  const publicSearchRouter = createPublicSearchRouter(searchService);
   const tenantRouter = createTenantRouter(authRepository);
 
   v1Router.use('/tenant/admin', tenantResolver, userAdminRouter);
@@ -217,6 +227,8 @@ export function createApp(options: AppOptions = {}): Express {
   v1Router.use('/tenant/cms/announcements', tenantResolver, announcementAdminRouter);
   v1Router.use('/tenant/cms/events', tenantResolver, eventAdminRouter);
 
+  v1Router.use('/tenant/public/search', tenantResolver, publicSearchRouter);
+  v1Router.use('/tenant/search', tenantResolver, publicSearchRouter);
   v1Router.use('/tenant/public/staff', tenantResolver, publicStaffRouter);
   v1Router.use('/tenant/public/academics', tenantResolver, publicAcademicsRouter);
   v1Router.use('/tenant/public/forms', tenantResolver, publicFormsRouter);

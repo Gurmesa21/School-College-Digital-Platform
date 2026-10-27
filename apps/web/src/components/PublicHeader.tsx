@@ -152,6 +152,14 @@ export default function PublicHeader() {
           </ul>
 
           <div className="public-nav-actions">
+            <Link
+              href="/search"
+              className="public-nav-search-btn"
+              aria-label="Search institutional website"
+              id="nav-search-button"
+            >
+              <span aria-hidden="true">🔍</span> Search
+            </Link>
             <Link href="/admin" className="btn btn-secondary btn-sm admin-portal-btn">
               Admin Console &rarr;
             </Link>
