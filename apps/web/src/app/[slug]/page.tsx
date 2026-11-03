@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicPageDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -38,16 +39,49 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const headersList = await headers();
   const host = headersList.get('host') || 'localhost:3000';
 
-  const page = await fetchPublicPage(slug, host);
+  const [page, tenant] = await Promise.all([
+    fetchPublicPage(slug, host),
+    fetchCurrentTenant(host),
+  ]);
+
   if (!page) {
     return {
       title: 'Page Not Found',
     };
   }
 
+  const pageTitle = page.seoTitle || page.title;
+  const title = page.seoTitle ? { absolute: page.seoTitle } : page.title;
+  const description = page.seoDescription || page.summary || undefined;
+  const canonicalUrl = getCanonicalUrl(tenant, `/${page.slug}`, host);
+  const ogImageUrl = `/api/og?title=${encodeURIComponent(pageTitle)}&subtitle=${encodeURIComponent(description || tenant?.name || '')}&type=page`;
+
   return {
-    title: page.seoTitle || page.title,
-    description: page.seoDescription || page.summary || undefined,
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title: pageTitle,
+      description,
+      url: canonicalUrl,
+      type: 'article',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: pageTitle,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: pageTitle,
+      description,
+      images: [ogImageUrl],
+    },
   };
 }
 

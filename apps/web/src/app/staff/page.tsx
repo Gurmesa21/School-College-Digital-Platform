@@ -3,11 +3,46 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicStaffProfileDto, AcademicDepartmentDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
-export const metadata: Metadata = {
-  title: 'Faculty & Staff Directory | Institution Platform',
-  description: 'Meet our dedicated educators, department leadership, faculty researchers, and academic mentors.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const headersList = await headers();
+  const host = headersList.get('host') || 'localhost:3000';
+  const tenant = await fetchCurrentTenant(host);
+  const name = tenant?.name || 'Institution';
+  const canonicalUrl = getCanonicalUrl(tenant, '/staff', host);
+  const title = `Faculty & Staff Directory | ${name}`;
+  const description = `Meet our dedicated educators, department leadership, faculty researchers, and academic mentors at ${name}.`;
+  const ogImageUrl = `/api/og?title=${encodeURIComponent('Faculty & Staff Directory')}&subtitle=${encodeURIComponent(name)}&type=staff`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'website',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
+  };
+}
 
 interface StaffDirectoryPageProps {
   searchParams: Promise<{

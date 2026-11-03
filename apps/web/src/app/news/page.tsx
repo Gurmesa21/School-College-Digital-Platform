@@ -3,11 +3,46 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicNewsArticleDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
-export const metadata: Metadata = {
-  title: 'News & Stories | Institutional Digital Platform',
-  description: 'Explore latest campus news, academic breakthroughs, student achievements, and institutional announcements.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const headersList = await headers();
+  const host = headersList.get('host') || 'localhost:3000';
+  const tenant = await fetchCurrentTenant(host);
+  const name = tenant?.name || 'Institution';
+  const canonicalUrl = getCanonicalUrl(tenant, '/news', host);
+  const title = `News & Campus Stories | ${name}`;
+  const description = `Explore latest campus news, academic breakthroughs, student achievements, and institutional announcements at ${name}.`;
+  const ogImageUrl = `/api/og?title=${encodeURIComponent('Campus News & Announcements')}&subtitle=${encodeURIComponent(name)}&type=news`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'website',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
+  };
+}
 
 interface NewsPageProps {
   searchParams: Promise<{

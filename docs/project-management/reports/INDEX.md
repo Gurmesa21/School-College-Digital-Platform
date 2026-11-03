@@ -21,6 +21,7 @@ This index tracks daily implementation reports, operational status, review histo
 | [DAY-13-IMPLEMENTATION-REPORT.md](./DAY-13-IMPLEMENTATION-REPORT.md) | Day 13 (2026-10-27) | COMPLETED | ACCEPTED | `e3428b3` | Enquiry Forms, Department Routing & Submitter Reference Confirmation (FR-CON-001, FR-CON-002, BR-012) |
 | [DAY-14-IMPLEMENTATION-REPORT.md](./DAY-14-IMPLEMENTATION-REPORT.md) | Day 14 (2026-10-27) | COMPLETED | PENDING PM REVIEW | Pending | Tenant-Scoped Public Search, Multi-Type Retrieval, Relevance Scoring & Privacy Shield (FR-SRCH-001, UC-PUB-02, BR-001, BR-002) |
 | [DAY-15-IMPLEMENTATION-REPORT.md](./DAY-15-IMPLEMENTATION-REPORT.md) | Day 15 (2026-11-03) | COMPLETED | PENDING PM REVIEW | Pending | Public Website Frontends, Dynamic Institutional Homepage, Shared Navigation & Layout, Advisories, Documents, 228 Vitest, 49 Smoke, 36 Playwright Tests (FR-TEN-001, FR-NAV-001, UC-PUB-01/02/03) |
+| [DAY-16-IMPLEMENTATION-REPORT.md](./DAY-16-IMPLEMENTATION-REPORT.md) | Day 16 (2026-11-03) | COMPLETED | PENDING PM REVIEW | Pending | SEO, Metadata, Sitemaps & Robots Policies, Dynamic OpenGraph Generator (`next/og`), XML Sitemap (`/sitemap.xml`), Robots (`/robots.txt`), Canonical URL Isolation, 235 Vitest, 53 Smoke, 44 Playwright Tests (FR-SEO-001–004, BR-001, BR-002) |
 | [DAILY_REPORT_TEMPLATE.md](./DAILY_REPORT_TEMPLATE.md) | Standard Template | ACTIVE | APPROVED | — | Canonical template for future daily implementation reports |
 
 ---

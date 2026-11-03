@@ -1,17 +1,44 @@
 import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getRequestHost, fetchCurrentTenant } from '@/lib/tenant';
+import { getRequestHost, fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 import type { MediaAssetDto } from '@school/shared';
 
 export async function generateMetadata(): Promise<Metadata> {
   const host = await getRequestHost();
   const tenant = await fetchCurrentTenant(host);
   const name = tenant?.name || 'Institutional Platform';
+  const canonicalUrl = getCanonicalUrl(tenant, '/documents', host);
+  const title = `Official Documents & Downloads | ${name}`;
+  const description = `Download official institutional prospectuses, policy handbooks, and documents for ${name}.`;
+  const ogImageUrl = `/api/og?title=${encodeURIComponent('Official Documents & Downloads')}&subtitle=${encodeURIComponent(name)}&type=document`;
 
   return {
-    title: `Official Documents & Resources | ${name}`,
-    description: `Download official institutional prospectuses, policy handbooks, and documents for ${name}.`,
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'website',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
   };
 }
 

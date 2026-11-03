@@ -1,4 +1,6 @@
-import type { ResolvedTenant, PublicAnnouncementDto } from '@school/shared';
+import type { ResolvedTenant, PublicAnnouncementDto, PublicSitemapEntryDto } from '@school/shared';
+
+export type { PublicSitemapEntryDto };
 
 export interface NavItem {
   id: string;

@@ -61,6 +61,7 @@ import { createPublicAnnouncementsRouter } from './routes/publicAnnouncements.js
 import { createEventAdminRouter } from './routes/eventAdmin.js';
 import { createPublicEventsRouter } from './routes/publicEvents.js';
 import { createPublicSearchRouter } from './routes/publicSearch.js';
+import { createPublicSitemapRouter } from './routes/publicSitemap.js';
 
 export interface AppOptions {
   repository?: ITenantRepository;
@@ -212,6 +213,14 @@ export function createApp(options: AppOptions = {}): Express {
   const publicAnnouncementsRouter = createPublicAnnouncementsRouter(announcementService);
   const publicEventsRouter = createPublicEventsRouter(eventService);
   const publicSearchRouter = createPublicSearchRouter(searchService);
+  const publicSitemapRouter = createPublicSitemapRouter({
+    cmsRepo: cmsRepository,
+    academicRepo: academicRepository,
+    staffRepo: staffRepository,
+    newsRepo: newsRepository,
+    eventRepo: eventRepository,
+    mediaRepo: mediaRepository,
+  });
   const tenantRouter = createTenantRouter(authRepository);
 
   v1Router.use('/tenant/admin', tenantResolver, userAdminRouter);
@@ -226,6 +235,8 @@ export function createApp(options: AppOptions = {}): Express {
   v1Router.use('/tenant/cms/news', tenantResolver, newsAdminRouter);
   v1Router.use('/tenant/cms/announcements', tenantResolver, announcementAdminRouter);
   v1Router.use('/tenant/cms/events', tenantResolver, eventAdminRouter);
+
+  v1Router.use('/tenant/public/sitemap', tenantResolver, publicSitemapRouter);
 
   v1Router.use('/tenant/public/search', tenantResolver, publicSearchRouter);
   v1Router.use('/tenant/search', tenantResolver, publicSearchRouter);

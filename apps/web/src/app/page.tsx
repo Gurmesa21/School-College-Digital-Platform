@@ -5,6 +5,7 @@ import {
   getRequestHost,
   fetchCurrentTenant,
   formatInstitutionType,
+  getCanonicalUrl,
 } from '@/lib/tenant';
 import type {
   PublicProgrammeDto,
@@ -17,10 +18,37 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = await getRequestHost();
   const tenant = await fetchCurrentTenant(host);
   const name = tenant?.name || 'School Platform';
+  const canonicalUrl = getCanonicalUrl(tenant, '/', host);
+  const institutionTypeLabel = formatInstitutionType(tenant?.institutionType);
+  const ogImageUrl = `/api/og?title=${encodeURIComponent(name)}&subtitle=${encodeURIComponent(institutionTypeLabel)}&type=portal`;
 
   return {
-    title: `${name} | School Platform — Private School & College Digital Website Platform`,
+    title: `${name} | Private School & College Digital Website Platform`,
     description: `Official digital homepage for ${name}. Explore our academic pathways, faculty directory, campus news, and admissions.`,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title: name,
+      description: `Official digital homepage for ${name}. Explore our academic pathways, faculty directory, campus news, and admissions.`,
+      url: canonicalUrl,
+      siteName: name,
+      type: 'website',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${name} Homepage`,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: name,
+      description: `Official digital homepage for ${name}. Explore our academic pathways, faculty directory, campus news, and admissions.`,
+      images: [ogImageUrl],
+    },
   };
 }
 
@@ -79,8 +107,8 @@ export default async function HomePage() {
     tenant?.institutionType === 'KINDERGARTEN'
       ? '🎨'
       : tenant?.institutionType === 'TVET_TRAINING_CENTRE'
-      ? '⚙️'
-      : '🏛️';
+        ? '⚙️'
+        : '🏛️';
 
   return (
     <div className="institutional-homepage-container" style={{ padding: '1rem 0 3rem 0' }}>

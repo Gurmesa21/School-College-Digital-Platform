@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicStaffProfileDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
 interface StaffDetailProps {
   params: Promise<{ slug: string }>;
@@ -40,19 +41,52 @@ export async function generateMetadata({ params }: StaffDetailProps): Promise<Me
   const headersList = await headers();
   const host = headersList.get('host') || 'localhost:3000';
 
-  const staff = await fetchPublicStaffMember(slug, host);
+  const [staff, tenant] = await Promise.all([
+    fetchPublicStaffMember(slug, host),
+    fetchCurrentTenant(host),
+  ]);
+
   if (!staff) {
     return {
       title: 'Staff Profile Not Found | Faculty Directory',
     };
   }
 
+  const title = staff.seoTitle || `${staff.fullName} - ${staff.roleTitle} | Faculty Directory`;
+  const description =
+    staff.seoDescription ||
+    staff.biography?.slice(0, 160) ||
+    `Professional profile and public consultation hours for ${staff.fullName}.`;
+  const canonicalUrl = getCanonicalUrl(tenant, `/staff/${staff.slug}`, host);
+  const subtitle = `${staff.roleTitle}${staff.department?.name ? ` • ${staff.department.name}` : ''}`;
+  const ogImageUrl = `/api/og?title=${encodeURIComponent(staff.fullName)}&subtitle=${encodeURIComponent(subtitle)}&type=staff`;
+
   return {
-    title: staff.seoTitle || `${staff.fullName} - ${staff.roleTitle} | Faculty Directory`,
-    description:
-      staff.seoDescription ||
-      staff.biography?.slice(0, 160) ||
-      `Professional profile and public consultation hours for ${staff.fullName}.`,
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'profile',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: staff.fullName,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
   };
 }
 

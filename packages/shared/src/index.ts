@@ -285,7 +285,18 @@ export interface ResolvedTenant {
   contactPhone?: string | null;
   address?: string | null;
   matchedHostname: string;
+  primaryDomain?: string | null;
   resolutionMethod: 'DOMAIN_MAPPING' | 'DEVELOPMENT_OVERRIDE';
+}
+
+/**
+ * Public Sitemap Entry DTO for SEO and Search Engine Crawlers
+ */
+export interface PublicSitemapEntryDto {
+  loc: string;
+  lastmod: string;
+  changefreq?: 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
+  priority?: number;
 }
 
 /**

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicEventItemDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
 interface EventDetailPageProps {
   params: Promise<{
@@ -34,7 +35,11 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
   const { slug } = await params;
   const headersList = await headers();
   const host = headersList.get('host') || 'localhost:3000';
-  const event = await fetchEvent(host, slug);
+
+  const [event, tenant] = await Promise.all([
+    fetchEvent(host, slug),
+    fetchCurrentTenant(host),
+  ]);
 
   if (!event) {
     return {
@@ -42,9 +47,37 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
     };
   }
 
+  const title = `${event.title} | Events Calendar`;
+  const description = event.description?.slice(0, 160) || 'Official institutional event details and registration.';
+  const canonicalUrl = getCanonicalUrl(tenant, `/events/${event.slug}`, host);
+  const ogImageUrl = `/api/og?title=${encodeURIComponent(event.title)}&subtitle=${encodeURIComponent(event.description?.slice(0, 80) || '')}&type=event`;
+
   return {
-    title: `${event.title} | Events Calendar`,
-    description: event.description?.slice(0, 160) || 'Official institutional event details and registration.',
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'article',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: event.title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
   };
 }
 

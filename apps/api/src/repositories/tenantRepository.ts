@@ -11,7 +11,13 @@ export class PrismaTenantRepository implements ITenantRepository {
 
     const record = await prisma.tenantDomain.findUnique({
       where: { hostname: normalized },
-      include: { tenant: true },
+      include: {
+        tenant: {
+          include: {
+            domains: true,
+          },
+        },
+      },
     });
 
     if (!record || !record.isVerified || !record.tenant) {
@@ -19,6 +25,8 @@ export class PrismaTenantRepository implements ITenantRepository {
     }
 
     const t = record.tenant;
+    const primary = t.domains.find((d) => d.isPrimary && d.isVerified) || record;
+
     return {
       id: t.id,
       slug: t.slug,
@@ -31,6 +39,7 @@ export class PrismaTenantRepository implements ITenantRepository {
       contactPhone: t.contactPhone,
       address: t.address,
       matchedHostname: record.hostname,
+      primaryDomain: primary.hostname,
       resolutionMethod: 'DOMAIN_MAPPING',
     };
   }
@@ -46,7 +55,7 @@ export class PrismaTenantRepository implements ITenantRepository {
 
     if (!tenant) return null;
 
-    const primaryDomain = tenant.domains.find((d) => d.isPrimary) || tenant.domains[0];
+    const primaryDomain = tenant.domains.find((d) => d.isPrimary && d.isVerified) || tenant.domains[0];
 
     return {
       id: tenant.id,
@@ -60,6 +69,7 @@ export class PrismaTenantRepository implements ITenantRepository {
       contactPhone: tenant.contactPhone,
       address: tenant.address,
       matchedHostname: primaryDomain ? primaryDomain.hostname : `${tenant.slug}.local`,
+      primaryDomain: primaryDomain ? primaryDomain.hostname : `${tenant.slug}.local`,
       resolutionMethod: 'DEVELOPMENT_OVERRIDE',
     };
   }
@@ -109,6 +119,7 @@ export class InMemoryTenantRepository implements ITenantRepository {
     return {
       ...tenant,
       matchedHostname: normalized,
+      primaryDomain: tenant.primaryDomain || normalized,
       resolutionMethod: 'DOMAIN_MAPPING',
     };
   }
@@ -124,6 +135,7 @@ export class InMemoryTenantRepository implements ITenantRepository {
 
     return {
       ...tenant,
+      primaryDomain: tenant.primaryDomain || `${tenant.slug}.local`,
       resolutionMethod: 'DEVELOPMENT_OVERRIDE',
     };
   }

@@ -914,6 +914,68 @@ async function run() {
     testCases.push({ name: 'Web Search Frontend Page (200)', status: webSearchRes.status, pass: pass49 });
     console.log(`  -> Web Search Status: ${webSearchRes.status}, Pass: ${pass49}`);
 
+    // Test 50: Day 16 API Public Sitemap Endpoint
+    console.log('Testing 50: API public sitemap endpoint (GET http://localhost:4000/api/v1/tenant/public/sitemap)');
+    const apiSitemapRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/sitemap', {
+      headers: {
+        Host: 'oxford.localhost:4000',
+        Accept: 'application/json',
+      },
+    });
+    let apiSitemapJson = null;
+    try {
+      apiSitemapJson = JSON.parse(apiSitemapRes.body);
+    } catch {}
+    const pass50 =
+      apiSitemapRes.status === 200 &&
+      apiSitemapJson &&
+      apiSitemapJson.success === true &&
+      Array.isArray(apiSitemapJson.data) &&
+      apiSitemapJson.data.some((e) => e.loc === '/');
+    testCases.push({ name: 'API Public Sitemap Endpoint (200)', status: apiSitemapRes.status, pass: pass50 });
+    console.log(`  -> API Sitemap Status: ${apiSitemapRes.status}, Entries: ${apiSitemapJson?.data?.length || 0}, Pass: ${pass50}`);
+
+    // Test 51: Day 16 Next.js XML Sitemap Route
+    console.log('Testing 51: Web dynamic XML sitemap (GET http://localhost:3000/sitemap.xml)');
+    const webSitemapRes = await fetchUrl('http://localhost:3000/sitemap.xml', {
+      headers: {
+        Host: 'oxford.localhost:3000',
+      },
+    });
+    const pass51 =
+      webSitemapRes.status === 200 &&
+      (webSitemapRes.body.includes('<urlset') || webSitemapRes.body.includes('<url>')) &&
+      webSitemapRes.body.includes('http://oxford.localhost:3000');
+    testCases.push({ name: 'Web Dynamic XML Sitemap (200)', status: webSitemapRes.status, pass: pass51 });
+    console.log(`  -> XML Sitemap Status: ${webSitemapRes.status}, Pass: ${pass51}`);
+
+    // Test 52: Day 16 Next.js Robots Policy Route
+    console.log('Testing 52: Web dynamic robots.txt policy (GET http://localhost:3000/robots.txt)');
+    const webRobotsRes = await fetchUrl('http://localhost:3000/robots.txt', {
+      headers: {
+        Host: 'oxford.localhost:3000',
+      },
+    });
+    const pass52 =
+      webRobotsRes.status === 200 &&
+      webRobotsRes.body.toLowerCase().includes('user-agent:') &&
+      webRobotsRes.body.toLowerCase().includes('sitemap:') &&
+      webRobotsRes.body.includes('/admin');
+    testCases.push({ name: 'Web Dynamic Robots Policy (200)', status: webRobotsRes.status, pass: pass52 });
+    console.log(`  -> Robots.txt Status: ${webRobotsRes.status}, Pass: ${pass52}`);
+
+    // Test 53: Day 16 Next.js Dynamic OpenGraph Generator
+    console.log('Testing 53: Dynamic OpenGraph generator (GET http://localhost:3000/api/og)');
+    const webOgRes = await fetchUrl('http://localhost:3000/api/og?title=SmokeTest&type=portal', {
+      headers: {
+        Host: 'oxford.localhost:3000',
+      },
+    });
+    const ogContentType = webOgRes.headers['content-type'] || '';
+    const pass53 = webOgRes.status === 200 && ogContentType.includes('image/');
+    testCases.push({ name: 'Dynamic OpenGraph Image Generator (200)', status: webOgRes.status, pass: pass53 });
+    console.log(`  -> OpenGraph Status: ${webOgRes.status}, Content-Type: ${ogContentType}, Pass: ${pass53}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -927,7 +989,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 49 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 53 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');

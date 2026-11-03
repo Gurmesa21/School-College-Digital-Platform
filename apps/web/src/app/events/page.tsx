@@ -3,11 +3,46 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicEventItemDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
-export const metadata: Metadata = {
-  title: 'Events Calendar | Institutional Digital Platform',
-  description: 'Upcoming academic milestones, campus tours, athletic championships, guest lectures, and institutional assemblies.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const headersList = await headers();
+  const host = headersList.get('host') || 'localhost:3000';
+  const tenant = await fetchCurrentTenant(host);
+  const name = tenant?.name || 'Institution';
+  const canonicalUrl = getCanonicalUrl(tenant, '/events', host);
+  const title = `Events Calendar & Activities | ${name}`;
+  const description = `Upcoming academic milestones, campus tours, athletic championships, guest lectures, and institutional assemblies at ${name}.`;
+  const ogImageUrl = `/api/og?title=${encodeURIComponent('Events Calendar & Schedule')}&subtitle=${encodeURIComponent(name)}&type=events`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'website',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
+  };
+}
 
 interface EventsPageProps {
   searchParams: Promise<{

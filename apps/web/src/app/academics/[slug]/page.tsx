@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicProgrammeDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
 interface ProgrammeDetailProps {
   params: Promise<{ slug: string }>;
@@ -40,16 +41,48 @@ export async function generateMetadata({ params }: ProgrammeDetailProps): Promis
   const headersList = await headers();
   const host = headersList.get('host') || 'localhost:3000';
 
-  const programme = await fetchPublicProgramme(slug, host);
+  const [programme, tenant] = await Promise.all([
+    fetchPublicProgramme(slug, host),
+    fetchCurrentTenant(host),
+  ]);
+
   if (!programme) {
     return {
       title: 'Programme Not Found | Academic Catalogue',
     };
   }
 
+  const title = programme.seoTitle || `${programme.title} | Academic Programmes`;
+  const description = programme.seoDescription || programme.summary || undefined;
+  const canonicalUrl = getCanonicalUrl(tenant, `/academics/${programme.slug}`, host);
+  const ogImageUrl = `/api/og?title=${encodeURIComponent(programme.title)}&subtitle=${encodeURIComponent(programme.summary || programme.level?.name || '')}&type=programme`;
+
   return {
-    title: programme.seoTitle || `${programme.title} | Academic Programmes`,
-    description: programme.seoDescription || programme.summary || undefined,
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'article',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: programme.title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
   };
 }
 

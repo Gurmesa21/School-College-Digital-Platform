@@ -3,11 +3,46 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicProgrammeDto, AcademicLevelDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
-export const metadata: Metadata = {
-  title: 'Academic Programmes & Curriculum | Digital Platform',
-  description: 'Explore academic pathways, curriculum frameworks, qualifications, and accredited programmes.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const headersList = await headers();
+  const host = headersList.get('host') || 'localhost:3000';
+  const tenant = await fetchCurrentTenant(host);
+  const name = tenant?.name || 'Institution';
+  const canonicalUrl = getCanonicalUrl(tenant, '/academics', host);
+  const title = `Academic Programmes & Curriculum | ${name}`;
+  const description = `Explore academic pathways, curriculum frameworks, qualifications, and accredited programmes at ${name}.`;
+  const ogImageUrl = `/api/og?title=${encodeURIComponent('Academic Programmes')}&subtitle=${encodeURIComponent(name)}&type=academics`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'website',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
+    },
+  };
+}
 
 interface AcademicsPageProps {
   searchParams: Promise<{

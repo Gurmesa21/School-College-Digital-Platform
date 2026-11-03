@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicNewsArticleDto } from '@school/shared';
+import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 
 interface NewsDetailPageProps {
   params: Promise<{
@@ -34,7 +35,11 @@ export async function generateMetadata({ params }: NewsDetailPageProps): Promise
   const { slug } = await params;
   const headersList = await headers();
   const host = headersList.get('host') || 'localhost:3000';
-  const article = await fetchArticle(host, slug);
+
+  const [article, tenant] = await Promise.all([
+    fetchArticle(host, slug),
+    fetchCurrentTenant(host),
+  ]);
 
   if (!article) {
     return {
@@ -42,11 +47,36 @@ export async function generateMetadata({ params }: NewsDetailPageProps): Promise
     };
   }
 
+  const title = `${article.seoTitle || article.title} | Institutional News`;
+  const description = article.seoDescription || article.summary || 'Read full news article on our institutional platform.';
+  const canonicalUrl = article.canonicalUrl || getCanonicalUrl(tenant, `/news/${article.slug}`, host);
+  const ogImageUrl = `/api/og?title=${encodeURIComponent(article.title)}&subtitle=${encodeURIComponent(article.summary || '')}&type=news`;
+
   return {
-    title: `${article.seoTitle || article.title} | Institutional News`,
-    description: article.seoDescription || article.summary || 'Read full news article on our institutional platform.',
+    title,
+    description,
     alternates: {
-      canonical: article.canonicalUrl || undefined,
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'article',
+      images: [
+        {
+          url: article.featuredMedia?.publicUrl || ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: article.title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [article.featuredMedia?.publicUrl || ogImageUrl],
     },
   };
 }
@@ -64,10 +94,10 @@ export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
 
   const pubDate = article.publishedAt
     ? new Date(article.publishedAt).toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
     : 'Recent publication';
 
   return (
