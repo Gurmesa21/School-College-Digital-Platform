@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const ogImageUrl = `/api/og?title=${encodeURIComponent(name)}&subtitle=${encodeURIComponent(institutionTypeLabel)}&type=portal`;
 
   return {
-    title: `${name} | Private School & College Digital Website Platform`,
+    title: `${name} | School Platform — Private School & College Digital Website Platform`,
     description: `Official digital homepage for ${name}. Explore our academic pathways, faculty directory, campus news, and admissions.`,
     alternates: {
       canonical: canonicalUrl,
