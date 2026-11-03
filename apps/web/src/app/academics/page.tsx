@@ -26,7 +26,7 @@ async function fetchPublicProgrammes(host: string, levelId?: string, search?: st
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/academics/programmes?${query.toString()}`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });
@@ -46,7 +46,7 @@ async function fetchPublicLevels(host: string): Promise<AcademicLevelDto[]> {
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/academics/levels`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });

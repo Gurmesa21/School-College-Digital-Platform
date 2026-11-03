@@ -28,6 +28,8 @@ export class PrismaTenantRepository implements ITenantRepository {
       timezone: t.timezone,
       defaultLocale: t.defaultLocale,
       contactEmail: t.contactEmail,
+      contactPhone: t.contactPhone,
+      address: t.address,
       matchedHostname: record.hostname,
       resolutionMethod: 'DOMAIN_MAPPING',
     };
@@ -55,6 +57,8 @@ export class PrismaTenantRepository implements ITenantRepository {
       timezone: tenant.timezone,
       defaultLocale: tenant.defaultLocale,
       contactEmail: tenant.contactEmail,
+      contactPhone: tenant.contactPhone,
+      address: tenant.address,
       matchedHostname: primaryDomain ? primaryDomain.hostname : `${tenant.slug}.local`,
       resolutionMethod: 'DEVELOPMENT_OVERRIDE',
     };

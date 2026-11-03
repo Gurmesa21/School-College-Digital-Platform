@@ -15,7 +15,7 @@ async function fetchPublicProgramme(slug: string, host: string): Promise<PublicP
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/academics/programmes/${slug}`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });

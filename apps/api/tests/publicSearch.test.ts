@@ -499,6 +499,36 @@ describe('Day 14 Suite — Tenant-Scoped Public Search (FR-SRCH-001, UC-PUB-02, 
       expect(items[0].title).toContain('Cambridge');
       expect(items[0].score).toBeGreaterThanOrEqual(80);
     });
+
+    it('indexes and filters announcements with anchor links and facet totals', async () => {
+      const res = await request(app)
+        .get('/api/v1/tenant/public/search?q=Admissions&type=ANNOUNCEMENT')
+        .set('Host', 'oxford.localhost');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.type).toBe('ANNOUNCEMENT');
+      expect(res.body.data.items.length).toBeGreaterThanOrEqual(1);
+
+      const announcement = res.body.data.items.find((i: any) => i.type === 'ANNOUNCEMENT');
+      expect(announcement).toBeDefined();
+      expect(announcement.title).toContain('Admissions Open House');
+      expect(announcement.url).toMatch(/^\/news#announcement-/);
+      expect(res.body.data.facets.totalByContentType.ANNOUNCEMENT).toBeGreaterThanOrEqual(1);
+    });
+
+    it('serves downloadable public documents via public media list and direct file route', async () => {
+      const listRes = await request(app)
+        .get('/api/v1/tenant/public/media?category=DOCUMENT')
+        .set('Host', 'oxford.localhost');
+
+      expect(listRes.status).toBe(200);
+      expect(listRes.body.success).toBe(true);
+      expect(listRes.body.data.items.length).toBeGreaterThanOrEqual(1);
+      const doc = listRes.body.data.items[0];
+      expect(doc.title).toContain('Prospectus');
+      expect(doc.category).toBe('DOCUMENT');
+    });
   });
 
   // ===========================================================================

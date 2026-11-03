@@ -31,7 +31,8 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
       setLoading(true);
       setFetchError(null);
       try {
-        const res = await fetch(`${apiUrl}/api/v1/tenant/public/forms/${slug}`, {
+        const queryParam = tenantSlug ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
+        const res = await fetch(`${apiUrl}/api/v1/tenant/public/forms/${slug}${queryParam}`, {
           headers: {
             'x-tenant-id': tenantSlug,
             'Accept': 'application/json',
@@ -127,7 +128,8 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
           ? crypto.randomUUID()
           : `idmp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-      const res = await fetch(`${apiUrl}/api/v1/tenant/public/forms/${slug}/submit`, {
+      const queryParam = tenantSlug ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
+      const res = await fetch(`${apiUrl}/api/v1/tenant/public/forms/${slug}/submit${queryParam}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -15,7 +15,7 @@ async function fetchPublicStaffMember(slug: string, host: string): Promise<Publi
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/staff/${slug}`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });

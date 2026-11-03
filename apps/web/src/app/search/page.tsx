@@ -11,6 +11,7 @@ const CONTENT_TYPES: Array<{ key: string; label: string }> = [
   { key: 'STAFF', label: 'Staff' },
   { key: 'NEWS', label: 'News' },
   { key: 'EVENT', label: 'Events' },
+  { key: 'ANNOUNCEMENT', label: 'Announcements' },
   { key: 'PAGE', label: 'Pages' },
   { key: 'DOCUMENT', label: 'Documents' },
   { key: 'FORM', label: 'Forms' },
@@ -59,10 +60,18 @@ function SearchContent() {
 
         // Determine tenant identifier for development/demo fallback
         const host = typeof window !== 'undefined' ? window.location.host : 'oxford.localhost';
-        const tenantSlug = host.includes('secondary') ? 'greenwood-secondary-school' : 'oxford';
+        let tenantSlug = 'oxford';
+        if (host.includes('kindergarten')) tenantSlug = 'little-explorers-kindergarten';
+        else if (host.includes('secondary') || host.includes('greenwood')) tenantSlug = 'greenwood-secondary-school';
+        else if (host.includes('tvet')) tenantSlug = 'summit-tvet-institute';
+
+        if (tenantSlug) {
+          params.set('tenant', tenantSlug);
+        }
 
         const res = await fetch(`${apiUrl}/api/v1/tenant/public/search?${params.toString()}`, {
           headers: {
+            Host: host,
             'x-tenant-id': tenantSlug,
             Accept: 'application/json',
           },

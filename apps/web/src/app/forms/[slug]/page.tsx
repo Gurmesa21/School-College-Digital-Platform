@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import DynamicPublicForm from '@/components/DynamicPublicForm';
+import { getRequestHost, fetchCurrentTenant } from '@/lib/tenant';
 
 interface FormPageProps {
   params: Promise<{ slug: string }>;
@@ -9,14 +10,21 @@ interface FormPageProps {
 
 export async function generateMetadata({ params }: FormPageProps): Promise<Metadata> {
   const { slug } = await params;
+  const host = await getRequestHost();
+  const tenant = await fetchCurrentTenant(host);
+  const name = tenant?.name || 'Educational Institution';
+  const formattedSlug = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return {
-    title: `${slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())} | Oxford International School`,
-    description: `Official online form submission for Oxford International School.`,
+    title: `${formattedSlug} | ${name}`,
+    description: `Official online form submission for ${name}.`,
   };
 }
 
 export default async function PublicFormPage({ params }: FormPageProps) {
   const { slug } = await params;
+  const host = await getRequestHost();
+  const tenant = await fetchCurrentTenant(host);
+  const tenantSlug = tenant?.slug || 'oxford';
 
   return (
     <main id="main-content" style={{ minHeight: '80vh', padding: '2rem 1rem' }}>
@@ -28,7 +36,7 @@ export default async function PublicFormPage({ params }: FormPageProps) {
         <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Form</span>
       </nav>
 
-      <DynamicPublicForm slug={slug} tenantSlug="oxford" />
+      <DynamicPublicForm slug={slug} tenantSlug={tenantSlug} />
     </main>
   );
 }

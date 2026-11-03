@@ -37,7 +37,7 @@ async function fetchPublicStaff(
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/staff?${query.toString()}`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });
@@ -57,7 +57,7 @@ async function fetchPublicDepartments(host: string): Promise<AcademicDepartmentD
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/academics/departments`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });

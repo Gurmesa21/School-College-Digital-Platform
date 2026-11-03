@@ -43,7 +43,7 @@ async function fetchNews(
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/news?${query.toString()}`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });
@@ -62,7 +62,7 @@ async function fetchArchiveSummary(host: string): Promise<ArchiveItem[]> {
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/news/archive`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });
@@ -70,6 +70,25 @@ async function fetchArchiveSummary(host: string): Promise<ArchiveItem[]> {
     if (!res.ok) return [];
     const json = await res.json();
     return (json.data || []) as ArchiveItem[];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchAnnouncements(host: string): Promise<any[]> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/tenant/public/announcements`, {
+      headers: {
+        Host: host,
+        'x-forwarded-host': host,
+      },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) return [];
+    const json = await res.json();
+    return Array.isArray(json.data) ? json.data : [];
   } catch {
     return [];
   }
@@ -85,9 +104,10 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
   const headersList = await headers();
   const host = headersList.get('host') || 'localhost:3000';
 
-  const [articles, archiveSummary] = await Promise.all([
+  const [articles, archiveSummary, announcements] = await Promise.all([
     fetchNews(host, params.tag, params.year, params.month, params.search),
     fetchArchiveSummary(host),
+    fetchAnnouncements(host),
   ]);
 
   const hasFilter = Boolean(params.tag || params.year || params.month || params.search);
@@ -133,6 +153,67 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
           Explore featured accomplishments, investigative student research, faculty appointments, and campus community developments.
         </p>
       </header>
+
+      {/* Active Institutional Announcements & Advisories */}
+      {announcements.length > 0 && !hasFilter && (
+        <section
+          aria-labelledby="announcements-section-heading"
+          style={{ marginBottom: '2.5rem' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <span style={{ fontSize: '1.25rem' }}>📢</span>
+            <h2
+              id="announcements-section-heading"
+              style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', margin: 0 }}
+            >
+              Institutional Advisories & Operational Notices
+            </h2>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {announcements.map((a: any) => {
+              const isEmergency = a.priority === 'EMERGENCY' || a.priority === 'HIGH';
+              return (
+                <div
+                  key={a.id}
+                  id={`announcement-${a.id}`}
+                  tabIndex={-1}
+                  className="card"
+                  style={{
+                    padding: '1.25rem',
+                    borderLeft: isEmergency ? '4px solid #ef4444' : '4px solid #3b82f6',
+                    backgroundColor: isEmergency ? 'rgba(239, 68, 68, 0.08)' : 'rgba(30, 41, 59, 0.5)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: isEmergency ? '#dc2626' : '#2563eb',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {isEmergency ? '⚠️ URGENT ADVISORY' : 'CAMPUS NOTICE'}
+                      </span>
+                      {a.isPinned && <span className="badge badge-active">Pinned</span>}
+                    </div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Audience: {a.audience} &bull; {new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
+                    {a.title}
+                  </h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                    {a.content}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Filters & Archive Navigation Bar */}
       <section

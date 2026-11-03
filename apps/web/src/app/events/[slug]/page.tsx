@@ -17,7 +17,7 @@ async function fetchEvent(host: string, slug: string): Promise<PublicEventItemDt
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/events/${slug}`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });

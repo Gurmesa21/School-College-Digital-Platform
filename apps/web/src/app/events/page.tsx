@@ -34,7 +34,7 @@ async function fetchEvents(
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/events?${query.toString()}`, {
       headers: {
         Host: host,
-        'x-tenant-id': 'oxford',
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });

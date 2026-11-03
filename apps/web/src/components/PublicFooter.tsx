@@ -2,45 +2,45 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import type { ResolvedTenant } from '@school/shared';
+import { NavItem } from '@/lib/tenantTypes';
 
-interface NavItem {
-  id: string;
-  label: string;
-  url: string;
-  target?: '_self' | '_blank';
-  orderIndex: number;
-}
-
-interface PublicNavResponse {
-  success: boolean;
-  data?: {
-    location: string;
-    title: string;
-    items: NavItem[];
-  };
+interface PublicFooterProps {
+  tenant?: ResolvedTenant | null;
+  initialNav?: NavItem[];
 }
 
 const DEFAULT_FOOTER_ITEMS: NavItem[] = [
-  { id: 'f-1', label: 'Privacy Policy', url: '/privacy', orderIndex: 0 },
-  { id: 'f-2', label: 'Terms of Service', url: '/terms', orderIndex: 1 },
-  { id: 'f-3', label: 'Accessibility Statement', url: '/accessibility', orderIndex: 2 },
-  { id: 'f-4', label: 'Contact Directory', url: '/contact', orderIndex: 3 },
+  { id: 'f-1', label: 'Academic Programmes', url: '/academics', orderIndex: 0 },
+  { id: 'f-2', label: 'Faculty & Staff', url: '/staff', orderIndex: 1 },
+  { id: 'f-3', label: 'News & Announcements', url: '/news', orderIndex: 2 },
+  { id: 'f-4', label: 'Events Calendar', url: '/events', orderIndex: 3 },
+  { id: 'f-5', label: 'Admissions & Inquiries', url: '/admissions', orderIndex: 4 },
+  { id: 'f-6', label: 'Contact Directory', url: '/contact', orderIndex: 5 },
+  { id: 'f-7', label: 'Search Portal', url: '/search', orderIndex: 6 },
 ];
 
-export default function PublicFooter() {
-  const [footerItems, setFooterItems] = useState<NavItem[]>(DEFAULT_FOOTER_ITEMS);
+export default function PublicFooter({ tenant, initialNav }: PublicFooterProps) {
+  const [footerItems, setFooterItems] = useState<NavItem[]>(
+    initialNav && initialNav.length > 0 ? initialNav : DEFAULT_FOOTER_ITEMS
+  );
 
   useEffect(() => {
+    if (initialNav && initialNav.length > 0) {
+      setFooterItems(initialNav);
+      return;
+    }
+
     const fetchFooterNav = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
         const res = await fetch(`${apiUrl}/api/v1/tenant/public/navigation/FOOTER`, {
           headers: {
-            'x-tenant-id': 'oxford',
+            Host: typeof window !== 'undefined' ? window.location.host : 'localhost:3000',
           },
         });
         if (res.ok) {
-          const json: PublicNavResponse = await res.json();
+          const json = await res.json();
           if (json.success && json.data && Array.isArray(json.data.items) && json.data.items.length > 0) {
             setFooterItems(json.data.items);
           }
@@ -51,7 +51,15 @@ export default function PublicFooter() {
     };
 
     fetchFooterNav();
-  }, []);
+  }, [initialNav]);
+
+  const brandName = tenant?.name || 'Oxford International School';
+  const crestIcon =
+    tenant?.institutionType === 'KINDERGARTEN'
+      ? '🎨'
+      : tenant?.institutionType === 'TVET_TRAINING_CENTRE'
+      ? '⚙️'
+      : '🏛️';
 
   return (
     <footer role="contentinfo" className="public-footer-container">
@@ -59,12 +67,21 @@ export default function PublicFooter() {
         <div className="public-footer-top">
           <div className="public-footer-brand">
             <div className="footer-crest-brand">
-              <span className="footer-crest" aria-hidden="true">🏛️</span>
-              <span className="footer-title">Oxford Institution</span>
+              <span className="footer-crest" aria-hidden="true">{crestIcon}</span>
+              <span className="footer-title">{brandName}</span>
             </div>
             <p className="footer-tagline">
               Dedicated to academic excellence, innovative research, and student community empowerment.
             </p>
+            {tenant?.address && (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem', whiteSpace: 'pre-line' }}>
+                📍 {tenant.address}
+              </p>
+            )}
+            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              {tenant?.contactPhone && <span>📞 {tenant.contactPhone}</span>}
+              {tenant?.contactEmail && <span>✉️ {tenant.contactEmail}</span>}
+            </div>
           </div>
 
           <div className="public-footer-links-col">
@@ -89,15 +106,20 @@ export default function PublicFooter() {
               <span className="badge badge-active">WCAG 2.2 AA</span>
               <span className="badge badge-role">BR-001 ISOLATED</span>
             </div>
+            <div style={{ marginTop: '1rem' }}>
+              <Link href="/admin" className="btn btn-secondary btn-sm" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
+                Staff & Admin Sign-in &rarr;
+              </Link>
+            </div>
           </div>
         </div>
 
         <div className="public-footer-bottom">
           <p className="footer-copyright">
-            &copy; {new Date().getFullYear()} Oxford Educational Institution. All rights reserved.
+            &copy; {new Date().getFullYear()} {brandName}. All rights reserved.
           </p>
           <p className="footer-powered">
-            School & College Digital Platform &bull; Day 6 Architecture
+            Private School & College Digital Website Platform &bull; Multi-Tenant Verified
           </p>
         </div>
       </div>

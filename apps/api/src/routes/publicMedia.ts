@@ -5,6 +5,32 @@ import { MediaService } from '../services/mediaService.js';
 export function createPublicMediaRouter(mediaService: MediaService): Router {
   const router = express.Router();
 
+  // GET /api/v1/tenant/public/media (List public media assets / documents)
+  router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenantId = req.tenant!.id;
+      const category = req.query.category as any;
+      const search = req.query.search as string | undefined;
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+
+      const result = await mediaService.listMedia(tenantId, {
+        category,
+        search,
+        isPublic: true,
+        page,
+        limit,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /api/v1/tenant/public/media/:id (JSON metadata or direct stream based on Accept header)
   router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {

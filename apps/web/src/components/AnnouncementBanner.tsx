@@ -1,29 +1,36 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import type { PublicAnnouncementDto } from '@school/shared';
 
-interface PublicAnnouncement {
-  id: string;
-  title: string;
-  content: string;
-  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'EMERGENCY';
-  audience: 'GENERAL' | 'STUDENTS' | 'PARENTS' | 'STAFF';
-  isPinned: boolean;
-  startsAt: string | null;
-  expiresAt: string | null;
-  createdAt: string;
+interface AnnouncementBannerProps {
+  initialAnnouncements?: PublicAnnouncementDto[];
 }
 
-export default function AnnouncementBanner() {
-  const [announcements, setAnnouncements] = useState<PublicAnnouncement[]>([]);
+export default function AnnouncementBanner({ initialAnnouncements }: AnnouncementBannerProps) {
+  const [announcements, setAnnouncements] = useState<PublicAnnouncementDto[]>(
+    initialAnnouncements || []
+  );
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialAnnouncements);
 
   useEffect(() => {
+    if (initialAnnouncements) {
+      setAnnouncements(initialAnnouncements);
+      setLoading(false);
+      return;
+    }
+
     async function fetchAnnouncements() {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-        const res = await fetch(`${apiUrl}/api/v1/tenant/public/announcements?tenant=oxford`);
+        const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3000';
+        const res = await fetch(`${apiUrl}/api/v1/tenant/public/announcements`, {
+          headers: {
+            Host: host,
+          },
+        });
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data)) {
@@ -36,8 +43,9 @@ export default function AnnouncementBanner() {
         setLoading(false);
       }
     }
+
     fetchAnnouncements();
-  }, []);
+  }, [initialAnnouncements]);
 
   const visibleAnnouncements = announcements.filter(
     (a) => !dismissedIds.includes(a.id)
@@ -99,21 +107,21 @@ export default function AnnouncementBanner() {
                 >
                   {isEmergency ? '⚠️ Urgent Notice' : 'Notice'}
                 </span>
-                <strong style={{ fontWeight: 600 }}>{item.title}</strong>
-                <span style={{ color: 'rgba(248, 250, 252, 0.85)' }}>{item.content}</span>
-                {item.audience && item.audience !== 'GENERAL' && (
-                  <span
-                    style={{
-                      fontSize: '0.75rem',
-                      padding: '0.1rem 0.4rem',
-                      borderRadius: '4px',
-                      backgroundColor: 'rgba(255,255,255,0.15)',
-                      color: '#cbd5e1',
-                    }}
-                  >
-                    Audience: {item.audience}
-                  </span>
-                )}
+                <span style={{ fontWeight: 600 }}>{item.title}</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  {item.content.length > 140 ? `${item.content.slice(0, 140)}...` : item.content}
+                </span>
+                <Link
+                  href={`/news#announcement-${item.id}`}
+                  style={{
+                    color: isEmergency ? '#fca5a5' : '#93c5fd',
+                    fontSize: '0.85rem',
+                    textDecoration: 'underline',
+                    fontWeight: 500,
+                  }}
+                >
+                  Read details &rarr;
+                </Link>
               </div>
 
               {!isEmergency && (
@@ -122,13 +130,13 @@ export default function AnnouncementBanner() {
                   onClick={() => handleDismiss(item.id)}
                   aria-label={`Dismiss announcement: ${item.title}`}
                   style={{
-                    background: 'none',
+                    background: 'transparent',
                     border: 'none',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     cursor: 'pointer',
-                    fontSize: '1rem',
-                    padding: '0.2rem 0.4rem',
+                    fontSize: '1.25rem',
                     lineHeight: 1,
+                    padding: '0.25rem',
                   }}
                 >
                   &times;

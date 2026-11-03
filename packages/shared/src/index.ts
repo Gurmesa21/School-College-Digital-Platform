@@ -282,6 +282,8 @@ export interface ResolvedTenant {
   timezone: string;
   defaultLocale: string;
   contactEmail: string | null;
+  contactPhone?: string | null;
+  address?: string | null;
   matchedHostname: string;
   resolutionMethod: 'DOMAIN_MAPPING' | 'DEVELOPMENT_OVERRIDE';
 }

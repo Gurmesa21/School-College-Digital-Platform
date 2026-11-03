@@ -2,49 +2,50 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import type { ResolvedTenant } from '@school/shared';
+import { formatInstitutionType, NavItem } from '@/lib/tenantTypes';
 
-interface NavItem {
-  id: string;
-  label: string;
-  url: string;
-  target?: '_self' | '_blank';
-  orderIndex: number;
-  children?: NavItem[];
-}
-
-interface PublicNavResponse {
-  success: boolean;
-  data?: {
-    location: string;
-    title: string;
-    items: NavItem[];
-  };
+interface PublicHeaderProps {
+  tenant?: ResolvedTenant | null;
+  initialNav?: NavItem[];
 }
 
 const DEFAULT_HEADER_ITEMS: NavItem[] = [
   { id: 'def-1', label: 'Home', url: '/', orderIndex: 0 },
-  { id: 'def-2', label: 'Admissions', url: '/admissions', orderIndex: 1 },
-  { id: 'def-3', label: 'Academics', url: '/academics', orderIndex: 2 },
-  { id: 'def-4', label: 'Campus Life', url: '/campus-life', orderIndex: 3 },
-  { id: 'def-5', label: 'News & Events', url: '/news', orderIndex: 4 },
+  { id: 'def-2', label: 'Academics', url: '/academics', orderIndex: 1 },
+  { id: 'def-3', label: 'Staff Directory', url: '/staff', orderIndex: 2 },
+  { id: 'def-4', label: 'News & Notices', url: '/news', orderIndex: 3 },
+  { id: 'def-5', label: 'Events Calendar', url: '/events', orderIndex: 4 },
+  { id: 'def-6', label: 'Admissions', url: '/admissions', orderIndex: 5 },
+  { id: 'def-7', label: 'Contact', url: '/contact', orderIndex: 6 },
 ];
 
-export default function PublicHeader() {
-  const [navItems, setNavItems] = useState<NavItem[]>(DEFAULT_HEADER_ITEMS);
+export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) {
+  const pathname = usePathname();
+  const [navItems, setNavItems] = useState<NavItem[]>(
+    initialNav && initialNav.length > 0 ? initialNav : DEFAULT_HEADER_ITEMS
+  );
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // If initialNav updates or wasn't supplied, sync or fetch client-side if needed
   useEffect(() => {
+    if (initialNav && initialNav.length > 0) {
+      setNavItems(initialNav);
+      return;
+    }
+
     const fetchNav = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
         const res = await fetch(`${apiUrl}/api/v1/tenant/public/navigation/HEADER`, {
           headers: {
-            'x-tenant-id': 'oxford',
+            Host: typeof window !== 'undefined' ? window.location.host : 'localhost:3000',
           },
         });
         if (res.ok) {
-          const json: PublicNavResponse = await res.json();
+          const json = await res.json();
           if (json.success && json.data && Array.isArray(json.data.items) && json.data.items.length > 0) {
             setNavItems(json.data.items);
           }
@@ -55,16 +56,28 @@ export default function PublicHeader() {
     };
 
     fetchNav();
-  }, []);
+  }, [initialNav]);
+
+  const crestIcon =
+    tenant?.institutionType === 'KINDERGARTEN'
+      ? '🎨'
+      : tenant?.institutionType === 'TVET_TRAINING_CENTRE'
+      ? '⚙️'
+      : '🏛️';
+
+  const brandName = tenant?.name || 'Oxford International School';
+  const brandSub = tenant?.institutionType
+    ? formatInstitutionType(tenant.institutionType)
+    : 'Digital Platform';
 
   return (
     <header role="banner" className="public-navbar-container">
       <div className="public-navbar-inner">
-        <Link href="/" className="public-brand-link" aria-label="School Platform Home">
-          <span className="public-brand-crest" aria-hidden="true">🏛️</span>
+        <Link href="/" className="public-brand-link" aria-label={`${brandName} Home`}>
+          <span className="public-brand-crest" aria-hidden="true">{crestIcon}</span>
           <div className="public-brand-text">
-            <span className="public-brand-name">Oxford Institution</span>
-            <span className="public-brand-sub">Digital Platform</span>
+            <span className="public-brand-name">{brandName}</span>
+            <span className="public-brand-sub">{brandSub}</span>
           </div>
         </Link>
 
@@ -72,6 +85,7 @@ export default function PublicHeader() {
         <button
           className="mobile-nav-toggle"
           aria-expanded={mobileMenuOpen}
+          aria-controls="primary-navigation"
           aria-label="Toggle navigation menu"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
@@ -91,6 +105,7 @@ export default function PublicHeader() {
             {navItems.map((item) => {
               const hasChildren = Boolean(item.children && item.children.length > 0);
               const isDropdownOpen = activeDropdown === item.id;
+              const isActive = item.url === '/' ? pathname === '/' : pathname.startsWith(item.url);
 
               if (hasChildren) {
                 return (
@@ -103,7 +118,7 @@ export default function PublicHeader() {
                   >
                     <button
                       type="button"
-                      className="public-nav-link dropdown-toggle"
+                      className={`public-nav-link dropdown-toggle ${isActive ? 'is-active' : ''}`}
                       aria-haspopup="true"
                       aria-expanded={isDropdownOpen}
                       onClick={() => setActiveDropdown(isDropdownOpen ? null : item.id)}
@@ -113,22 +128,26 @@ export default function PublicHeader() {
                     </button>
                     {isDropdownOpen && (
                       <ul className="public-dropdown-menu" role="menu" aria-label={`${item.label} Submenu`}>
-                        {item.children!.map((sub) => (
-                          <li key={sub.id} role="none">
-                            <Link
-                              href={sub.url}
-                              target={sub.target || '_self'}
-                              className="public-dropdown-link"
-                              role="menuitem"
-                              onClick={() => {
-                                setActiveDropdown(null);
-                                setMobileMenuOpen(false);
-                              }}
-                            >
-                              {sub.label}
-                            </Link>
-                          </li>
-                        ))}
+                        {item.children!.map((sub) => {
+                          const isSubActive = pathname === sub.url;
+                          return (
+                            <li key={sub.id} role="none">
+                              <Link
+                                href={sub.url}
+                                target={sub.target || '_self'}
+                                className={`public-dropdown-link ${isSubActive ? 'is-active' : ''}`}
+                                role="menuitem"
+                                aria-current={isSubActive ? 'page' : undefined}
+                                onClick={() => {
+                                  setActiveDropdown(null);
+                                  setMobileMenuOpen(false);
+                                }}
+                              >
+                                {sub.label}
+                              </Link>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </li>
@@ -140,8 +159,9 @@ export default function PublicHeader() {
                   <Link
                     href={item.url}
                     target={item.target || '_self'}
-                    className="public-nav-link"
+                    className={`public-nav-link ${isActive ? 'is-active' : ''}`}
                     role="menuitem"
+                    aria-current={isActive ? 'page' : undefined}
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     {item.label}

@@ -13,6 +13,7 @@ async function fetchPublicPage(slug: string, host: string): Promise<PublicPageDt
     const res = await fetch(`${apiUrl}/api/v1/tenant/public/pages/${slug}`, {
       headers: {
         Host: host,
+        'x-forwarded-host': host,
       },
       cache: 'no-store',
     });

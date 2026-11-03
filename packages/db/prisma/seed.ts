@@ -28,6 +28,8 @@ export interface SeedTenantData {
   timezone: string;
   defaultLocale: string;
   contactEmail: string;
+  contactPhone?: string;
+  address?: string;
   domains: Array<{
     hostname: string;
     isPrimary: boolean;
@@ -44,6 +46,8 @@ export const DEVELOPMENT_SEED_TENANTS: SeedTenantData[] = [
     timezone: 'UTC',
     defaultLocale: 'en',
     contactEmail: 'admin@oxford.school.example',
+    contactPhone: '+44 1865 200100',
+    address: 'Oxford Campus, Keble Road, Oxford, OX1 3PG, United Kingdom',
     domains: [
       { hostname: 'oxford.localhost', isPrimary: true, isVerified: true },
       { hostname: 'oxford.local', isPrimary: false, isVerified: true },
@@ -58,6 +62,8 @@ export const DEVELOPMENT_SEED_TENANTS: SeedTenantData[] = [
     timezone: 'Africa/Addis_Ababa',
     defaultLocale: 'en',
     contactEmail: 'info@littleexplorers.school.example',
+    contactPhone: '+251 11 661 8899',
+    address: 'Bole Medhanealem, Addis Ababa, Ethiopia',
     domains: [
       { hostname: 'kindergarten.localhost', isPrimary: true, isVerified: true },
     ],
@@ -70,6 +76,8 @@ export const DEVELOPMENT_SEED_TENANTS: SeedTenantData[] = [
     timezone: 'Africa/Addis_Ababa',
     defaultLocale: 'en',
     contactEmail: 'admissions@greenwood.school.example',
+    contactPhone: '+251 11 552 4433',
+    address: 'Yeka Sub-City, Signal District, Addis Ababa, Ethiopia',
     domains: [
       { hostname: 'secondary.localhost', isPrimary: true, isVerified: true },
       { hostname: 'greenwood.localhost', isPrimary: false, isVerified: true },
@@ -83,6 +91,8 @@ export const DEVELOPMENT_SEED_TENANTS: SeedTenantData[] = [
     timezone: 'Africa/Addis_Ababa',
     defaultLocale: 'en',
     contactEmail: 'registrar@summit-tvet.edu.example',
+    contactPhone: '+251 11 440 1234',
+    address: 'Akaki Kality Industrial Corridor, Addis Ababa, Ethiopia',
     domains: [
       { hostname: 'tvet.localhost', isPrimary: true, isVerified: true },
     ],
@@ -95,6 +105,8 @@ export const DEVELOPMENT_SEED_TENANTS: SeedTenantData[] = [
     timezone: 'Africa/Addis_Ababa',
     defaultLocale: 'en',
     contactEmail: 'billing@heritage.school.example',
+    contactPhone: '+251 11 777 0000',
+    address: 'Bishoftu Highway, Oromia, Ethiopia',
     domains: [
       { hostname: 'suspended.localhost', isPrimary: true, isVerified: true },
     ],
@@ -319,6 +331,8 @@ export async function seedDevelopmentData(): Promise<void> {
         timezone: tenantData.timezone,
         defaultLocale: tenantData.defaultLocale,
         contactEmail: tenantData.contactEmail,
+        contactPhone: tenantData.contactPhone,
+        address: tenantData.address,
       },
       create: {
         slug: tenantData.slug,
@@ -328,6 +342,8 @@ export async function seedDevelopmentData(): Promise<void> {
         timezone: tenantData.timezone,
         defaultLocale: tenantData.defaultLocale,
         contactEmail: tenantData.contactEmail,
+        contactPhone: tenantData.contactPhone,
+        address: tenantData.address,
       },
     });
 
@@ -1970,7 +1986,14 @@ export async function seedDevelopmentData(): Promise<void> {
     // 1. High-priority active emergency notice
     await prisma.announcement.upsert({
       where: { id: `announcement-seed-${oxfordTenant.id}-adverse-weather` },
-      update: {},
+      update: {
+        priority: AnnouncementPriority.EMERGENCY,
+        audience: AnnouncementAudience.GENERAL,
+        isPinned: true,
+        startsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        status: PageStatus.PUBLISHED,
+      },
       create: {
         id: `announcement-seed-${oxfordTenant.id}-adverse-weather`,
         tenantId: oxfordTenant.id,
@@ -1979,8 +2002,8 @@ export async function seedDevelopmentData(): Promise<void> {
         priority: AnnouncementPriority.EMERGENCY,
         audience: AnnouncementAudience.GENERAL,
         isPinned: true,
-        startsAt: new Date('2026-10-25T00:00:00Z'),
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Active for 7 days
+        startsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // Active for 14 days
         status: PageStatus.PUBLISHED,
         authorId: adminUser?.id,
       },
@@ -1989,7 +2012,14 @@ export async function seedDevelopmentData(): Promise<void> {
     // 2. Standard active student notice
     await prisma.announcement.upsert({
       where: { id: `announcement-seed-${oxfordTenant.id}-library-hours` },
-      update: {},
+      update: {
+        priority: AnnouncementPriority.NORMAL,
+        audience: AnnouncementAudience.STUDENTS,
+        isPinned: false,
+        startsAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        status: PageStatus.PUBLISHED,
+      },
       create: {
         id: `announcement-seed-${oxfordTenant.id}-library-hours`,
         tenantId: oxfordTenant.id,
@@ -1998,7 +2028,7 @@ export async function seedDevelopmentData(): Promise<void> {
         priority: AnnouncementPriority.NORMAL,
         audience: AnnouncementAudience.STUDENTS,
         isPinned: false,
-        startsAt: new Date('2026-10-20T00:00:00Z'),
+        startsAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
         expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // Active for 14 days
         status: PageStatus.PUBLISHED,
         authorId: adminUser?.id,
@@ -2047,6 +2077,8 @@ export async function seedDevelopmentData(): Promise<void> {
       where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'oxford-autumn-open-house-2026' } },
       update: {
         timezone: 'Europe/London',
+        startsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days in future
+        endsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000), // 4 hour event
       },
       create: {
         tenantId: oxfordTenant.id,
@@ -2075,6 +2107,8 @@ export async function seedDevelopmentData(): Promise<void> {
       where: { tenantId_slug: { tenantId: oxfordTenant.id, slug: 'inter-school-track-and-field-championship' } },
       update: {
         timezone: 'Europe/London',
+        startsAt: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // Spans 2 days
       },
       create: {
         tenantId: oxfordTenant.id,

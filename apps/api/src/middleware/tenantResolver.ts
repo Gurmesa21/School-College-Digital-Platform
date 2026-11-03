@@ -30,8 +30,12 @@ export function isLoopbackAddress(address: string | undefined): boolean {
  */
 export function getEffectiveHostname(req: Request, trustProxy: boolean): string {
   let rawHost = '';
+  const clientIp = req.ip || req.socket?.remoteAddress || '';
+  const isLocalClient = isLoopbackAddress(clientIp);
+  const hostHeader = req.headers.host ? normalizeHostname(req.headers.host) : '';
+  const isHostLoopback = isLoopbackAddress(hostHeader);
 
-  if (trustProxy && req.headers['x-forwarded-host']) {
+  if ((trustProxy || (isLocalClient && isHostLoopback)) && req.headers['x-forwarded-host']) {
     const forwarded = req.headers['x-forwarded-host'];
     rawHost = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0].trim();
   } else if (req.headers.host) {
@@ -55,7 +59,7 @@ export function createTenantResolver(
 
     try {
       const normalizedHost = getEffectiveHostname(req, envConfig.TRUST_PROXY);
-      const clientIp = req.ip || req.socket.remoteAddress || '';
+      const clientIp = req.ip || req.socket?.remoteAddress || '';
 
       // --- Security Check: Client-supplied headers are strictly ignored ---
       // We explicitly do not inspect or trust `x-tenant-id`, `x-school-slug`, etc.
@@ -212,3 +216,4 @@ export function createTenantResolver(
     }
   };
 }
+
