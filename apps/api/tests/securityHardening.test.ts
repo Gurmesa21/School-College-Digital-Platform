@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
+import zlib from 'zlib';
 import { createApp } from '../src/app.js';
 import { InMemoryTenantRepository } from '../src/repositories/tenantRepository.js';
 import { InMemoryAuthRepository } from '../src/repositories/authRepository.js';
@@ -241,6 +242,43 @@ describe('Day 18 Suite — Security Hardening & Tenant Isolation Tests (NFR-SEC-
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
+    });
+
+    it('rejects compressed request payloads via inflate:false mitigation (GHSA-27r3-jxmh-p828)', async () => {
+      // Craft a compressed gzip payload with trailing bytes designed to trigger GHSA-27r3-jxmh-p828
+      const rawJson = JSON.stringify({ eventType: 'PAGE_VIEW', path: '/decompression-probe' });
+      const compressed = zlib.gzipSync(Buffer.from(rawJson));
+      const payloadWithTrailingBytes = Buffer.concat([compressed, Buffer.from('MALICIOUS_TRAILING_BYTES')]);
+
+      const res = await request(app)
+        .post('/api/v1/tenant/public/analytics/event')
+        .set('Host', 'oxford.localhost')
+        .set('Content-Type', 'application/json')
+        .set('Content-Encoding', 'gzip')
+        .send(payloadWithTrailingBytes);
+
+      // Body-parser with inflate: false rejects Content-Encoding: gzip with HTTP 415 (Unsupported Media Type)
+      // and safely closes stream without CPU hang or unhandled exception
+      expect(res.status).toBe(415);
+    });
+
+    it('rejects oversized collection arrays exceeding schema .max bounds with HTTP 400 (GHSA-mrhx-c7xc-m3w5 mitigation)', async () => {
+      // Create invitation payload with 25 roles exceeding the schema max of 20
+      const oversizedRoles = Array.from({ length: 25 }, (_, i) => `role-id-${i + 1}`);
+
+      const res = await request(app)
+        .post('/api/v1/tenant/admin/invitations')
+        .set('Host', 'oxford.localhost')
+        .set('Origin', 'http://oxford.localhost')
+        .set('Cookie', oxfordAdminCookie)
+        .send({
+          email: 'oversized-test@oxford.edu',
+          roleIds: oversizedRoles,
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(JSON.stringify(res.body.error)).toContain('Maximum 20 roles');
     });
   });
 

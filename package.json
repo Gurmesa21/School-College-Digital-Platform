@@ -30,9 +30,9 @@
     "benchmark:api": "node scripts/benchmarkApi.mjs",
     "test:perf": "node scripts/benchmarkWeb.mjs && node scripts/benchmarkApi.mjs",
     "db:backup": "node scripts/backupDatabase.mjs",
-    "db:restore": "node scripts/restoreDatabase.mjs",
+    "db:restore": "node scripts/restoreDatabase.mjs --confirm-drop-target",
     "db:verify-restore": "node scripts/verifyRestoreParity.mjs",
-    "db:drill": "node scripts/backupDatabase.mjs && node scripts/restoreDatabase.mjs && node scripts/verifyRestoreParity.mjs"
+    "db:drill": "node scripts/backupDatabase.mjs && node scripts/restoreDatabase.mjs --confirm-drop-target && node scripts/verifyRestoreParity.mjs"
   },
   "prisma": {
     "schema": "packages/db/prisma/schema.prisma",

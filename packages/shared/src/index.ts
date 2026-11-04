@@ -388,7 +388,7 @@ export type EmailVerificationDto = z.infer<typeof EmailVerificationSchema>;
  */
 export const CreateInvitationSchema = z.object({
   email: z.string().email('Invalid email address format'),
-  roleIds: z.array(z.string().min(1)).min(1, 'At least one role must be specified'),
+  roleIds: z.array(z.string().min(1).max(50)).min(1, 'At least one role must be specified').max(20, 'Maximum 20 roles may be assigned'),
 });
 export type CreateInvitationDto = z.infer<typeof CreateInvitationSchema>;
 
@@ -401,7 +401,7 @@ export const AcceptInvitationSchema = z.object({
 export type AcceptInvitationDto = z.infer<typeof AcceptInvitationSchema>;
 
 export const UpdateMembershipRolesSchema = z.object({
-  roleIds: z.array(z.string().min(1)).min(1, 'At least one role must be assigned'),
+  roleIds: z.array(z.string().min(1).max(50)).min(1, 'At least one role must be assigned').max(20, 'Maximum 20 roles may be assigned'),
 });
 export type UpdateMembershipRolesDto = z.infer<typeof UpdateMembershipRolesSchema>;
 
@@ -721,7 +721,7 @@ export const CreatePageSchema = z.object({
   canonicalUrl: z.string().max(500).optional().nullable(),
   scheduledPublishAt: z.string().datetime().optional().nullable(),
   expiresAt: z.string().datetime().optional().nullable(),
-  sections: z.array(SectionInputSchema).default([]),
+  sections: z.array(SectionInputSchema).max(50, 'Maximum 50 sections per page').default([]),
 });
 export type CreatePageDto = z.infer<typeof CreatePageSchema>;
 
@@ -735,7 +735,7 @@ export const UpdatePageSchema = z.object({
   scheduledPublishAt: z.string().datetime().optional().nullable(),
   expiresAt: z.string().datetime().optional().nullable(),
   version: z.number().int().positive('Version is required for optimistic concurrency').optional(),
-  sections: z.array(SectionInputSchema).optional(),
+  sections: z.array(SectionInputSchema).max(50, 'Maximum 50 sections per page').optional(),
 });
 export type UpdatePageDto = z.infer<typeof UpdatePageSchema>;
 
@@ -855,7 +855,7 @@ export const ReorderMenuItemsSchema = z.object({
       order: z.number().int().min(0),
       parentId: z.string().optional().nullable(),
     })
-  ),
+  ).max(100, 'Maximum 100 menu items per reorder operation'),
 });
 export type ReorderMenuItemsDto = z.infer<typeof ReorderMenuItemsSchema>;
 
@@ -1135,7 +1135,7 @@ export const FormFieldInputSchema = z.object({
   defaultValue: z.string().max(200).optional().nullable(),
   isRequired: z.boolean().default(false),
   validationRules: FormFieldValidationSchema.optional().nullable(),
-  options: z.array(FormFieldOptionSchema).optional().nullable(),
+  options: z.array(FormFieldOptionSchema).max(50, 'Maximum 50 options per field').optional().nullable(),
   orderIndex: z.number().int().min(0).default(0),
 });
 export type FormFieldInputDto = z.infer<typeof FormFieldInputSchema>;
@@ -1160,7 +1160,7 @@ export interface FormFieldDto {
 export const FormRoutingRuleSchema = z.object({
   category: z.string().min(1, 'Category key is required').max(50),
   label: z.string().max(100).optional(),
-  recipientEmails: z.array(z.string().email('Valid recipient email required')).min(1, 'At least one recipient email required'),
+  recipientEmails: z.array(z.string().email('Valid recipient email required').max(120)).min(1, 'At least one recipient email required').max(20, 'Maximum 20 recipient emails per routing rule'),
   isDefault: z.boolean().optional().default(false),
 });
 export type FormRoutingRule = z.infer<typeof FormRoutingRuleSchema>;
@@ -1183,12 +1183,12 @@ export const CreateFormSchema = z.object({
     .regex(slugRegex, 'Slug must consist of lowercase alphanumeric characters and hyphens'),
   description: z.string().max(1000).optional().nullable(),
   type: FormTypeEnum.default('GENERAL_ENQUIRY'),
-  recipientEmails: z.array(z.string().email('Valid recipient email required')).default([]),
-  routingRules: z.array(FormRoutingRuleSchema).optional().nullable(),
+  recipientEmails: z.array(z.string().email('Valid recipient email required').max(120)).max(20, 'Maximum 20 recipient emails per form').default([]),
+  routingRules: z.array(FormRoutingRuleSchema).max(30, 'Maximum 30 routing rules per form').optional().nullable(),
   isPublished: z.boolean().default(true),
   successMessage: z.string().max(500).optional().nullable(),
   submitButtonText: z.string().max(50).default('Submit'),
-  fields: z.array(FormFieldInputSchema).optional(),
+  fields: z.array(FormFieldInputSchema).max(50, 'Maximum 50 fields per form').optional(),
 });
 export type CreateFormDto = z.infer<typeof CreateFormSchema>;
 
@@ -1197,12 +1197,12 @@ export const UpdateFormSchema = z.object({
   slug: z.string().min(1).max(100).regex(slugRegex).optional(),
   description: z.string().max(1000).optional().nullable(),
   type: FormTypeEnum.optional(),
-  recipientEmails: z.array(z.string().email()).optional(),
-  routingRules: z.array(FormRoutingRuleSchema).optional().nullable(),
+  recipientEmails: z.array(z.string().email().max(120)).max(20, 'Maximum 20 recipient emails per form').optional(),
+  routingRules: z.array(FormRoutingRuleSchema).max(30, 'Maximum 30 routing rules per form').optional().nullable(),
   isPublished: z.boolean().optional(),
   successMessage: z.string().max(500).optional().nullable(),
   submitButtonText: z.string().max(50).optional(),
-  fields: z.array(FormFieldInputSchema).optional(),
+  fields: z.array(FormFieldInputSchema).max(50, 'Maximum 50 fields per form').optional(),
 });
 export type UpdateFormDto = z.infer<typeof UpdateFormSchema>;
 
@@ -1550,7 +1550,7 @@ export const ProgrammeQuerySchema = z.object({
 export type ProgrammeQueryDto = z.infer<typeof ProgrammeQuerySchema>;
 
 export const AssignCoursesToProgrammeSchema = z.object({
-  courseIds: z.array(z.string()).min(1),
+  courseIds: z.array(z.string().max(50)).min(1, 'At least one courseId is required').max(100, 'Maximum 100 courses may be assigned at once'),
   isRequired: z.boolean().optional().default(true),
   term: z.string().max(50).optional().nullable(),
 });
@@ -1645,7 +1645,7 @@ export const CreateStaffProfileSchema = z.object({
   biography: z.string().max(10000).optional().nullable(),
   departmentId: z.string().optional().nullable(),
   profileMediaId: z.string().optional().nullable(),
-  subjects: z.array(z.string().max(100)).optional().default([]),
+  subjects: z.array(z.string().max(100)).max(50, 'Maximum 50 subjects per profile').optional().default([]),
   qualifications: z.string().max(1000).optional().nullable(),
   officeLocation: z.string().max(200).optional().nullable(),
   consultationHours: z.string().max(200).optional().nullable(),
@@ -1770,8 +1770,8 @@ export const CreateNewsArticleSchema = z.object({
   authorName: z.string().max(100).optional().nullable(),
   publishedAt: z.string().datetime({ offset: true }).optional().nullable().or(z.string().datetime().optional().nullable()),
   featuredMediaId: z.string().optional().nullable(),
-  tags: z.array(z.string().max(50)).optional().default([]),
-  relatedIds: z.array(z.string()).optional().default([]),
+  tags: z.array(z.string().max(50)).max(50, 'Maximum 50 tags per article').optional().default([]),
+  relatedIds: z.array(z.string().max(50)).max(50, 'Maximum 50 related items').optional().default([]),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional().default('DRAFT'),
   seoTitle: z.string().max(120).optional().nullable(),
   seoDescription: z.string().max(300).optional().nullable(),

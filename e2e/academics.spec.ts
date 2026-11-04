@@ -139,6 +139,7 @@ test.describe('Day 9: Academic Catalogue & Flexible Structures (FR-ACAD-001, FR-
     const searchInput = page.getByPlaceholder('Search programmes...');
     if (await searchInput.isVisible()) {
       await searchInput.fill(testProgSlug);
+      await searchInput.press('Enter');
     }
 
     // Verify programme is listed in admin table with Approved Public Display badge
@@ -174,6 +175,7 @@ test.describe('Day 9: Academic Catalogue & Flexible Structures (FR-ACAD-001, FR-
     const searchProg2 = page.getByPlaceholder('Search programmes...');
     if (await searchProg2.isVisible()) {
       await searchProg2.fill(testProgSlug);
+      await searchProg2.press('Enter');
     }
     const editProgRow = page.locator(`tr:has-text("${testProgSlug}")`);
     await editProgRow.locator('button:has-text("Unpublish")').click();

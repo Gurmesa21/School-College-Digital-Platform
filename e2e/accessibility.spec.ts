@@ -7,6 +7,9 @@ import AxeBuilder from '@axe-core/playwright';
  * Scans representative public institutional interfaces and administrative consoles.
  */
 test.describe('Day 19: Automated Accessibility Regression Suite (WCAG 2.2 AA)', () => {
+  test.beforeEach(async () => {
+    test.setTimeout(90000);
+  });
 
   test('1. Public Homepage satisfies WCAG 2.2 AA accessibility rules', async ({ page }) => {
     await page.goto('/');

@@ -175,9 +175,9 @@ export function createApp(options: AppOptions = {}): Express {
   // Security Headers Middleware (OWASP ASVS, NFR-SEC-001)
   app.use(createSecurityHeaders(envConfig));
 
-  // Middleware pipeline with bounded body limits (DoS defense)
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+  // Middleware pipeline with bounded body limits and disabled decompression (DoS defense, GHSA-27r3-jxmh-p828)
+  app.use(express.json({ limit: '1mb', inflate: false }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb', inflate: false }));
   app.use(cookieParser());
   app.use(requestIdMiddleware);
 

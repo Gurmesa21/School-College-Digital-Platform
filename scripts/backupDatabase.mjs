@@ -10,6 +10,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { execSync, spawnSync } from 'child_process';
 import dotenv from 'dotenv';
 
@@ -173,18 +174,25 @@ async function runBackup() {
 
   const durationMs = Date.now() - startTime;
 
-  // Write metadata JSON
+  const fileSha256 = crypto.createHash('sha256').update(fs.readFileSync(backupFilePath)).digest('hex');
+
+  // Attempt to restrict file permissions to owner read/write (0600)
+  try {
+    fs.chmodSync(backupFilePath, 0o600);
+  } catch {
+    // Windows ignores POSIX mode bits gracefully
+  }
+
+  // Write non-credential metadata JSON manifest
   const metaFilePath = `${backupFilePath}.meta.json`;
   const metadata = {
     backupFile: path.basename(backupFilePath),
     fullPath: backupFilePath,
     database: dbConfig.database,
-    user: dbConfig.user,
-    host: dbConfig.host,
-    port: dbConfig.port,
     fileSizeBytes: fileStats.size,
     fileSizeKb: parseFloat(sizeKb),
     fileSizeMb: parseFloat(sizeMb),
+    fileSha256,
     timestamp: new Date().toISOString(),
     durationMs,
     tocEntriesCount: tocLines.length,
@@ -193,6 +201,11 @@ async function runBackup() {
     archiveFormat: 'PostgreSQL Custom Archive (Fc)',
   };
   fs.writeFileSync(metaFilePath, JSON.stringify(metadata, null, 2), 'utf8');
+  try {
+    fs.chmodSync(metaFilePath, 0o600);
+  } catch {
+    // Windows ignores POSIX mode bits gracefully
+  }
   console.log(`[INFO] Metadata manifest written to: ${metaFilePath}`);
 
   console.log('---------------------------------------------------------------');

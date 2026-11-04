@@ -3,9 +3,9 @@
  * Day 20: Disaster Recovery & Backup Verification
  * Database Restoration Drill Script (scripts/restoreDatabase.mjs)
  *
- * Restores a PostgreSQL custom archive dump into a dedicated, safe target database
- * (defaults to gurmesa_restore_test_db).
- * Includes strict safety guards to prevent accidental overwrites of the live dev/prod database.
+ * Restores a PostgreSQL custom archive dump into a dedicated, safe disposable test database.
+ * Strictly enforces that the active source/production database can NEVER be dropped or overwritten.
+ * Requires explicit confirmation before dropping the designated disposable test target.
  */
 
 import fs from 'fs';
@@ -16,7 +16,13 @@ import { parseDatabaseUrl } from './backupDatabase.mjs';
 
 dotenv.config();
 
-function checkNativeTool(toolName) {
+// Strictly authorized disposable drill targets
+export const ALLOWED_TEST_DATABASES = ['gurmesa_restore_test_db'];
+
+// Protected system and production database names that can NEVER be deleted or targeted
+export const PROTECTED_DATABASES = ['postgres', 'template0', 'template1'];
+
+export function checkNativeTool(toolName) {
   try {
     const isWindows = process.platform === 'win32';
     const checkCmd = isWindows ? `where.exe ${toolName}` : `which ${toolName}`;
@@ -27,7 +33,7 @@ function checkNativeTool(toolName) {
   }
 }
 
-function checkDockerContainer(containerName) {
+export function checkDockerContainer(containerName) {
   try {
     const output = execSync(`docker ps --filter "name=${containerName}" --format "{{.Names}}"`, {
       encoding: 'utf8',
@@ -39,7 +45,7 @@ function checkDockerContainer(containerName) {
   }
 }
 
-function getLatestBackupFile(backupsDir) {
+export function getLatestBackupFile(backupsDir) {
   if (!fs.existsSync(backupsDir)) {
     throw new Error(`Backups directory does not exist: ${backupsDir}`);
   }
@@ -59,6 +65,52 @@ function getLatestBackupFile(backupsDir) {
   return files[0].fullPath;
 }
 
+/**
+ * Validates restoration target and parameters with strict safety guards.
+ * Throws an Error immediately if any safety rule is violated.
+ */
+export function validateRestoreSafety(targetDb, sourceDb, rawArgs = []) {
+  // Guard 1: Detect and reject the deprecated --force-overwrite-source flag
+  if (rawArgs.includes('--force-overwrite-source')) {
+    throw new Error(
+      '[CRITICAL RESTORE SAFETY PROHIBITION] The --force-overwrite-source flag has been permanently removed. ' +
+      'Destructive operations against the active source or production database are strictly prohibited under all circumstances.'
+    );
+  }
+
+  // Guard 2: Source database overwrite is categorically impossible
+  if (targetDb === sourceDb) {
+    throw new Error(
+      `[CRITICAL RESTORE SAFETY PROHIBITION] Refusing to restore: target database "${targetDb}" is the active source database! ` +
+      'Restoration is restricted strictly to designated disposable drill targets.'
+    );
+  }
+
+  // Guard 3: Protected system databases cannot be targeted
+  if (PROTECTED_DATABASES.includes(targetDb)) {
+    throw new Error(
+      `[PROTECTED DATABASE GUARD] Refusing to restore: "${targetDb}" is a protected system database.`
+    );
+  }
+
+  // Guard 4: Target must be in the explicit whitelist of disposable test databases
+  if (!ALLOWED_TEST_DATABASES.includes(targetDb)) {
+    throw new Error(
+      `[UNAUTHORIZED TARGET DATABASE] Target database "${targetDb}" is not an authorized disposable test target. ` +
+      `Destructive restoration drills are permitted strictly against: [${ALLOWED_TEST_DATABASES.join(', ')}].`
+    );
+  }
+
+  // Guard 5: Require unmistakable confirmation flag before dropping the target database
+  if (!rawArgs.includes('--confirm-drop-target')) {
+    throw new Error(
+      `[SAFETY CONFIRMATION REQUIRED] Dropping and restoring disposable test target "${targetDb}" requires the explicit confirmation flag: --confirm-drop-target`
+    );
+  }
+
+  return true;
+}
+
 async function runRestore() {
   const startTime = Date.now();
   console.log('===============================================================');
@@ -72,7 +124,6 @@ async function runRestore() {
   const args = process.argv.slice(2);
   let targetDb = 'gurmesa_restore_test_db';
   let targetFile = null;
-  const forceOverwrite = args.includes('--force-overwrite-source');
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--target-db' && args[i + 1]) {
@@ -84,14 +135,9 @@ async function runRestore() {
     }
   }
 
-  // Safety guard: NEVER overwrite source database without explicit flag
-  if (targetDb === sourceDb && !forceOverwrite) {
-    throw new Error(
-      `[CRITICAL SAFETY GUARD] Refusing to restore: target database "${targetDb}" is the active source database! ` +
-      `To drill safely, restore into dedicated test database (e.g. gurmesa_restore_test_db). ` +
-      `If you deliberately intend to overwrite active data, pass --force-overwrite-source.`
-    );
-  }
+  // Execute strict safety validation
+  validateRestoreSafety(targetDb, sourceDb, args);
+  console.log(`[INFO] Safety Guard Status: PASSED (Target "${targetDb}" is an authorized disposable target; Source "${sourceDb}" protected)`);
 
   // Resolve dump file
   const backupsDir = path.resolve(process.cwd(), 'backups');
@@ -106,7 +152,6 @@ async function runRestore() {
   const fileStats = fs.statSync(targetFile);
   console.log(`[INFO] Selected Backup File: ${targetFile} (${(fileStats.size / 1024).toFixed(2)} KB)`);
   console.log(`[INFO] Target Restoration Database: ${targetDb}`);
-  console.log(`[INFO] Safety Guard Status: PASSED (Target "${targetDb}" != Source "${sourceDb}")`);
 
   const containerName = process.env.DOCKER_CONTAINER_NAME || 'school_platform_db';
   const hasNative = checkNativeTool('pg_restore') && checkNativeTool('psql');
@@ -119,7 +164,7 @@ async function runRestore() {
   console.log(`[INFO] Restoration Engine: ${hasNative ? 'Native host PostgreSQL tools' : `Docker container (${containerName})`}`);
 
   // Step 1: Drop & recreate target database safely
-  console.log(`[INFO] Preparing target database "${targetDb}"...`);
+  console.log(`[INFO] Preparing target database "${targetDb}" (confirmed disposable drill target)...`);
   const adminDb = 'postgres';
 
   const terminateSql = `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${targetDb}' AND pid <> pg_backend_pid();`;
@@ -137,7 +182,7 @@ async function runRestore() {
     execSync(`docker exec ${containerName} psql -U ${dbConfig.user} -d ${adminDb} -c "${dropSql}"`, { stdio: 'pipe' });
     execSync(`docker exec ${containerName} psql -U ${dbConfig.user} -d ${adminDb} -c "${createSql}"`, { stdio: 'pipe' });
   }
-  console.log(`[INFO] Database "${targetDb}" created and ready for restore.`);
+  console.log(`[INFO] Disposable target database "${targetDb}" created and ready for restore.`);
 
   // Step 2: Execute pg_restore
   console.log(`[INFO] Restoring archive into "${targetDb}"...`);
@@ -219,4 +264,3 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.met
 }
 
 export { runRestore };
-
