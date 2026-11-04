@@ -25,13 +25,17 @@
     "prisma:migrate": "npm run prisma:migrate --workspace=@school/db",
     "db:seed": "npm run db:seed --workspace=@school/db",
     "test:smoke": "node scripts/smokeTest.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "benchmark:web": "node scripts/benchmarkWeb.mjs",
+    "benchmark:api": "node scripts/benchmarkApi.mjs",
+    "test:perf": "node scripts/benchmarkWeb.mjs && node scripts/benchmarkApi.mjs"
   },
   "prisma": {
     "schema": "packages/db/prisma/schema.prisma",
     "seed": "npm run db:seed --workspace=@school/db"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.64.1",
     "concurrently": "^9.1.2",
     "typescript": "^5.8.2"

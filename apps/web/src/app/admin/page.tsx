@@ -1974,7 +1974,7 @@ export default function TenantAdminPage() {
       )}
 
       {/* Navigation Tabs */}
-      <nav className="tabs" aria-label="Administration Sections">
+      <nav className="tabs" role="tablist" aria-label="Administration Sections">
         <button
           id="tab-overview-btn"
           className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}

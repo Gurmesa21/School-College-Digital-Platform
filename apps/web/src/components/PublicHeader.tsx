@@ -65,7 +65,7 @@ export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) 
       ? '⚙️'
       : '🏛️';
 
-  const brandName = tenant?.name || 'Oxford International School';
+  const brandName = tenant?.name || 'School Platform';
   const brandSub = tenant?.institutionType
     ? formatInstitutionType(tenant.institutionType)
     : 'Digital Platform';
@@ -73,7 +73,7 @@ export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) 
   return (
     <header role="banner" className="public-navbar-container">
       <div className="public-navbar-inner">
-        <Link href="/" className="public-brand-link" aria-label={`${brandName} Home`}>
+        <Link href="/" className="public-brand-link">
           <span className="public-brand-crest" aria-hidden="true">{crestIcon}</span>
           <div className="public-brand-text">
             <span className="public-brand-name">{brandName}</span>

@@ -53,7 +53,7 @@ export default function PublicFooter({ tenant, initialNav }: PublicFooterProps) 
     fetchFooterNav();
   }, [initialNav]);
 
-  const brandName = tenant?.name || 'Oxford International School';
+  const brandName = tenant?.name || 'School Platform';
   const crestIcon =
     tenant?.institutionType === 'KINDERGARTEN'
       ? '🎨'

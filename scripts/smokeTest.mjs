@@ -1104,6 +1104,52 @@ async function run() {
     testCases.push({ name: 'Analytics Value-Level PII Sanitization (201)', status: piiEventRes.status, pass: pass62 });
     console.log(`  -> Status: ${piiEventRes.status}, Recorded: ${piiEventJson.data?.recorded}, Pass: ${pass62}`);
 
+    // Test 63: Day 19 Performance Baseline Read Probe (p95 <= 500ms target)
+    console.log('Testing 63: API Performance Baseline Read Probe');
+    const perfStart = performance.now();
+    const perfRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/academics/programmes?page=1&limit=10', {
+      headers: { 'Host': 'oxford.localhost:4000' },
+    });
+    const perfDuration = performance.now() - perfStart;
+    const pass63 = perfRes.status === 200 && perfDuration < 500;
+    testCases.push({ name: `API Performance Read Probe (<500ms: ${Math.round(perfDuration)}ms)`, status: perfRes.status, pass: pass63 });
+    console.log(`  -> Status: ${perfRes.status}, Duration: ${Math.round(perfDuration)}ms, Pass: ${pass63}`);
+
+    // Test 64: Day 19 Web Accessibility Landmarks & Skip Link Probe
+    console.log('Testing 64: Web Accessibility Landmarks & Skip Link Probe');
+    const a11yWebRes = await fetchUrl('http://localhost:3000/', {
+      headers: { 'Host': 'oxford.localhost:3000' },
+    });
+    const bodyText = a11yWebRes.body || '';
+    const hasSkipLink = bodyText.includes('skip-link');
+    const hasMainLandmark = bodyText.includes('main-content');
+    const pass64 = a11yWebRes.status === 200 && hasSkipLink && hasMainLandmark;
+    testCases.push({ name: 'Web Accessibility Landmarks & Skip Link Probe', status: a11yWebRes.status, pass: pass64 });
+    console.log(`  -> Status: ${a11yWebRes.status}, SkipLink: ${hasSkipLink}, Main: ${hasMainLandmark}, Pass: ${pass64}`);
+
+    // Test 65: Day 19 Form Bot Trap Honeypot Protection
+    console.log('Testing 65: Form Bot Trap Honeypot Protection');
+    const honeypotRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/forms/contact-us/submit', {
+      method: 'POST',
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data: {
+          fullName: 'Spam Bot',
+          email: 'bot@spam.example.org',
+          phone: '+1 800 555 0199',
+          subject: 'Spam Subject',
+          message: 'Spam Message',
+          website_hp: 'http://spam.example.com',
+        },
+      }),
+    });
+    const pass65 = honeypotRes.status === 400 || honeypotRes.status === 422;
+    testCases.push({ name: 'Form Bot Trap Honeypot Protection (400/422)', status: honeypotRes.status, pass: pass65 });
+    console.log(`  -> Status: ${honeypotRes.status}, Pass: ${pass65}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -1117,7 +1163,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 62 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 65 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');
