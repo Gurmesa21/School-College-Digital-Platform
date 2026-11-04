@@ -40,3 +40,4 @@ Thumbs.db
 *.sqlite3
 prisma/*.db
 uploads/
+backups/
