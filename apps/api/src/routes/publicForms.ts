@@ -1,8 +1,12 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
 import { FormService, FormValidationError } from '../services/formService.js';
+import type { AnalyticsService } from '../services/analyticsService.js';
 import { PublicSubmitFormSchema } from '@school/shared';
 
-export function createPublicFormsRouter(formService: FormService): Router {
+export function createPublicFormsRouter(
+  formService: FormService,
+  analyticsService?: AnalyticsService
+): Router {
   const router = express.Router();
 
   /**
@@ -73,6 +77,25 @@ export function createPublicFormsRouter(formService: FormService): Router {
           contactEmail: req.tenant?.contactEmail || undefined,
         }
       );
+
+      // Track public enquiry submission anonymously in analytics (FR-ANL-001)
+      if (analyticsService) {
+        analyticsService
+          .recordPublicEvent(
+            tenantId,
+            {
+              eventType: 'ENQUIRY_SUBMIT',
+              entityType: 'FORM',
+              entityId: slug,
+              path: `/forms/${slug}`,
+              metadata: {
+                category: result.category || 'GENERAL',
+              },
+            },
+            { userAgent }
+          )
+          .catch(() => { });
+      }
 
       res.status(201).json({
         success: true,

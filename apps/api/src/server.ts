@@ -15,6 +15,7 @@ import { InMemoryStaffRepository } from './repositories/staffRepository.js';
 import { InMemoryNewsRepository } from './repositories/newsRepository.js';
 import { InMemoryAnnouncementRepository } from './repositories/announcementRepository.js';
 import { InMemoryEventRepository } from './repositories/eventRepository.js';
+import { InMemoryAnalyticsRepository } from './repositories/analyticsRepository.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { PERMISSIONS } from '@school/shared';
 
@@ -83,6 +84,7 @@ async function startServer() {
       PERMISSIONS.ROLES_READ,
       PERMISSIONS.ROLES_ASSIGN,
       PERMISSIONS.AUDIT_READ,
+      PERMISSIONS.ANALYTICS_VIEW,
     ];
 
     for (const permCode of tenantAdminPermissions) {
@@ -300,6 +302,7 @@ async function startServer() {
       newsRepository: new InMemoryNewsRepository(),
       announcementRepository: new InMemoryAnnouncementRepository(),
       eventRepository: new InMemoryEventRepository(),
+      analyticsRepository: new InMemoryAnalyticsRepository(),
       emailService,
     });
   } else {

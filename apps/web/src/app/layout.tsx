@@ -3,6 +3,7 @@ import './globals.css';
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
 import AnnouncementBanner from '../components/AnnouncementBanner';
+import AnalyticsTracker from '../components/AnalyticsTracker';
 import {
   getRequestHost,
   fetchCurrentTenant,
@@ -73,6 +74,7 @@ export default async function RootLayout({
   return (
     <html lang={tenant?.defaultLocale || 'en'}>
       <body>
+        <AnalyticsTracker />
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>

@@ -21,6 +21,7 @@ import { INewsRepository, PrismaNewsRepository } from './repositories/newsReposi
 import { IAnnouncementRepository, PrismaAnnouncementRepository } from './repositories/announcementRepository.js';
 import { IEventRepository, PrismaEventRepository } from './repositories/eventRepository.js';
 import { ISearchRepository, PrismaSearchRepository } from './repositories/searchRepository.js';
+import { IAnalyticsRepository, PrismaAnalyticsRepository, InMemoryAnalyticsRepository } from './repositories/analyticsRepository.js';
 import { AuthService } from './services/authService.js';
 import { UserAdminService } from './services/userAdminService.js';
 import { CmsService } from './services/cmsService.js';
@@ -34,6 +35,7 @@ import { NewsService } from './services/newsService.js';
 import { AnnouncementService } from './services/announcementService.js';
 import { EventService } from './services/eventService.js';
 import { SearchService } from './services/searchService.js';
+import { AnalyticsService } from './services/analyticsService.js';
 import { InMemoryEmailService } from './services/emailService.js';
 import { healthRouter } from './routes/health.js';
 import { createTenantRouter } from './routes/tenant.js';
@@ -62,6 +64,8 @@ import { createEventAdminRouter } from './routes/eventAdmin.js';
 import { createPublicEventsRouter } from './routes/publicEvents.js';
 import { createPublicSearchRouter } from './routes/publicSearch.js';
 import { createPublicSitemapRouter } from './routes/publicSitemap.js';
+import { createAnalyticsAdminRouter } from './routes/analyticsAdmin.js';
+import { createPublicAnalyticsRouter } from './routes/publicAnalytics.js';
 
 export interface AppOptions {
   repository?: ITenantRepository;
@@ -79,6 +83,7 @@ export interface AppOptions {
   announcementRepository?: IAnnouncementRepository;
   eventRepository?: IEventRepository;
   searchRepository?: ISearchRepository;
+  analyticsRepository?: IAnalyticsRepository;
   emailService?: IEmailService;
   authService?: AuthService;
   userAdminService?: UserAdminService;
@@ -93,6 +98,7 @@ export interface AppOptions {
   announcementService?: AnnouncementService;
   eventService?: EventService;
   searchService?: SearchService;
+  analyticsService?: AnalyticsService;
   envConfig?: EnvConfig;
 }
 
@@ -115,7 +121,17 @@ export function createApp(options: AppOptions = {}): Express {
   const announcementRepository = options.announcementRepository || new PrismaAnnouncementRepository();
   const eventRepository = options.eventRepository || new PrismaEventRepository();
   const searchRepository = options.searchRepository || new PrismaSearchRepository();
+  const isInMemoryMode = Boolean(
+    (options.repository && options.repository.constructor.name.includes('InMemory')) ||
+    (options.authRepository && options.authRepository.constructor.name.includes('InMemory')) ||
+    (options.formRepository && options.formRepository.constructor.name.includes('InMemory'))
+  );
+  const analyticsRepository =
+    options.analyticsRepository ||
+    (isInMemoryMode ? new InMemoryAnalyticsRepository() : new PrismaAnalyticsRepository());
 
+  const analyticsService =
+    options.analyticsService || new AnalyticsService(analyticsRepository, auditRepository);
   const sectionService =
     options.sectionService || new SectionService(sectionRepository, auditRepository);
   const academicService =
@@ -134,7 +150,7 @@ export function createApp(options: AppOptions = {}): Express {
     new EventService(eventRepository, auditRepository, mediaRepository);
   const searchService =
     options.searchService ||
-    new SearchService(searchRepository, auditRepository);
+    new SearchService(searchRepository, auditRepository, analyticsService);
 
   const emailService = options.emailService || new InMemoryEmailService();
   const authService = options.authService || new AuthService(authRepository, emailService);
@@ -202,17 +218,19 @@ export function createApp(options: AppOptions = {}): Express {
   const newsAdminRouter = createNewsAdminRouter(newsService, authRepository);
   const announcementAdminRouter = createAnnouncementAdminRouter(announcementService, authRepository);
   const eventAdminRouter = createEventAdminRouter(eventService, authRepository);
+  const analyticsAdminRouter = createAnalyticsAdminRouter(analyticsService, authRepository);
 
   const publicContentRouter = createPublicContentRouter(cmsService);
   const publicNavigationRouter = createPublicNavigationRouter(navigationService);
-  const publicMediaRouter = createPublicMediaRouter(mediaService);
-  const publicFormsRouter = createPublicFormsRouter(formService);
+  const publicMediaRouter = createPublicMediaRouter(mediaService, analyticsService);
+  const publicFormsRouter = createPublicFormsRouter(formService, analyticsService);
   const publicAcademicsRouter = createPublicAcademicsRouter(academicService);
   const publicStaffRouter = createPublicStaffRouter(staffService);
   const publicNewsRouter = createPublicNewsRouter(newsService);
   const publicAnnouncementsRouter = createPublicAnnouncementsRouter(announcementService);
   const publicEventsRouter = createPublicEventsRouter(eventService);
   const publicSearchRouter = createPublicSearchRouter(searchService);
+  const publicAnalyticsRouter = createPublicAnalyticsRouter(analyticsService);
   const publicSitemapRouter = createPublicSitemapRouter({
     cmsRepo: cmsRepository,
     academicRepo: academicRepository,
@@ -223,6 +241,7 @@ export function createApp(options: AppOptions = {}): Express {
   });
   const tenantRouter = createTenantRouter(authRepository);
 
+  v1Router.use('/tenant/admin/analytics', tenantResolver, analyticsAdminRouter);
   v1Router.use('/tenant/admin', tenantResolver, userAdminRouter);
   v1Router.use('/tenant/cms/pages', tenantResolver, cmsAdminRouter);
   v1Router.use('/tenant/cms/sections', tenantResolver, sectionAdminRouter);
@@ -237,6 +256,7 @@ export function createApp(options: AppOptions = {}): Express {
   v1Router.use('/tenant/cms/events', tenantResolver, eventAdminRouter);
 
   v1Router.use('/tenant/public/sitemap', tenantResolver, publicSitemapRouter);
+  v1Router.use('/tenant/public/analytics', tenantResolver, publicAnalyticsRouter);
 
   v1Router.use('/tenant/public/search', tenantResolver, publicSearchRouter);
   v1Router.use('/tenant/search', tenantResolver, publicSearchRouter);

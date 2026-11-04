@@ -976,6 +976,63 @@ async function run() {
     testCases.push({ name: 'Dynamic OpenGraph Image Generator (200)', status: webOgRes.status, pass: pass53 });
     console.log(`  -> OpenGraph Status: ${webOgRes.status}, Content-Type: ${ogContentType}, Pass: ${pass53}`);
 
+    // Test 54: Day 17 Public Anonymous Analytics Event Ingestion (FR-ANL-001)
+    console.log('Testing 54: Public Analytics Event Ingestion (POST http://localhost:4000/api/v1/tenant/public/analytics/event)');
+    const publicEventRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/analytics/event', {
+      method: 'POST',
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        eventType: 'PAGE_VIEW',
+        path: '/academics/cambridge-igcse',
+        referrerDomain: 'https://www.google.com',
+      }),
+    });
+    const publicEventJson = JSON.parse(publicEventRes.body || '{}');
+    const pass54 = publicEventRes.status === 201 && publicEventJson.success === true && publicEventJson.data?.recorded === true;
+    testCases.push({ name: 'Public Analytics Event Ingestion (201)', status: publicEventRes.status, pass: pass54 });
+    console.log(`  -> Status: ${publicEventRes.status}, Recorded: ${publicEventJson.data?.recorded}, Pass: ${pass54}`);
+
+    // Test 55: Day 17 Protected Admin Analytics Overview (FR-ANL-001, BR-003)
+    console.log('Testing 55: Protected Admin Analytics Overview (GET http://localhost:4000/api/v1/tenant/admin/analytics/overview)');
+    const adminOverviewRes = await fetchUrl('http://localhost:4000/api/v1/tenant/admin/analytics/overview?period=7d', {
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Cookie': cookieString,
+        'Accept': 'application/json',
+      },
+    });
+    const adminOverviewJson = JSON.parse(adminOverviewRes.body || '{}');
+    const pass55 =
+      adminOverviewRes.status === 200 &&
+      adminOverviewJson.success === true &&
+      adminOverviewJson.data?.metrics?.totalPageViews >= 1 &&
+      adminOverviewJson.data?.contentInventory !== undefined &&
+      typeof adminOverviewJson.data?.contentInventory?.publishedPages === 'number';
+    testCases.push({ name: 'Admin Analytics Overview & Inventory (200)', status: adminOverviewRes.status, pass: pass55 });
+    console.log(`  -> Status: ${adminOverviewRes.status}, Views: ${adminOverviewJson.data?.metrics?.totalPageViews}, Pass: ${pass55}`);
+
+    // Test 56: Day 17 Cross-Tenant Analytics Isolation (BR-001)
+    console.log('Testing 56: Cross-Tenant Analytics Host Header Spoofing Rejection');
+    const crossTenantAnalyticsRes = await fetchUrl('http://localhost:4000/api/v1/tenant/admin/analytics/overview', {
+      headers: {
+        'Host': 'greenwood.localhost:4000',
+        'Cookie': cookieString, // Oxford cookie against Greenwood host
+        'Accept': 'application/json',
+      },
+    });
+    const pass56 = crossTenantAnalyticsRes.status === 403;
+    testCases.push({ name: 'Cross-Tenant Analytics Isolation (403)', status: crossTenantAnalyticsRes.status, pass: pass56 });
+    console.log(`  -> Status: ${crossTenantAnalyticsRes.status}, Pass: ${pass56}`);
+
+    // Test 57: Day 16/17 OpenGraph Crawler Exception in Robots Policy
+    console.log('Testing 57: Robots.txt allows /api/og crawler access');
+    const pass57 = webRobotsRes.body.includes('/api/og');
+    testCases.push({ name: 'Robots.txt OpenGraph Crawler Exception', status: 200, pass: pass57 });
+    console.log(`  -> Allow /api/og in robots: ${pass57}, Pass: ${pass57}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -989,7 +1046,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 53 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 57 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');

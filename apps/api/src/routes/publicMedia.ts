@@ -1,8 +1,12 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import { MediaService } from '../services/mediaService.js';
+import type { AnalyticsService } from '../services/analyticsService.js';
 
-export function createPublicMediaRouter(mediaService: MediaService): Router {
+export function createPublicMediaRouter(
+  mediaService: MediaService,
+  analyticsService?: AnalyticsService
+): Router {
   const router = express.Router();
 
   // GET /api/v1/tenant/public/media (List public media assets / documents)
@@ -78,6 +82,28 @@ export function createPublicMediaRouter(mediaService: MediaService): Router {
       const { id } = req.params;
 
       const result = await mediaService.getPublicMedia(tenantId, id);
+
+      // Track public document download anonymously in analytics (FR-ANL-001)
+      if (analyticsService) {
+        try {
+          await analyticsService.recordPublicEvent(
+            tenantId,
+            {
+              eventType: 'DOCUMENT_DOWNLOAD',
+              entityType: 'DOCUMENT',
+              entityId: id,
+              path: `/documents/${id}`,
+              metadata: {
+                title: result.asset.title,
+                category: result.asset.category,
+              },
+            },
+            { userAgent: req.headers['user-agent'] }
+          );
+        } catch {
+          // Non-blocking: analytics failures must never fail document downloads
+        }
+      }
 
       res.setHeader('Content-Type', result.asset.mimeType);
       res.setHeader('Content-Disposition', `inline; filename="${result.asset.title}"`);

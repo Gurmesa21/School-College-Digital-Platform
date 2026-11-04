@@ -7,6 +7,7 @@ import StaffAdminView from '@/components/StaffAdminView';
 import NewsAdminView from '@/components/NewsAdminView';
 import AnnouncementAdminView from '@/components/AnnouncementAdminView';
 import EventAdminView from '@/components/EventAdminView';
+import AnalyticsOverviewView from '@/components/AnalyticsOverviewView';
 
 interface UserMember {
   id?: string;
@@ -259,6 +260,7 @@ interface FormSubmissionItem {
 
 export default function TenantAdminPage() {
   const [activeTab, setActiveTab] = useState<
+    | 'overview'
     | 'members'
     | 'invitations'
     | 'audit'
@@ -273,7 +275,7 @@ export default function TenantAdminPage() {
     | 'news'
     | 'announcements'
     | 'events'
-  >('members');
+  >('overview');
   const [tenantSlug, setTenantSlug] = useState('oxford');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
 
@@ -1974,6 +1976,15 @@ export default function TenantAdminPage() {
       {/* Navigation Tabs */}
       <nav className="tabs" aria-label="Administration Sections">
         <button
+          id="tab-overview-btn"
+          className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+          aria-selected={activeTab === 'overview'}
+          role="tab"
+        >
+          Overview & Analytics
+        </button>
+        <button
           className={`tab-btn ${activeTab === 'members' ? 'active' : ''}`}
           onClick={() => setActiveTab('members')}
           aria-selected={activeTab === 'members'}
@@ -2097,6 +2108,18 @@ export default function TenantAdminPage() {
           Events Calendar
         </button>
       </nav>
+
+      {/* TAB 0: OVERVIEW & ANALYTICS */}
+      {activeTab === 'overview' && (
+        <section aria-label="Institutional Overview and Analytics">
+          <AnalyticsOverviewView
+            key={currentUser ? currentUser.id : 'unauth'}
+            apiBaseUrl={apiBaseUrl}
+            tenantSlug={tenantSlug}
+            onNavigateToTab={(tab: string) => setActiveTab(tab as any)}
+          />
+        </section>
+      )}
 
       {/* TAB 1: MEMBERS */}
       {activeTab === 'members' && (

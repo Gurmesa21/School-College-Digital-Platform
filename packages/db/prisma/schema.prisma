@@ -133,6 +133,15 @@ enum AnnouncementAudience {
   STAFF
 }
 
+enum AnalyticsEventType {
+  PAGE_VIEW
+  CONTENT_VIEW
+  SEARCH
+  ENQUIRY_START
+  ENQUIRY_SUBMIT
+  DOCUMENT_DOWNLOAD
+}
+
 model Tenant {
   id              String          @id @default(cuid())
   slug            String          @unique
@@ -167,6 +176,7 @@ model Tenant {
   newsArticles     NewsArticle[]
   announcements    Announcement[]
   events           EventItem[]
+  analyticsEvents  AnalyticsEvent[]
 
   @@index([slug])
   @@index([status])
@@ -956,6 +966,26 @@ model EventItem {
   @@index([tenantId, endsAt])
   @@index([tenantId, category])
   @@map("events")
+}
+
+model AnalyticsEvent {
+  id             String             @id @default(cuid())
+  tenantId       String
+  eventType      AnalyticsEventType
+  entityType     String?
+  entityId       String?
+  path           String
+  referrerDomain String?
+  deviceCategory String?            @default("desktop")
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, eventType, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@map("analytics_events")
 }
 
 

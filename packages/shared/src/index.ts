@@ -2104,6 +2104,163 @@ export interface SearchResponseData {
   facets: SearchFacetsDto;
 }
 
+/**
+ * ============================================================================
+ * Day 17: Privacy-Aware Analytics & Admin Overviews (FR-ANL-001, NFR-PRIV-001)
+ * ============================================================================
+ */
+
+export const AnalyticsEventTypeEnum = z.enum([
+  'PAGE_VIEW',
+  'CONTENT_VIEW',
+  'SEARCH',
+  'ENQUIRY_START',
+  'ENQUIRY_SUBMIT',
+  'DOCUMENT_DOWNLOAD',
+]);
+export type AnalyticsEventType = z.infer<typeof AnalyticsEventTypeEnum>;
+
+export const DeviceCategoryEnum = z.enum(['desktop', 'mobile', 'tablet', 'other']);
+export type DeviceCategory = z.infer<typeof DeviceCategoryEnum>;
+
+/**
+ * Public Analytics Event Intake Schema (FR-ANL-001, Data Minimization)
+ * Strictly excludes raw IP addresses, user tracking cookies, PII, and form contents.
+ */
+export const SubmitAnalyticsEventSchema = z.object({
+  eventType: AnalyticsEventTypeEnum,
+  entityType: z.string().trim().max(50).optional().nullable(),
+  entityId: z.string().trim().max(150).optional().nullable(),
+  path: z
+    .string()
+    .trim()
+    .min(1, 'Path must not be empty')
+    .max(500, 'Path cannot exceed 500 characters')
+    .refine((p) => p.startsWith('/'), { message: 'Path must start with a leading slash' }),
+  referrerDomain: z
+    .string()
+    .trim()
+    .max(150)
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val) return null;
+      try {
+        const u = val.startsWith('http') ? new URL(val) : new URL(`http://${val}`);
+        return u.hostname.toLowerCase();
+      } catch {
+        return null;
+      }
+    }),
+  deviceCategory: DeviceCategoryEnum.optional().default('desktop'),
+  metadata: z
+    .record(z.unknown())
+    .optional()
+    .nullable()
+    .refine(
+      (m) => {
+        if (!m) return true;
+        // Strict privacy shield: reject any personal details or sensitive keys
+        const forbiddenPatterns = ['ip', 'email', 'password', 'token', 'phone', 'name', 'ssn', 'cookie', 'session'];
+        return !Object.keys(m).some((k) => forbiddenPatterns.some((pattern) => k.toLowerCase().includes(pattern)));
+      },
+      { message: 'Analytics metadata must not contain personal identifiers or credentials' }
+    ),
+});
+
+export type SubmitAnalyticsEventDto = z.infer<typeof SubmitAnalyticsEventSchema>;
+
+/**
+ * Admin Analytics Overview Query Parameters Schema
+ */
+export const AnalyticsPeriodEnum = z.enum(['7d', '30d', '90d', 'custom']);
+export type AnalyticsPeriod = z.infer<typeof AnalyticsPeriodEnum>;
+
+export const AnalyticsQuerySchema = z.object({
+  period: AnalyticsPeriodEnum.optional().default('30d'),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  eventType: AnalyticsEventTypeEnum.optional(),
+});
+
+export type AnalyticsQueryDto = z.infer<typeof AnalyticsQuerySchema>;
+
+/**
+ * Data Retention Cleanup Schema (BR-009)
+ */
+export const AnalyticsRetentionCleanupSchema = z.object({
+  retentionDays: z.coerce.number().int().min(7, 'Minimum retention window is 7 days').max(730).default(90),
+});
+
+export type AnalyticsRetentionCleanupDto = z.infer<typeof AnalyticsRetentionCleanupSchema>;
+
+/**
+ * Analytics Overview Response DTO
+ */
+export interface AnalyticsOverviewDto {
+  period: {
+    startDate: string;
+    endDate: string;
+    days: number;
+    timezone: string;
+  };
+  metrics: {
+    totalPageViews: number;
+    uniquePaths: number;
+    totalSearches: number;
+    totalEnquiries: number;
+    totalDocumentDownloads: number;
+  };
+  dailyTrends: Array<{
+    date: string; // YYYY-MM-DD
+    pageViews: number;
+    searches: number;
+    enquiries: number;
+    documentDownloads: number;
+  }>;
+  topPages: Array<{
+    path: string;
+    views: number;
+  }>;
+  topContent: Array<{
+    entityType: string;
+    entityId: string;
+    views: number;
+  }>;
+  deviceBreakdown: Array<{
+    category: string;
+    count: number;
+    percentage: number;
+  }>;
+  referrerBreakdown: Array<{
+    domain: string;
+    count: number;
+    percentage: number;
+  }>;
+  contentInventory: {
+    publishedPages: number;
+    publishedProgrammes: number;
+    publishedStaff: number;
+    publishedArticles: number;
+    upcomingEvents: number;
+    activeForms: number;
+  };
+  enquiryStatusSummary: {
+    totalSubmissions: number;
+    pendingDelivery: number;
+    delivered: number;
+    failedDelivery: number;
+  };
+}
+
+export interface AnalyticsRetentionResultDto {
+  purgedCount: number;
+  retentionDays: number;
+  cutoffDate: string;
+  message: string;
+}
+
+
 
 
 
