@@ -1,5 +1,6 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
 import fs from 'fs';
+import path from 'path';
 import { MediaService } from '../services/mediaService.js';
 import { IAuthRepository } from '../repositories/authRepository.js';
 import { LocalStorageProvider } from '../storage/storageProvider.js';
@@ -35,6 +36,24 @@ export function createMediaAdminRouter(
         res.status(400).json({
           success: false,
           error: { code: 'INVALID_SIGNED_URL', message: 'Missing required signature parameters.' },
+        });
+        return;
+      }
+
+      // Day 18: Reject cross-tenant signed URL usage when tenant is resolved via host
+      if (req.tenant && req.tenant.id !== tenantId) {
+        res.status(403).json({
+          success: false,
+          error: { code: 'CROSS_TENANT_ACCESS_DENIED', message: 'Signed URL tenant mismatch.' },
+        });
+        return;
+      }
+
+      // Day 18: Path traversal defense on storageKey
+      if (storageKey.includes('..') || path.isAbsolute(storageKey)) {
+        res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_STORAGE_KEY', message: 'Path traversal characters in storage key.' },
         });
         return;
       }

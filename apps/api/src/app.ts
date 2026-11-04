@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { ITenantRepository, IEmailService } from '@school/shared';
 import { config as defaultEnvConfig, EnvConfig } from './config/env.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
+import { createSecurityHeaders } from './middleware/securityHeaders.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { createTenantResolver } from './middleware/tenantResolver.js';
 import { createSessionResolver, createOriginGuard } from './middleware/authMiddleware.js';
@@ -166,12 +167,17 @@ export function createApp(options: AppOptions = {}): Express {
     new FormService(formRepository, auditRepository, emailService, options.repository);
 
   // Basic Express configuration
+  app.disable('x-powered-by');
   if (envConfig.TRUST_PROXY) {
     app.set('trust proxy', 1);
   }
 
-  // Middleware pipeline
-  app.use(express.json());
+  // Security Headers Middleware (OWASP ASVS, NFR-SEC-001)
+  app.use(createSecurityHeaders(envConfig));
+
+  // Middleware pipeline with bounded body limits (DoS defense)
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(cookieParser());
   app.use(requestIdMiddleware);
 

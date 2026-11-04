@@ -147,13 +147,22 @@ export class LocalStorageProvider implements IStorageProvider {
 
   verifySignedDownloadToken(tenantId: string, storageKey: string, expires: number, userId: string, signature: string): boolean {
     const now = Math.floor(Date.now() / 1000);
-    if (now > expires) {
+    if (!expires || isNaN(expires) || now > expires) {
+      return false;
+    }
+    if (!signature || typeof signature !== 'string') {
       return false;
     }
 
     const payload = `${tenantId}:${storageKey}:${expires}:${userId}`;
     const expected = crypto.createHmac('sha256', this.signingSecret).update(payload).digest('hex');
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(sigBuf, expBuf);
   }
 }
 

@@ -5,6 +5,8 @@ import {
   AnalyticsOverviewDto,
   AnalyticsRetentionResultDto,
   DeviceCategory,
+  sanitizeAnalyticsMetadata,
+  sanitizeSensitiveString,
 } from '@school/shared';
 import {
   IAnalyticsRepository,
@@ -64,19 +66,24 @@ export class AnalyticsService {
     if (cleanPath.length > 1 && cleanPath.endsWith('/')) {
       cleanPath = cleanPath.slice(0, -1);
     }
+    cleanPath = sanitizeSensitiveString(cleanPath);
 
     const deviceCategory = data.deviceCategory || this.deriveDeviceCategory(clientHints?.userAgent);
     const referrerDomain = data.referrerDomain || this.sanitizeReferrer(clientHints?.referer);
 
+    const sanitizedMetadata = data.metadata
+      ? (sanitizeAnalyticsMetadata(data.metadata) as Record<string, unknown>)
+      : null;
+
     const recordData: RecordAnalyticsEventData = {
       tenantId,
       eventType: data.eventType as any,
-      entityType: data.entityType || null,
-      entityId: data.entityId || null,
+      entityType: data.entityType ? sanitizeSensitiveString(data.entityType) : null,
+      entityId: data.entityId ? sanitizeSensitiveString(data.entityId) : null,
       path: cleanPath,
       referrerDomain,
       deviceCategory,
-      metadata: (data.metadata as Record<string, unknown>) || null,
+      metadata: sanitizedMetadata,
     };
 
     const saved = await this.analyticsRepository.recordEvent(recordData);

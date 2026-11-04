@@ -1033,6 +1033,77 @@ async function run() {
     testCases.push({ name: 'Robots.txt OpenGraph Crawler Exception', status: 200, pass: pass57 });
     console.log(`  -> Allow /api/og in robots: ${pass57}, Pass: ${pass57}`);
 
+    // Test 58: Day 18 API Security Response Headers (NFR-SEC-001)
+    console.log('Testing 58: API Security Response Headers (X-Content-Type-Options, X-Frame-Options, CSP)');
+    const apiHealthHeadersRes = await fetchUrl('http://localhost:4000/health');
+    const pass58 =
+      apiHealthHeadersRes.headers['x-content-type-options'] === 'nosniff' &&
+      apiHealthHeadersRes.headers['x-frame-options'] === 'DENY' &&
+      apiHealthHeadersRes.headers['content-security-policy']?.includes("frame-ancestors 'none'") &&
+      apiHealthHeadersRes.headers['x-powered-by'] === undefined;
+    testCases.push({ name: 'API Security Response Headers & Fingerprint Removal', status: apiHealthHeadersRes.status, pass: pass58 });
+    console.log(`  -> API Security Headers: ${pass58}, Pass: ${pass58}`);
+
+    // Test 59: Day 18 Web Frontend Security Response Headers
+    console.log('Testing 59: Web Frontend Security Response Headers (X-Content-Type-Options, Permissions-Policy, CSP)');
+    const webSecHeadersRes = await fetchUrl('http://localhost:3000/', {
+      headers: { 'Host': 'oxford.localhost:3000' },
+    });
+    const pass59 =
+      webSecHeadersRes.headers['x-content-type-options'] === 'nosniff' &&
+      webSecHeadersRes.headers['x-frame-options'] === 'SAMEORIGIN' &&
+      webSecHeadersRes.headers['permissions-policy']?.includes('camera=()') &&
+      webSecHeadersRes.headers['content-security-policy']?.includes("default-src 'self'");
+    testCases.push({ name: 'Web Security Response Headers (Next.js)', status: webSecHeadersRes.status, pass: pass59 });
+    console.log(`  -> Web Security Headers: ${pass59}, Pass: ${pass59}`);
+
+    // Test 60: Day 18 Bounded Request Body Size (DoS Protection)
+    console.log('Testing 60: Bounded Body Size Rejection (>1MB payload returns 413)');
+    const bigString = 'Z'.repeat(1024 * 1024 + 50);
+    const bigPayloadRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/analytics/event', {
+      method: 'POST',
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path: '/large', padding: bigString }),
+    });
+    const pass60 = bigPayloadRes.status === 413;
+    testCases.push({ name: 'Request Body Bounding Rejection (413)', status: bigPayloadRes.status, pass: pass60 });
+    console.log(`  -> Status: ${bigPayloadRes.status}, Pass: ${pass60}`);
+
+    // Test 61: Day 18 Cross-Tenant Media / Page Access Control
+    console.log('Testing 61: Cross-Tenant Signed URL Tenant Mismatch Rejection (403)');
+    const crossTenantMediaRes = await fetchUrl('http://localhost:4000/api/v1/tenant/cms/media/download-signed?tenantId=greenwood&key=doc.pdf&expires=9999999999&sig=dummy', {
+      headers: {
+        'Host': 'oxford.localhost:4000', // Oxford host resolving tenant Oxford
+      },
+    });
+    const pass61 = crossTenantMediaRes.status === 403;
+    testCases.push({ name: 'Cross-Tenant Signed URL Isolation (403)', status: crossTenantMediaRes.status, pass: pass61 });
+    console.log(`  -> Status: ${crossTenantMediaRes.status}, Pass: ${pass61}`);
+
+    // Test 62: Day 18 Analytics Value-Level PII Sanitization (NFR-PRIV-001)
+    console.log('Testing 62: Analytics Value-Level PII Sanitization');
+    const piiEventRes = await fetchUrl('http://localhost:4000/api/v1/tenant/public/analytics/event', {
+      method: 'POST',
+      headers: {
+        'Host': 'oxford.localhost:4000',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        eventType: 'SEARCH',
+        path: '/search',
+        metadata: {
+          searchTerm: 'enquiry for student jane.smith@example.org or call 555-019-2831',
+        },
+      }),
+    });
+    const piiEventJson = JSON.parse(piiEventRes.body || '{}');
+    const pass62 = piiEventRes.status === 201 && piiEventJson.success === true;
+    testCases.push({ name: 'Analytics Value-Level PII Sanitization (201)', status: piiEventRes.status, pass: pass62 });
+    console.log(`  -> Status: ${piiEventRes.status}, Recorded: ${piiEventJson.data?.recorded}, Pass: ${pass62}`);
+
     console.log('\n========================================');
     console.log('       LIVE SMOKE TEST RESULTS');
     console.log('========================================');
@@ -1046,7 +1117,7 @@ async function run() {
     await wait(2000);
 
     if (allPassed) {
-      console.log('[Smoke Test] ALL 57 LIVE APPLICATION SMOKE TESTS PASSED!');
+      console.log('[Smoke Test] ALL 62 LIVE APPLICATION SMOKE TESTS PASSED!');
       process.exit(0);
     } else {
       console.error('[Smoke Test] Some smoke tests failed!');

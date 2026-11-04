@@ -124,15 +124,33 @@ export function createOriginGuard(envConfig: EnvConfig = defaultEnvConfig): Requ
       return;
     }
 
-    // Validate origin matches configured allowed origin or host
-    const allowedOrigin = envConfig.CORS_ORIGIN;
-    const reqHost = req.headers.host || '';
+    // Validate origin matches configured allowed origin or host using strict URL parsing
+    let originMatches = false;
+    try {
+      const parsedOrigin = new URL(origin);
+      const originHost = parsedOrigin.host.toLowerCase();
+      const originHostname = parsedOrigin.hostname.toLowerCase();
 
-    const originMatches =
-      origin.startsWith(allowedOrigin) ||
-      (reqHost && origin.includes(reqHost)) ||
-      origin.includes('localhost') ||
-      origin.includes('127.0.0.1');
+      let allowedOriginHost = '';
+      try {
+        allowedOriginHost = new URL(envConfig.CORS_ORIGIN).host.toLowerCase();
+      } catch {
+        allowedOriginHost = envConfig.CORS_ORIGIN.toLowerCase();
+      }
+
+      const reqHost = (req.headers.host || '').toLowerCase();
+
+      if (originHost === allowedOriginHost || originHost === reqHost) {
+        originMatches = true;
+      } else if (
+        envConfig.NODE_ENV !== 'production' &&
+        (originHostname === 'localhost' || originHostname === '127.0.0.1' || originHostname.endsWith('.localhost'))
+      ) {
+        originMatches = true;
+      }
+    } catch {
+      originMatches = false;
+    }
 
     if (!originMatches) {
       const errorResponse: ApiErrorResponse = {

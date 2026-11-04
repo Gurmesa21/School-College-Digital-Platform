@@ -2124,6 +2124,71 @@ export const DeviceCategoryEnum = z.enum(['desktop', 'mobile', 'tablet', 'other'
 export type DeviceCategory = z.infer<typeof DeviceCategoryEnum>;
 
 /**
+ * ============================================================================
+ * Day 18: Security Hardening & PII Sanitization Utilities (NFR-PRIV-001, NFR-SEC-001)
+ * ============================================================================
+ */
+
+// Value-level regex patterns for redaction
+const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+const PHONE_REGEX = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g;
+const BEARER_TOKEN_REGEX = /(?:bearer\s+[A-Za-z0-9._~+/-]+=*)|(?:jwt\s+[A-Za-z0-9._-]+)|(?:[A-Fa-f0-9]{32,64})/gi;
+const IP_ADDRESS_REGEX = /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g;
+
+/**
+ * Sanitizes a single string value by redacting sensitive data patterns.
+ */
+export function sanitizeSensitiveString(val: string): string {
+  if (!val || typeof val !== 'string') return val;
+  return val
+    .replace(EMAIL_REGEX, '[REDACTED_EMAIL]')
+    .replace(PHONE_REGEX, '[REDACTED_PHONE]')
+    .replace(BEARER_TOKEN_REGEX, '[REDACTED_TOKEN]')
+    .replace(IP_ADDRESS_REGEX, '[REDACTED_IP]');
+}
+
+/**
+ * Recursively inspects and sanitizes metadata values, redacting PII, tokens, and IP addresses.
+ * Limits depth and string length to prevent DOS from deeply nested or huge objects.
+ */
+export function sanitizeAnalyticsMetadata(
+  input: unknown,
+  depth = 0
+): unknown {
+  if (depth > 5) return undefined;
+  if (input === null || input === undefined) return input;
+
+  if (typeof input === 'string') {
+    const clamped = input.length > 500 ? input.slice(0, 500) : input;
+    return sanitizeSensitiveString(clamped);
+  }
+
+  if (typeof input === 'number' || typeof input === 'boolean') {
+    return input;
+  }
+
+  if (Array.isArray(input)) {
+    return input.slice(0, 20).map((item) => sanitizeAnalyticsMetadata(item, depth + 1));
+  }
+
+  if (typeof input === 'object') {
+    const sanitizedObj: Record<string, unknown> = {};
+    const forbiddenKeyPatterns = ['ip', 'email', 'password', 'token', 'phone', 'name', 'ssn', 'cookie', 'session', 'secret', 'auth'];
+    
+    for (const [key, val] of Object.entries(input as Record<string, unknown>)) {
+      const lowerKey = key.toLowerCase();
+      if (forbiddenKeyPatterns.some((pattern) => lowerKey.includes(pattern))) {
+        continue;
+      }
+      sanitizedObj[key] = sanitizeAnalyticsMetadata(val, depth + 1);
+    }
+    return sanitizedObj;
+  }
+
+  return undefined;
+}
+
+/**
  * Public Analytics Event Intake Schema (FR-ANL-001, Data Minimization)
  * Strictly excludes raw IP addresses, user tracking cookies, PII, and form contents.
  */
@@ -2165,7 +2230,11 @@ export const SubmitAnalyticsEventSchema = z.object({
         return !Object.keys(m).some((k) => forbiddenPatterns.some((pattern) => k.toLowerCase().includes(pattern)));
       },
       { message: 'Analytics metadata must not contain personal identifiers or credentials' }
-    ),
+    )
+    .transform((m) => {
+      if (!m) return null;
+      return sanitizeAnalyticsMetadata(m) as Record<string, unknown>;
+    }),
 });
 
 export type SubmitAnalyticsEventDto = z.infer<typeof SubmitAnalyticsEventSchema>;

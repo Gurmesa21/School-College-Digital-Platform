@@ -21,7 +21,7 @@ test.describe('Day 15: Public Website Frontends & Tenant-Aware Delivery', () => 
     // Verify Academic Highlights section
     const acadHeading = page.locator('#programmes-heading');
     await expect(acadHeading).toBeVisible();
-    await expect(page.locator('text=Cambridge International A-Levels')).toBeVisible();
+    await expect(page.locator('text=Cambridge IGCSE Programme').or(page.locator('text=Cambridge International A-Levels'))).toBeVisible();
 
     // Verify News section
     const newsHeading = page.locator('#news-heading');

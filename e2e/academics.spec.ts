@@ -135,6 +135,12 @@ test.describe('Day 9: Academic Catalogue & Flexible Structures (FR-ACAD-001, FR-
     await page.locator('#save-programme-btn').click();
     await expect(progModalTitle).not.toBeVisible({ timeout: 10000 });
 
+    // Filter by search to locate newly created programme regardless of table pagination limit
+    const searchInput = page.getByPlaceholder('Search programmes...');
+    if (await searchInput.isVisible()) {
+      await searchInput.fill(testProgSlug);
+    }
+
     // Verify programme is listed in admin table with Approved Public Display badge
     const progRow = page.locator(`tr:has-text("${testProgSlug}")`);
     await expect(progRow).toBeVisible({ timeout: 10000 });
@@ -165,6 +171,10 @@ test.describe('Day 9: Academic Catalogue & Flexible Structures (FR-ACAD-001, FR-
     // ------------------------------------------------------------------------
     await page.goto('/admin');
     await page.locator('#tab-academics-btn').click();
+    const searchProg2 = page.getByPlaceholder('Search programmes...');
+    if (await searchProg2.isVisible()) {
+      await searchProg2.fill(testProgSlug);
+    }
     const editProgRow = page.locator(`tr:has-text("${testProgSlug}")`);
     await editProgRow.locator('button:has-text("Unpublish")').click();
 
