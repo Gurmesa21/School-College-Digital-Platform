@@ -105,9 +105,7 @@ export default async function ContactPage() {
             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>📞</div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Telephone & Enquiries</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-              {tenant?.contactPhone ? `Campus Desk: ${tenant.contactPhone}` : 'Main Office: +251 11 661 2345'}
-              <br />
-              Timezone: {tenant?.timezone || 'UTC'}
+              {tenant?.contactPhone ? `Campus Desk: ${tenant.contactPhone}` : 'Main Office: +44 1865 200100'}
               <br />
               Hours: Mon - Fri (8:00 AM - 4:30 PM)
             </p>
@@ -123,11 +121,14 @@ export default async function ContactPage() {
             }}
           >
             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>✉️</div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Email Communications</h3>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Direct Communications</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-              Official: {tenant?.contactEmail || 'admissions@oxford.school.example'}
-              <br />
-              Response Time: 1 Business Day
+              {tenant?.contactEmail && !tenant.contactEmail.includes('.example') ? (
+                <>Official: {tenant.contactEmail}<br /></>
+              ) : (
+                <>Online Inquiry: Direct dispatch via the secure form below<br /></>
+              )}
+              Response Window: Within 1 Business Day
             </p>
           </div>
         </div>

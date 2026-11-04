@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicProgrammeDto, AcademicLevelDto } from '@school/shared';
 import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
+import { truncateWords } from '@/lib/formatters';
 
 export async function generateMetadata(): Promise<Metadata> {
   const headersList = await headers();
@@ -215,12 +216,13 @@ export default async function PublicAcademicsCataloguePage({ searchParams }: Aca
 
       {/* Catalogue Cards Grid */}
       <section aria-label="Available Academic Programmes">
+        <h2 className="sr-only">Available Academic Programmes</h2>
         {programmes.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📚</div>
-            <h2 style={{ fontSize: '1.35rem', color: '#f8fafc', marginBottom: '0.5rem' }}>
+            <p style={{ fontSize: '1.35rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
               No Programmes Found
-            </h2>
+            </p>
             <p style={{ color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto 1.5rem auto' }}>
               No academic offerings matched your criteria. Try adjusting your level filter or search keywords.
             </p>
@@ -275,7 +277,7 @@ export default async function PublicAcademicsCataloguePage({ searchParams }: Aca
                   </div>
 
                   {/* Title */}
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', lineHeight: 1.3 }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', lineHeight: 1.3 }}>
                     <Link
                       href={`/academics/${p.slug}`}
                       style={{ color: '#f8fafc', textDecoration: 'none' }}
@@ -283,7 +285,7 @@ export default async function PublicAcademicsCataloguePage({ searchParams }: Aca
                     >
                       {p.title}
                     </Link>
-                  </h2>
+                  </h3>
 
                   {/* Duration and Qualifications Specifications */}
                   <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
@@ -300,8 +302,8 @@ export default async function PublicAcademicsCataloguePage({ searchParams }: Aca
                   </div>
 
                   {/* Summary */}
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '1.25rem' }}>
-                    {p.summary || 'Comprehensive academic pathway providing rigor, practical exercises, and standard certification.'}
+                  <p className="line-clamp-3" style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '1.25rem' }}>
+                    {truncateWords(p.summary || 'Comprehensive academic pathway providing rigor, practical exercises, and standard certification.', 140)}
                   </p>
                 </div>
 
@@ -330,6 +332,7 @@ export default async function PublicAcademicsCataloguePage({ searchParams }: Aca
                       href={`/academics/${p.slug}`}
                       className="btn btn-primary btn-sm"
                       style={{ textDecoration: 'none' }}
+                      aria-label={`Curriculum & Details - ${p.title}`}
                     >
                       Curriculum & Details &rarr;
                     </Link>
@@ -337,6 +340,7 @@ export default async function PublicAcademicsCataloguePage({ searchParams }: Aca
                       href="/contact"
                       className="btn btn-secondary btn-sm"
                       style={{ textDecoration: 'none' }}
+                      aria-label={`Inquire about ${p.title}`}
                     >
                       Inquire
                     </Link>

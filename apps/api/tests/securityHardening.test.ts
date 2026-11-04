@@ -106,6 +106,7 @@ describe('Day 18 Suite — Security Hardening & Tenant Isolation Tests (NFR-SEC-
     await authRepo.assignPermissionToRole(oxfordAdminRole.id, PERMISSIONS.MEDIA_WRITE);
     await authRepo.assignPermissionToRole(oxfordAdminRole.id, PERMISSIONS.MEDIA_DELETE);
     await authRepo.assignPermissionToRole(oxfordAdminRole.id, PERMISSIONS.ANALYTICS_VIEW);
+    await authRepo.assignPermissionToRole(oxfordAdminRole.id, PERMISSIONS.USERS_INVITE);
 
     const greenwoodAdminRole = await authRepo.createRole({
       name: 'GREENWOOD_ADMIN',

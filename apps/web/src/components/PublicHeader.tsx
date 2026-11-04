@@ -68,7 +68,7 @@ export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) 
   const brandName = tenant?.name || 'School Platform';
   const brandSub = tenant?.institutionType
     ? formatInstitutionType(tenant.institutionType)
-    : 'Digital Platform';
+    : 'Primary & Secondary Education';
 
   return (
     <header role="banner" className="public-navbar-container">
@@ -83,6 +83,7 @@ export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) 
 
         {/* Mobile Toggle Button */}
         <button
+          id="mobile-nav-toggle-btn"
           className="mobile-nav-toggle"
           aria-expanded={mobileMenuOpen}
           aria-controls="primary-navigation"
@@ -99,7 +100,7 @@ export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) 
           id="primary-navigation"
           role="navigation"
           aria-label="Main"
-          className={`public-nav-menu ${mobileMenuOpen ? 'is-open' : ''}`}
+          className={`public-nav-menu ${mobileMenuOpen ? 'is-open open' : ''}`}
         >
           <ul className="public-nav-list" role="menubar">
             {navItems.map((item) => {
@@ -180,8 +181,20 @@ export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) 
             >
               <span aria-hidden="true">🔍</span> Search
             </Link>
-            <Link href="/admin" className="btn btn-secondary btn-sm admin-portal-btn">
-              Admin Console &rarr;
+            <Link
+              href="/admissions"
+              className="btn btn-primary btn-sm public-admissions-btn public-header-apply-cta"
+              style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}
+            >
+              Apply / Inquire &rarr;
+            </Link>
+            <Link
+              href="/admin"
+              className="public-staff-portal-link"
+              aria-label="Staff Portal - Institutional Administration"
+              title="Staff and Institutional Admin Sign-in"
+            >
+              Staff Portal
             </Link>
           </div>
         </nav>

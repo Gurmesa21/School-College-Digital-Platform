@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicStaffProfileDto, AcademicDepartmentDto } from '@school/shared';
 import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
+import { truncateWords } from '@/lib/formatters';
 
 export async function generateMetadata(): Promise<Metadata> {
   const headersList = await headers();
@@ -278,9 +279,9 @@ export default async function PublicStaffDirectoryPage({ searchParams }: StaffDi
           }}
         >
           <div style={{ fontSize: '3rem', marginBottom: '0.75rem', opacity: 0.8 }}>👥</div>
-          <h2 style={{ fontSize: '1.4rem', color: '#f8fafc', marginBottom: '0.5rem' }}>
+          <p style={{ fontSize: '1.4rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
             No staff profiles found
-          </h2>
+          </p>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '450px', margin: '0 auto 1.5rem auto', lineHeight: 1.6, fontSize: '0.95rem' }}>
             {hasActiveFilters
               ? 'We could not find any faculty members matching your current filter selections. Try broadening your search or resetting filters.'
@@ -293,13 +294,15 @@ export default async function PublicStaffDirectoryPage({ searchParams }: StaffDi
           )}
         </div>
       ) : (
-        <div
+        <section
+          aria-label="Faculty and Staff Members"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
             gap: '1.5rem',
           }}
         >
+          <h2 className="sr-only">Faculty Directory</h2>
           {staffList.map((staff) => (
             <article
               key={staff.id}
@@ -390,18 +393,15 @@ export default async function PublicStaffDirectoryPage({ searchParams }: StaffDi
                 {/* Biography snippet */}
                 {staff.biography && (
                   <p
+                    className="line-clamp-3"
                     style={{
                       fontSize: '0.875rem',
                       color: 'var(--text-secondary)',
                       lineHeight: 1.5,
                       marginBottom: '1rem',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
                     }}
                   >
-                    {staff.biography}
+                    {truncateWords(staff.biography, 140)}
                   </p>
                 )}
 
@@ -523,13 +523,14 @@ export default async function PublicStaffDirectoryPage({ searchParams }: StaffDi
                     alignItems: 'center',
                     gap: '0.25rem',
                   }}
+                  aria-label={`View Profile - ${staff.fullName}`}
                 >
                   View Profile &rarr;
                 </Link>
               </div>
             </article>
           ))}
-        </div>
+        </section>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { SearchResponseData, SearchResultItemDto, SearchResultType } from '@school/shared';
+import { truncateWords, cleanTag } from '@/lib/formatters';
 
 const CONTENT_TYPES: Array<{ key: string; label: string }> = [
   { key: 'ALL', label: 'All Content' },
@@ -347,6 +348,7 @@ function SearchContent() {
         {/* Results List */}
         {!loading && !error && data && data.items.length > 0 && (
           <div className="search-results-list" id="search-results-list">
+            <h2 className="sr-only">Search Results</h2>
             <div className="search-results-summary">
               Showing <strong>{data.items.length}</strong> of <strong>{data.total}</strong> published results for &ldquo;<strong>{data.query}</strong>&rdquo;
             </div>
@@ -368,13 +370,17 @@ function SearchContent() {
                   )}
                 </div>
 
-                <h2 className="result-title">
-                  <Link href={item.url} className="result-title-link">
+                <h3 className="result-title">
+                  <Link href={item.url} className="result-title-link" aria-label={`View ${item.type.toLowerCase()}: ${item.title}`}>
                     {item.title}
                   </Link>
-                </h2>
+                </h3>
 
-                {item.summary && <p className="result-summary">{item.summary}</p>}
+                {item.summary && (
+                  <p className="result-summary line-clamp-3">
+                    {truncateWords(item.summary, 140)}
+                  </p>
+                )}
 
                 {/* Metadata Row */}
                 {item.metadata && (
@@ -419,7 +425,7 @@ function SearchContent() {
                       <div className="metadata-tags-list">
                         {item.metadata.tags.map((tag) => (
                           <span key={tag} className="result-tag-pill">
-                            #{tag}
+                            {cleanTag(tag)}
                           </span>
                         ))}
                       </div>

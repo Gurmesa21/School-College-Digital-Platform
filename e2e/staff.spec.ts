@@ -155,4 +155,15 @@ test.describe('Day 10: Staff Directory & Profiles (FR-ACAD-003, FR-ACAD-004, FR-
     expect([404, 200]).toContain(helenaResponse?.status());
     await expect(page.locator('body')).toContainText('This page could not be found');
   });
+
+  test.afterAll(async () => {
+    try {
+      const { PrismaClient } = await import('@school/db');
+      const prisma = new PrismaClient();
+      await prisma.staffProfile.deleteMany({ where: { slug: testStaffSlug } });
+      await prisma.$disconnect();
+    } catch (err) {
+      console.warn('[Cleanup Warning] Could not clean test staff records:', err);
+    }
+  });
 });

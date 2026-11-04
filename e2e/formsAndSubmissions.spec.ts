@@ -161,4 +161,29 @@ test.describe('Day 7: Dynamic Forms, Public Submissions & Admissions Review Life
     await expect(globalNotice).toBeVisible({ timeout: 10000 });
     await expect(globalNotice).toContainText('Submission status updated to UNDER_REVIEW');
   });
+
+  test.afterAll(async () => {
+    try {
+      const { PrismaClient } = await import('@school/db');
+      const prisma = new PrismaClient();
+      const form = await prisma.form.findFirst({ where: { slug: testFormSlug } });
+      if (form) {
+        await prisma.formSubmission.deleteMany({ where: { formId: form.id } });
+        await prisma.formField.deleteMany({ where: { formId: form.id } });
+        await prisma.form.delete({ where: { id: form.id } });
+      }
+      await prisma.formSubmission.deleteMany({
+        where: {
+          OR: [
+            { submitterEmail: `contact.${testRunId}@example.com` },
+            { submitterEmail: `guardian.${testRunId}@example.com` },
+            { submitterEmail: `scholar.${testRunId}@example.com` },
+          ],
+        },
+      });
+      await prisma.$disconnect();
+    } catch (err) {
+      console.warn('[Cleanup Warning] Could not clean test form records:', err);
+    }
+  });
 });

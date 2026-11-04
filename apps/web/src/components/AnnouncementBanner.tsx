@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { PublicAnnouncementDto } from '@school/shared';
+import { truncateWords } from '@/lib/formatters';
 
 interface AnnouncementBannerProps {
   initialAnnouncements?: PublicAnnouncementDto[];
@@ -13,6 +14,7 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
     initialAnnouncements || []
   );
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [collapsedUrgent, setCollapsedUrgent] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(!initialAnnouncements);
 
   useEffect(() => {
@@ -59,6 +61,10 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
     setDismissedIds((prev) => [...prev, id]);
   };
 
+  const toggleUrgentCollapse = (id: string) => {
+    setCollapsedUrgent((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
     <aside
       aria-label="Institutional Announcements and Advisories"
@@ -66,13 +72,23 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
       style={{
         width: '100%',
         backgroundColor: '#0f172a',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-        padding: '0.5rem 1rem',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        padding: '0.4rem 1rem',
       }}
     >
-      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div
+        style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.4rem',
+        }}
+      >
         {visibleAnnouncements.map((item) => {
           const isEmergency = item.priority === 'EMERGENCY' || item.priority === 'HIGH';
+          const isCollapsed = Boolean(collapsedUrgent[item.id]);
+
           return (
             <div
               key={item.id}
@@ -82,61 +98,114 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '1rem',
-                padding: '0.6rem 1rem',
+                gap: '0.75rem',
+                padding: '0.45rem 0.85rem',
                 borderRadius: '6px',
-                backgroundColor: isEmergency ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.1)',
+                backgroundColor: isEmergency ? 'rgba(239, 68, 68, 0.14)' : 'rgba(59, 130, 246, 0.1)',
                 borderLeft: isEmergency ? '4px solid #ef4444' : '4px solid #3b82f6',
                 color: '#f8fafc',
-                fontSize: '0.9rem',
+                fontSize: '0.875rem',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.65rem',
+                  flex: 1,
+                  flexWrap: 'wrap',
+                }}
+              >
                 <span
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    padding: '0.15rem 0.5rem',
+                    padding: '0.15rem 0.45rem',
                     borderRadius: '4px',
-                    fontSize: '0.75rem',
+                    fontSize: '0.72rem',
                     fontWeight: 700,
                     textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
                     backgroundColor: isEmergency ? '#dc2626' : '#2563eb',
                     color: '#ffffff',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {isEmergency ? '⚠️ Urgent Notice' : 'Notice'}
                 </span>
-                <span style={{ fontWeight: 600 }}>{item.title}</span>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                  {item.content.length > 140 ? `${item.content.slice(0, 140)}...` : item.content}
-                </span>
+
+                <span style={{ fontWeight: 600, color: '#f8fafc' }}>{item.title}</span>
+
+                {!isCollapsed && (
+                  <span style={{ color: '#e2e8f0', fontSize: '0.84rem' }}>
+                    {truncateWords(item.content, 95)}
+                  </span>
+                )}
+
                 <Link
                   href={`/news#announcement-${item.id}`}
+                  aria-label={`Read details for announcement: ${item.title}`}
                   style={{
                     color: isEmergency ? '#fca5a5' : '#93c5fd',
-                    fontSize: '0.85rem',
+                    fontSize: '0.84rem',
                     textDecoration: 'underline',
-                    fontWeight: 500,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   Read details &rarr;
                 </Link>
               </div>
 
-              {!isEmergency && (
+              {isEmergency ? (
+                <button
+                  type="button"
+                  onClick={() => toggleUrgentCollapse(item.id)}
+                  aria-expanded={!isCollapsed}
+                  aria-label={
+                    isCollapsed
+                      ? `Expand urgent announcement: ${item.title}`
+                      : `Minimize urgent announcement: ${item.title}`
+                  }
+                  title={isCollapsed ? 'Expand notice details' : 'Minimize notice'}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '4px',
+                    color: '#fca5a5',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    padding: '0.2rem 0.45rem',
+                    minHeight: '32px',
+                    minWidth: '32px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {isCollapsed ? '+ Details' : '− Minimize'}
+                </button>
+              ) : (
                 <button
                   type="button"
                   onClick={() => handleDismiss(item.id)}
                   aria-label={`Dismiss announcement: ${item.title}`}
+                  title="Dismiss this notice"
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: 'var(--text-muted)',
+                    borderRadius: '4px',
+                    color: '#94a3b8',
                     cursor: 'pointer',
                     fontSize: '1.25rem',
                     lineHeight: 1,
-                    padding: '0.25rem',
+                    minHeight: '32px',
+                    minWidth: '32px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
                   &times;

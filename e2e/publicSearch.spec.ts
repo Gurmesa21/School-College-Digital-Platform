@@ -76,6 +76,8 @@ test.describe('Day 14: Tenant-Scoped Public Search E2E Lifecycle (FR-SRCH-001, U
     if (await progTab.isVisible()) {
       await progTab.click();
       await expect(page).toHaveURL(/type=PROGRAMME/);
+      await expect(page.locator('.search-loading-state')).not.toBeVisible();
+      await page.waitForTimeout(500);
 
       // Verify every card is a PROGRAMME card
       const badges = page.locator('.result-type-badge');

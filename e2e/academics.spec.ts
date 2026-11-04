@@ -188,4 +188,26 @@ test.describe('Day 9: Academic Catalogue & Flexible Structures (FR-ACAD-001, FR-
     expect([404, 200]).toContain(draftDetailResponse?.status()); // Next.js dynamic notFound() renders 404 page
     await expect(page.locator('body')).toContainText('This page could not be found');
   });
+
+  test.afterAll(async () => {
+    try {
+      const { PrismaClient } = await import('@school/db');
+      const prisma = new PrismaClient();
+      await prisma.programmeCourse.deleteMany({
+        where: {
+          OR: [
+            { programme: { slug: testProgSlug } },
+            { course: { slug: testCourseSlug } },
+          ],
+        },
+      });
+      await prisma.programme.deleteMany({ where: { slug: testProgSlug } });
+      await prisma.course.deleteMany({ where: { slug: testCourseSlug } });
+      await prisma.academicDepartment.deleteMany({ where: { slug: testDeptSlug } });
+      await prisma.academicLevel.deleteMany({ where: { slug: testLevelSlug } });
+      await prisma.$disconnect();
+    } catch (err) {
+      console.warn('[Cleanup Warning] Could not clean test records:', err);
+    }
+  });
 });

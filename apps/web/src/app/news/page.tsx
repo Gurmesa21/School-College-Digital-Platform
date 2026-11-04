@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicNewsArticleDto } from '@school/shared';
 import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
+import { truncateWords, cleanTag } from '@/lib/formatters';
 
 export async function generateMetadata(): Promise<Metadata> {
   const headersList = await headers();
@@ -363,9 +364,9 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
       {articles.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
           <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>📰</span>
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#f8fafc' }}>
+          <p style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', color: '#f8fafc' }}>
             No Articles Found
-          </h2>
+          </p>
           <p style={{ color: 'var(--text-muted)', maxWidth: '500px', margin: '0 auto 1.5rem' }}>
             There are no news articles matching the selected filters. Check back soon for institutional publications.
           </p>
@@ -376,7 +377,8 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
           )}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
+        <section aria-label="Campus News Articles" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
+          <h2 className="sr-only">Campus News Articles</h2>
           {articles.map((article) => {
             const pubDate = article.publishedAt
               ? new Date(article.publishedAt).toLocaleDateString('en-GB', {
@@ -420,19 +422,19 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
                   </div>
 
                   {/* Title */}
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem', lineHeight: 1.35 }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem', lineHeight: 1.35 }}>
                     <Link
                       href={`/news/${article.slug}`}
                       style={{ color: '#f8fafc', textDecoration: 'none' }}
                     >
                       {article.title}
                     </Link>
-                  </h2>
+                  </h3>
 
                   {/* Summary */}
                   {article.summary && (
-                    <p style={{ color: 'var(--text-secondary, #94a3b8)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1rem', flex: 1 }}>
-                      {article.summary}
+                    <p className="line-clamp-3" style={{ color: 'var(--text-secondary, #94a3b8)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1rem', flex: 1 }}>
+                      {truncateWords(article.summary, 140)}
                     </p>
                   )}
 
@@ -444,13 +446,14 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
                           key={t}
                           style={{
                             fontSize: '0.72rem',
-                            padding: '0.1rem 0.4rem',
-                            borderRadius: '4px',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '9999px',
                             backgroundColor: 'rgba(255,255,255,0.06)',
                             color: 'var(--text-muted)',
+                            border: '1px solid rgba(255,255,255,0.08)',
                           }}
                         >
-                          #{t}
+                          {cleanTag(t)}
                         </span>
                       ))}
                     </div>
@@ -469,6 +472,7 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
                         color: 'var(--accent-primary, #3b82f6)',
                         textDecoration: 'none',
                       }}
+                      aria-label={`Read Full Story - ${article.title}`}
                     >
                       Read Full Story &rarr;
                     </Link>
@@ -477,7 +481,7 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
               </article>
             );
           })}
-        </div>
+        </section>
       )}
     </div>
   );

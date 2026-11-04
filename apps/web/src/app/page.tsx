@@ -13,24 +13,25 @@ import type {
   PublicEventItemDto,
   PublicStaffProfileDto,
 } from '@school/shared';
+import { truncateWords, cleanTag } from '@/lib/formatters';
 
 export async function generateMetadata(): Promise<Metadata> {
   const host = await getRequestHost();
   const tenant = await fetchCurrentTenant(host);
-  const name = tenant?.name || 'School Platform';
+  const name = tenant?.name || 'Oxford International School';
   const canonicalUrl = getCanonicalUrl(tenant, '/', host);
-  const institutionTypeLabel = formatInstitutionType(tenant?.institutionType);
+  const institutionTypeLabel = formatInstitutionType(tenant?.institutionType) || 'Primary & Secondary Education';
   const ogImageUrl = `/api/og?title=${encodeURIComponent(name)}&subtitle=${encodeURIComponent(institutionTypeLabel)}&type=portal`;
 
   return {
-    title: `${name} | School Platform — Private School & College Digital Website Platform`,
-    description: `Official digital homepage for ${name}. Explore our academic pathways, faculty directory, campus news, and admissions.`,
+    title: `${name} | ${institutionTypeLabel}`,
+    description: `Official digital portal for ${name}. Explore our accredited academic programmes, faculty directory, campus news, and admissions inquiries.`,
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
-      title: name,
-      description: `Official digital homepage for ${name}. Explore our academic pathways, faculty directory, campus news, and admissions.`,
+      title: `${name} | ${institutionTypeLabel}`,
+      description: `Official digital portal for ${name}. Explore our accredited academic programmes, faculty directory, campus news, and admissions inquiries.`,
       url: canonicalUrl,
       siteName: name,
       type: 'website',
@@ -45,8 +46,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: 'summary_large_image',
-      title: name,
-      description: `Official digital homepage for ${name}. Explore our academic pathways, faculty directory, campus news, and admissions.`,
+      title: `${name} | ${institutionTypeLabel}`,
+      description: `Official digital portal for ${name}. Explore our accredited academic programmes, faculty directory, campus news, and admissions inquiries.`,
       images: [ogImageUrl],
     },
   };
@@ -102,7 +103,7 @@ export default async function HomePage() {
   const { programmes, news, events, staff } = await fetchHomeContent(host);
 
   const institutionName = tenant?.name || 'Oxford International School';
-  const institutionTypeLabel = formatInstitutionType(tenant?.institutionType);
+  const institutionTypeLabel = formatInstitutionType(tenant?.institutionType) || 'Primary & Secondary Education';
   const crestIcon =
     tenant?.institutionType === 'KINDERGARTEN'
       ? '🎨'
@@ -111,33 +112,31 @@ export default async function HomePage() {
         : '🏛️';
 
   return (
-    <div className="institutional-homepage-container" style={{ padding: '1rem 0 3rem 0' }}>
+    <div className="institutional-homepage-container" style={{ padding: '0.5rem 0 3rem 0' }}>
       {/* 1. Institutional Hero Section */}
       <section
         className="hero-section"
         aria-label="Institutional Welcome"
         style={{
-          marginBottom: '3rem',
-          padding: '3rem 2rem',
-          background: 'radial-gradient(ellipse at top, rgba(37, 99, 235, 0.12) 0%, rgba(15, 23, 42, 0) 70%)',
+          marginBottom: '2.5rem',
+          padding: '2.25rem 2rem',
+          background: 'radial-gradient(ellipse at top, rgba(37, 99, 235, 0.14) 0%, rgba(15, 23, 42, 0) 70%)',
           borderRadius: '16px',
           border: '1px solid var(--border-subtle)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <span className="badge badge-active">{institutionTypeLabel}</span>
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Timezone: {tenant?.timezone || 'UTC'} &bull; Locale: {tenant?.defaultLocale || 'en'}
-          </span>
+          <span className="badge badge-level">Admissions Open</span>
         </div>
 
         <h1
           style={{
-            fontSize: '2.75rem',
+            fontSize: 'clamp(2rem, 4vw, 2.75rem)',
             fontWeight: 800,
             color: '#f8fafc',
             lineHeight: 1.15,
-            marginBottom: '1rem',
+            marginBottom: '0.85rem',
             letterSpacing: '-0.02em',
           }}
         >
@@ -145,37 +144,38 @@ export default async function HomePage() {
           <span
             style={{
               display: 'block',
-              fontSize: '1.25rem',
-              fontWeight: 500,
-              color: 'var(--text-muted)',
-              marginTop: '0.5rem',
+              fontSize: '1.2rem',
+              fontWeight: 600,
+              color: 'var(--accent-primary)',
+              marginTop: '0.35rem',
+              letterSpacing: '0.01em',
             }}
           >
-            Private School &amp; College Digital Website Platform
+            {institutionTypeLabel}
           </span>
         </h1>
 
         <p
           style={{
             color: 'var(--text-secondary)',
-            fontSize: '1.2rem',
+            fontSize: '1.15rem',
             maxWidth: '820px',
             lineHeight: 1.6,
-            marginBottom: '2rem',
+            marginBottom: '1.75rem',
           }}
         >
           Welcome to {institutionName}. Dedicated to academic rigor, experiential discovery, holistic learner well-being, and accredited educational pathways.
         </p>
 
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <Link href="/academics" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+        <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <Link href="/admissions" className="btn btn-primary" style={{ textDecoration: 'none', fontWeight: 600 }}>
+            Apply / Admissions Inquiries &rarr;
+          </Link>
+          <Link href="/academics" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
             Explore Academic Programmes &rarr;
           </Link>
-          <Link href="/admissions" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
-            Admissions & Applications
-          </Link>
           <Link href="/contact" className="btn btn-outline" style={{ textDecoration: 'none' }}>
-            Contact Campus Office
+            Contact Campus
           </Link>
           <Link href="/search" className="btn btn-outline" style={{ textDecoration: 'none' }}>
             🔍 Search Directory
@@ -184,7 +184,7 @@ export default async function HomePage() {
       </section>
 
       {/* 2. Rapid Directory Navigation Grid */}
-      <section aria-label="Institutional Quick Directory" style={{ marginBottom: '3.5rem' }}>
+      <section aria-label="Institutional Quick Directory" style={{ marginBottom: '3rem' }}>
         <div
           style={{
             display: 'grid',
@@ -202,7 +202,7 @@ export default async function HomePage() {
               Academics
             </strong>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Degrees, levels & curricula
+              Degrees, levels &amp; curricula
             </span>
           </Link>
 
@@ -213,10 +213,10 @@ export default async function HomePage() {
           >
             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>👥</div>
             <strong style={{ display: 'block', color: '#f8fafc', fontSize: '1.05rem', marginBottom: '0.25rem' }}>
-              Faculty & Staff
+              Faculty &amp; Staff
             </strong>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Leadership & educators
+              Leadership &amp; educators
             </span>
           </Link>
 
@@ -227,10 +227,10 @@ export default async function HomePage() {
           >
             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>📰</div>
             <strong style={{ display: 'block', color: '#f8fafc', fontSize: '1.05rem', marginBottom: '0.25rem' }}>
-              News & Notices
+              News &amp; Notices
             </strong>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Stories & advisories
+              Stories &amp; advisories
             </span>
           </Link>
 
@@ -244,7 +244,7 @@ export default async function HomePage() {
               Events Calendar
             </strong>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Assemblies & open days
+              Assemblies &amp; open days
             </span>
           </Link>
 
@@ -258,7 +258,7 @@ export default async function HomePage() {
               Admissions
             </strong>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Inquiry & applications
+              Inquiry &amp; applications
             </span>
           </Link>
 
@@ -272,7 +272,7 @@ export default async function HomePage() {
               Contact
             </strong>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Campus inquiries & desk
+              Campus inquiries &amp; desk
             </span>
           </Link>
         </div>
@@ -306,8 +306,8 @@ export default async function HomePage() {
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
                     {prog.title}
                   </h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '1rem' }}>
-                    {prog.summary || 'Explore comprehensive curriculum requirements and qualification criteria.'}
+                  <p className="line-clamp-2" style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '1rem' }}>
+                    {truncateWords(prog.summary, 120) || 'Explore comprehensive curriculum requirements and qualification criteria.'}
                   </p>
                 </div>
                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -318,6 +318,7 @@ export default async function HomePage() {
                     href={`/academics/${prog.slug}`}
                     className="btn btn-sm btn-outline"
                     style={{ textDecoration: 'none' }}
+                    aria-label={`Programme Details for ${prog.title}`}
                   >
                     Programme Details &rarr;
                   </Link>
@@ -340,14 +341,14 @@ export default async function HomePage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
             <h2 id="news-heading" style={{ fontSize: '1.65rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.25rem' }}>
-              Campus News & Discoveries
+              Campus News &amp; Discoveries
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
               Recent achievements, academic breakthroughs, and stories from our campus.
             </p>
           </div>
           <Link href="/news" style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600, fontSize: '0.9rem' }}>
-            Read All News & Notices &rarr;
+            Read All News &amp; Notices &rarr;
           </Link>
         </div>
 
@@ -361,18 +362,25 @@ export default async function HomePage() {
                       {item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}
                     </span>
                     {item.tags?.slice(0, 2).map((t) => (
-                      <span key={t} className="badge badge-info" style={{ fontSize: '0.7rem' }}>#{t}</span>
+                      <span key={t} className="badge badge-info" style={{ fontSize: '0.72rem' }}>
+                        {cleanTag(t)}
+                      </span>
                     ))}
                   </div>
                   <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
                     {item.title}
                   </h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1rem' }}>
-                    {item.summary || (item.body ? `${item.body.slice(0, 120)}...` : 'Read full article details.')}
+                  <p className="line-clamp-2" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1rem' }}>
+                    {truncateWords(item.summary || item.body, 120) || 'Read full article details.'}
                   </p>
                 </div>
                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
-                  <Link href={`/news/${item.slug}`} className="btn btn-sm btn-secondary" style={{ textDecoration: 'none' }}>
+                  <Link
+                    href={`/news/${item.slug}`}
+                    className="btn btn-sm btn-secondary"
+                    style={{ textDecoration: 'none' }}
+                    aria-label={`Read Story - ${item.title}`}
+                  >
                     Read Story &rarr;
                   </Link>
                 </div>
@@ -421,13 +429,18 @@ export default async function HomePage() {
                       📍 {evt.location}
                     </p>
                   )}
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1rem' }}>
-                    {evt.description?.slice(0, 120)}...
+                  <p className="line-clamp-2" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1rem' }}>
+                    {truncateWords(evt.description, 120)}
                   </p>
                 </div>
                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
-                  <Link href={`/events/${evt.slug}`} className="btn btn-sm btn-outline" style={{ textDecoration: 'none' }}>
-                    Event Details & iCal &rarr;
+                  <Link
+                    href={`/events/${evt.slug}`}
+                    className="btn btn-sm btn-outline"
+                    style={{ textDecoration: 'none' }}
+                    aria-label={`Event Details & iCal - ${evt.title}`}
+                  >
+                    Event Details &amp; iCal &rarr;
                   </Link>
                 </div>
               </article>
@@ -446,7 +459,7 @@ export default async function HomePage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div>
               <h2 id="staff-heading" style={{ fontSize: '1.65rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.25rem' }}>
-                Faculty & Academic Leadership
+                Faculty &amp; Academic Leadership
               </h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
                 Meet distinguished educators and division leaders at {institutionName}.
@@ -466,13 +479,15 @@ export default async function HomePage() {
                       width: '44px',
                       height: '44px',
                       borderRadius: '50%',
-                      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                      backgroundColor: 'rgba(59, 130, 246, 0.18)',
+                      border: '1px solid rgba(59, 130, 246, 0.35)',
                       color: 'var(--accent-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 700,
-                      fontSize: '1rem',
+                      fontSize: '1.05rem',
+                      flexShrink: 0,
                     }}
                   >
                     {person.fullName.charAt(0)}
@@ -491,10 +506,14 @@ export default async function HomePage() {
                     {person.department.name}
                   </span>
                 )}
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.4, marginBottom: '0.75rem' }}>
-                  {person.biography ? `${person.biography.slice(0, 90)}...` : 'Faculty scholar and academic mentor.'}
+                <p className="line-clamp-2" style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.4, marginBottom: '0.75rem' }}>
+                  {truncateWords(person.biography, 90) || 'Faculty scholar and academic mentor.'}
                 </p>
-                <Link href={`/staff/${person.slug}`} style={{ color: 'var(--accent-primary)', fontSize: '0.85rem', textDecoration: 'none', fontWeight: 600 }}>
+                <Link
+                  href={`/staff/${person.slug}`}
+                  style={{ color: 'var(--accent-primary)', fontSize: '0.85rem', textDecoration: 'none', fontWeight: 600 }}
+                  aria-label={`View Profile - ${person.fullName}`}
+                >
                   View Profile &rarr;
                 </Link>
               </div>
@@ -506,7 +525,7 @@ export default async function HomePage() {
       {/* 7. Institutional Admissions Banner */}
       <section
         style={{
-          marginBottom: '3.5rem',
+          marginBottom: '2rem',
           padding: '2.5rem 2rem',
           backgroundColor: 'rgba(15, 23, 42, 0.6)',
           border: '1px solid var(--border-subtle)',
@@ -529,45 +548,6 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
-
-      {/* 8. Platform Baseline & Environment Status (Preserves existing smoke test checks) */}
-      <section className="card" aria-labelledby="status-heading" style={{ marginBottom: '2.5rem' }}>
-        <h2 id="status-heading" style={{ fontSize: '1.25rem', marginBottom: '1rem', color: 'var(--accent-primary)' }}>
-          Environment & System Status
-        </h2>
-        <div className="grid">
-          <div>
-            <strong>Frontend App:</strong>
-            <p style={{ color: 'var(--text-secondary)' }}>Next.js 16 (App Router) on port <code>3000</code></p>
-          </div>
-          <div>
-            <strong>REST API Backend:</strong>
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Node.js / Express on port <code>4000</code>
-            </p>
-          </div>
-          <div>
-            <strong>Database Schema:</strong>
-            <p style={{ color: 'var(--text-secondary)' }}>PostgreSQL & Prisma ORM (<code>packages/db</code>)</p>
-          </div>
-          <div>
-            <strong>Accessibility Target:</strong>
-            <p style={{ color: 'var(--text-secondary)' }}>WCAG 2.2 AA compliant tokens & semantics</p>
-          </div>
-        </div>
-        <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Institution Domain: <code>{host}</code> ({tenant ? `Resolved: ${tenant.slug}` : 'Default resolution'})
-          </span>
-          <Link href="/admin" className="btn btn-secondary btn-sm" style={{ textDecoration: 'none' }}>
-            Open Institutional Admin Console &rarr;
-          </Link>
-        </div>
-      </section>
-
-      <footer style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-        <p>Private School & College Digital Website Platform — Controlled 20-Day Implementation Plan</p>
-      </footer>
     </div>
   );
 }

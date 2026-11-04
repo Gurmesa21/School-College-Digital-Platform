@@ -11,14 +11,14 @@ test.describe('Platform E2E Smoke & Health Verification', () => {
     });
 
     await page.goto('/');
-    await expect(page).toHaveTitle(/School Platform/i);
+    await expect(page).toHaveTitle(/Oxford International School|Institutional Platform|School Platform/i);
 
     const mainHeading = page.locator('h1');
-    await expect(mainHeading).toContainText('Private School & College Digital Website Platform');
+    await expect(mainHeading).toContainText(/Oxford International School|Institutional Digital Platform/);
 
+    // Verify internal engineering status block is removed from public presentation (Day 21 P0)
     const statusHeading = page.locator('#status-heading');
-    await expect(statusHeading).toBeVisible();
-    await expect(statusHeading).toContainText('Environment & System Status');
+    await expect(statusHeading).not.toBeVisible();
 
     // Navigation to Admin interface
     const adminLink = page.locator('a[href="/admin"]').first();

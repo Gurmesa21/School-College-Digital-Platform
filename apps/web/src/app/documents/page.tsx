@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getRequestHost, fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
 import type { MediaAssetDto } from '@school/shared';
+import { truncateWords } from '@/lib/formatters';
 
 export async function generateMetadata(): Promise<Metadata> {
   const host = await getRequestHost();
@@ -107,7 +108,8 @@ export default async function PublicDocumentsPage() {
 
       {/* Documents Grid */}
       {documents.length > 0 ? (
-        <div
+        <section
+          aria-label="Official Documents and Downloads"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
@@ -115,6 +117,7 @@ export default async function PublicDocumentsPage() {
             marginBottom: '3rem',
           }}
         >
+          <h2 className="sr-only">Available Documents</h2>
           {documents.map((doc) => {
             const fileSizeMb = doc.fileSizeBytes
               ? (doc.fileSizeBytes / (1024 * 1024)).toFixed(2)
@@ -148,13 +151,13 @@ export default async function PublicDocumentsPage() {
                     </div>
                   </div>
 
-                  <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
                     {doc.title}
-                  </h2>
+                  </h3>
 
                   {doc.caption && (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1rem' }}>
-                      {doc.caption}
+                    <p className="line-clamp-2" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '1rem' }}>
+                      {truncateWords(doc.caption, 130)}
                     </p>
                   )}
                 </div>
@@ -169,6 +172,7 @@ export default async function PublicDocumentsPage() {
                     rel="noopener noreferrer"
                     className="btn btn-primary btn-sm"
                     style={{ textDecoration: 'none' }}
+                    aria-label={`Download File - ${doc.title}`}
                   >
                     Download File &darr;
                   </a>
@@ -176,13 +180,13 @@ export default async function PublicDocumentsPage() {
               </article>
             );
           })}
-        </div>
+        </section>
       ) : (
         <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem' }}>
           <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>📁</span>
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#f8fafc' }}>
+          <p style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', color: '#f8fafc' }}>
             No Public Documents Currently Published
-          </h2>
+          </p>
           <p style={{ color: 'var(--text-muted)', maxWidth: '480px', margin: '0 auto 1.5rem auto', fontSize: '0.95rem' }}>
             Official publications, prospectuses, and downloadable forms for {institutionName} will appear here when released.
           </p>

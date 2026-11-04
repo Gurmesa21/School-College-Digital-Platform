@@ -80,7 +80,13 @@ export default function PublicFooter({ tenant, initialNav }: PublicFooterProps) 
             )}
             <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
               {tenant?.contactPhone && <span>📞 {tenant.contactPhone}</span>}
-              {tenant?.contactEmail && <span>✉️ {tenant.contactEmail}</span>}
+              {tenant?.contactEmail && !tenant.contactEmail.endsWith('.example') ? (
+                <span>✉️ {tenant.contactEmail}</span>
+              ) : (
+                <Link href="/contact" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>
+                  ✉️ Admissions & Campus Inquiries
+                </Link>
+              )}
             </div>
           </div>
 
@@ -100,11 +106,11 @@ export default function PublicFooter({ tenant, initialNav }: PublicFooterProps) 
           <div className="public-footer-links-col">
             <h4 className="footer-links-title">Compliance & Security</h4>
             <p className="footer-compliance-text">
-              WCAG 2.2 Level AA accessibility certified. Multi-tenant cryptographic isolation with strict role-based access control.
+              WCAG 2.2 Level AA accessibility verified. Dedicated institutional campus platform with strict role-based access control.
             </p>
             <div className="footer-badges">
               <span className="badge badge-active">WCAG 2.2 AA</span>
-              <span className="badge badge-role">BR-001 ISOLATED</span>
+              <span className="badge badge-level">Secure Campus</span>
             </div>
             <div style={{ marginTop: '1rem' }}>
               <Link href="/admin" className="btn btn-secondary btn-sm" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
@@ -119,7 +125,7 @@ export default function PublicFooter({ tenant, initialNav }: PublicFooterProps) 
             &copy; {new Date().getFullYear()} {brandName}. All rights reserved.
           </p>
           <p className="footer-powered">
-            Private School & College Digital Website Platform &bull; Multi-Tenant Verified
+            Accredited Institutional Digital Platform &bull; Student Privacy Protected
           </p>
         </div>
       </div>

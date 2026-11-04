@@ -33,9 +33,9 @@ test.describe('Day 15: Public Website Frontends & Tenant-Aware Delivery', () => 
     const eventsHeading = page.locator('#events-heading');
     await expect(eventsHeading).toBeVisible();
 
-    // Verify Platform status section exists for baseline verification
+    // Verify internal engineering status section is removed from public view (Day 21 P0)
     const statusHeading = page.locator('#status-heading');
-    await expect(statusHeading).toBeVisible();
+    await expect(statusHeading).not.toBeVisible();
     await expect(page.locator('a[href="/admin"]').first()).toBeVisible();
   });
 
@@ -196,7 +196,7 @@ test.describe('Day 15: Public Website Frontends & Tenant-Aware Delivery', () => 
     await expect(page.locator('h1')).toContainText('Get in Touch With Us');
     await expect(page.locator('h1')).toContainText('Oxford International School');
     await expect(page.locator('text=+44 1865 200100').first()).toBeVisible();
-    await expect(page.locator('text=admin@oxford.school.example').first()).toBeVisible();
+    await expect(page.locator('text=Direct Communications').first()).toBeVisible();
 
     // Fill and submit the embedded dynamic contact form
     await page.fill('input[name="fullName"]', 'David Evans');

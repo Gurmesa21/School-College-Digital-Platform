@@ -127,7 +127,7 @@ async function run() {
     // Test 3: Frontend public landing /
     console.log('Testing 3: GET http://localhost:3000/');
     const webHome = await fetchUrl('http://localhost:3000/');
-    const pass3 = webHome.status === 200 && webHome.body.includes('Private School') && webHome.body.includes('Digital Website Platform');
+    const pass3 = webHome.status === 200 && webHome.body.includes('Oxford International School') && !webHome.body.includes('Environment & System Status');
     testCases.push({ name: 'Frontend Public Landing (/)', status: webHome.status, pass: pass3 });
     console.log(`  -> Status: ${webHome.status}, Contains Brand: ${pass3}`);
 

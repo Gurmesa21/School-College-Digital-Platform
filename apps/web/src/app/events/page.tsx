@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import type { PublicEventItemDto } from '@school/shared';
 import { fetchCurrentTenant, getCanonicalUrl } from '@/lib/tenant';
+import { truncateWords } from '@/lib/formatters';
 
 export async function generateMetadata(): Promise<Metadata> {
   const headersList = await headers();
@@ -229,9 +230,9 @@ export default async function PublicEventsPage({ searchParams }: EventsPageProps
       {events.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
           <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '1rem' }}>📅</span>
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#f8fafc' }}>
+          <p style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', color: '#f8fafc' }}>
             No Events Scheduled
-          </h2>
+          </p>
           <p style={{ color: 'var(--text-muted)', maxWidth: '500px', margin: '0 auto 1.5rem' }}>
             {currentTimeframe === 'upcoming'
               ? 'There are no upcoming events currently listed under this category. Check the past archive or check back soon.'
@@ -242,7 +243,8 @@ export default async function PublicEventsPage({ searchParams }: EventsPageProps
           </Link>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <section aria-label="Events Calendar Schedule" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <h2 className="sr-only">Events Schedule</h2>
           {events.map((event) => {
             const startDate = new Date(event.startsAt);
             const endDate = new Date(event.endsAt);
@@ -331,15 +333,18 @@ export default async function PublicEventsPage({ searchParams }: EventsPageProps
                     )}
                   </div>
 
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.4rem' }}>
-                    <Link href={`/events/${event.slug}`} style={{ color: '#f8fafc', textDecoration: 'none' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+                    <Link
+                      href={`/events/${event.slug}`}
+                      style={{ color: '#f8fafc', textDecoration: 'none' }}
+                    >
                       {event.title}
                     </Link>
-                  </h2>
+                  </h3>
 
                   {event.description && (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.4, margin: '0 0 0.5rem 0' }}>
-                      {event.description.slice(0, 140)}...
+                    <p className="line-clamp-2" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.4, margin: '0 0 0.5rem 0' }}>
+                      {truncateWords(event.description, 130)}
                     </p>
                   )}
 
@@ -367,7 +372,12 @@ export default async function PublicEventsPage({ searchParams }: EventsPageProps
                       Registration Open
                     </span>
                   )}
-                  <Link href={`/events/${event.slug}`} className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
+                  <Link
+                    href={`/events/${event.slug}`}
+                    className="btn btn-primary btn-sm"
+                    style={{ textDecoration: 'none' }}
+                    aria-label={`View Details - ${event.title}`}
+                  >
                     View Details &rarr;
                   </Link>
                   <a
@@ -382,7 +392,7 @@ export default async function PublicEventsPage({ searchParams }: EventsPageProps
               </article>
             );
           })}
-        </div>
+        </section>
       )}
     </div>
   );

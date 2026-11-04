@@ -118,4 +118,23 @@ test.describe('Day 13: Enquiry Forms & Validated Routing (FR-CON-001, FR-CON-002
     await expect(globalNotice).toBeVisible({ timeout: 15000 });
     await expect(globalNotice).toContainText('Notification retried successfully');
   });
+
+  test.afterAll(async () => {
+    try {
+      const { PrismaClient } = await import('@school/db');
+      const prisma = new PrismaClient();
+      const form = await prisma.form.findFirst({ where: { slug: testFormSlug } });
+      if (form) {
+        await prisma.formSubmission.deleteMany({ where: { formId: form.id } });
+        await prisma.formField.deleteMany({ where: { formId: form.id } });
+        await prisma.form.delete({ where: { id: form.id } });
+      }
+      await prisma.formSubmission.deleteMany({
+        where: { submitterEmail: `elena.${testRunId}@example.com` },
+      });
+      await prisma.$disconnect();
+    } catch (err) {
+      console.warn('[Cleanup Warning] Could not clean enquiry routing test records:', err);
+    }
+  });
 });

@@ -189,4 +189,21 @@ test.describe('Day 6: Dynamic Navigation Menus, Media Library Asset Management &
     await deleteNavBtn.click();
     await expect(itemToDelete).not.toBeVisible({ timeout: 10000 });
   });
+
+  // Guaranteed Teardown Hook: Remove test navigation items and media assets (Day 21 P0 Isolation)
+  test.afterAll(async () => {
+    try {
+      const { PrismaClient } = await import('@school/db');
+      const prisma = new PrismaClient();
+      await prisma.navigationMenuItem.deleteMany({
+        where: { label: { startsWith: 'Portal ' } },
+      });
+      await prisma.mediaAsset.deleteMany({
+        where: { title: { startsWith: 'Campus Quad ' } },
+      });
+      await prisma.$disconnect();
+    } catch {
+      // Ignored
+    }
+  });
 });
