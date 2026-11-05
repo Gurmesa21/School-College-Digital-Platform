@@ -107,8 +107,8 @@ test.describe('Day 21: UI/UX Audit Remediation & Client-Readiness Hardening', ()
     await expect(drawer).not.toHaveClass(/open/);
   });
 
-  // 6. P1 Brand Lockup & Header Conversion CTA
-  test('6. Header presents conversion-focused Apply CTA and Staff Portal link', async ({ page }) => {
+  // 6. Architectural Decision Two: Staff/Admin Portal Separation & Public Header Brand
+  test('6. Header presents institutional brand, Admissions Inquiry CTA, and zero staff/admin portal links', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
 
@@ -120,11 +120,11 @@ test.describe('Day 21: UI/UX Audit Remediation & Client-Readiness Hardening', ()
     // Admissions conversion CTA
     const applyCta = page.locator('.public-header-apply-cta');
     await expect(applyCta).toBeVisible();
-    await expect(applyCta).toContainText('Apply / Inquire');
+    await expect(applyCta).toContainText('Admissions Inquiry');
 
-    // Subtle staff portal link
-    const staffLink = page.locator('a[href="/admin"]').first();
-    await expect(staffLink).toBeVisible();
+    // Architectural Decision Two: zero admin/staff links on public pages
+    const staffLinks = page.locator('a[href="/admin"]');
+    await expect(staffLinks).toHaveCount(0);
   });
 
   // 7. P1 Content Card Standardization: Heading Hierarchy & Word Truncation
@@ -175,6 +175,105 @@ test.describe('Day 21: UI/UX Audit Remediation & Client-Readiness Hardening', ()
     await page.goto('/');
     const footerText = await page.locator('footer').innerText();
     expect(footerText).not.toContain('.example');
+  });
+
+  // 9. Architectural Decision One: Lightweight Admissions & Physical Campus Visit Requirement
+  test('9. Admissions page explicitly mandates physical campus visit and disclaims automated enrollment', async ({ page }) => {
+    await page.goto('/admissions');
+
+    // Title / heading
+    const heading = page.locator('h1');
+    await expect(heading).toContainText('Admissions Inquiries & Campus Consultations');
+
+    // Prominent institutional policy notice
+    const policyNotice = page.locator('[role="note"]');
+    await expect(policyNotice).toBeVisible();
+    await expect(policyNotice).toContainText('In-Person Completion Required');
+    await expect(policyNotice).toContainText('does not constitute formal admission or guarantee enrollment');
+    await expect(policyNotice).toContainText('physically visit the institution');
+
+    // Step 3 in admissions workflow specifies on-campus registration
+    const stepThree = page.locator('h3:has-text("On-Campus Registration")');
+    await expect(stepThree).toBeVisible();
+  });
+
+  // 10. Architectural Decision Two: Zero Public Portal Links Across All Key Pages
+  test('10. Public pages have zero staff/admin portal links while /admin remains accessible directly', async ({ page }) => {
+    const publicPages = ['/', '/academics', '/news', '/events', '/staff', '/contact', '/admissions', '/privacy', '/terms'];
+
+    for (const url of publicPages) {
+      await page.goto(url);
+      const adminLinks = page.locator('a[href="/admin"]');
+      await expect(adminLinks).toHaveCount(0);
+    }
+
+    // Direct access to /admin works and is protected
+    await page.goto('/admin');
+    await expect(page).toHaveURL(/\/admin/);
+    await expect(page.locator('h1')).toContainText('Tenant User Administration');
+  });
+
+  // 11. DEF-003: Mobile Brand Name Wrapping Single Line (<= 480px)
+  test('11. Mobile brand typography does not wrap awkwardly at <= 480px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+
+    const brandName = page.locator('.public-brand-name');
+    await expect(brandName).toBeVisible();
+
+    const whiteSpace = await brandName.evaluate((el) => window.getComputedStyle(el).whiteSpace);
+    expect(whiteSpace).toBe('nowrap');
+  });
+
+  // 12. DEF-004: Footer Authentic Governance Copy & Zero Technical Claims
+  test('12. Footer contains authentic institutional governance and no tech claims', async ({ page }) => {
+    await page.goto('/');
+    const footer = page.locator('footer');
+    await expect(footer).toBeVisible();
+
+    const footerText = await footer.innerText();
+    expect(footerText).not.toContain('WCAG 2.2 Level AA accessibility verified');
+    expect(footerText).not.toContain('strict role-based access control');
+    expect(footerText).not.toContain('COMPLIANCE & SECURITY');
+
+    // Authentic governance links
+    await expect(footer.locator('a[href="/privacy"]').first()).toBeVisible();
+    await expect(footer.locator('a[href="/terms"]').first()).toBeVisible();
+    await expect(footer.locator('a[href="/admissions"]').first()).toBeVisible();
+    await expect(footer.locator('a[href="/contact"]').first()).toBeVisible();
+  });
+
+  // 13. DEF-005: Descriptive Accessible Card Links (WCAG 2.4.4 & WCAG 2.5.3)
+  test('13. Card links include screen-reader accessible context (.sr-only)', async ({ page }) => {
+    await page.goto('/');
+
+    // Check programme links
+    const progLinks = page.locator('a[href^="/academics/"]');
+    const progCount = await progLinks.count();
+    if (progCount > 0) {
+      const srText = progLinks.first().locator('.sr-only');
+      await expect(srText).toBeAttached();
+    }
+
+    // Check news links
+    const newsLinks = page.locator('a[href^="/news/"]');
+    const newsCount = await newsLinks.count();
+    if (newsCount > 0) {
+      const srText = newsLinks.first().locator('.sr-only');
+      await expect(srText).toBeAttached();
+    }
+  });
+
+  // 14. DEF-007: Zero Duplicate Hero Taxonomy Badges
+  test('14. Homepage hero has zero duplicate institution type taxonomy labels', async ({ page }) => {
+    await page.goto('/');
+
+    const hero = page.locator('section.hero-section');
+    await expect(hero).toBeVisible();
+
+    // The h1 subtitle should have vision statement, not duplicate of institutionType
+    const h1Subtitle = hero.locator('h1 span');
+    await expect(h1Subtitle).toContainText('Empowering Minds, Shaping Global Leaders');
   });
 });
 

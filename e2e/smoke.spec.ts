@@ -20,10 +20,12 @@ test.describe('Platform E2E Smoke & Health Verification', () => {
     const statusHeading = page.locator('#status-heading');
     await expect(statusHeading).not.toBeVisible();
 
-    // Navigation to Admin interface
-    const adminLink = page.locator('a[href="/admin"]').first();
-    await expect(adminLink).toBeVisible();
-    await adminLink.click();
+    // Verify Architectural Decision Two: Staff/Admin links strictly removed from public navigation
+    const publicAdminLinks = page.locator('a[href="/admin"]');
+    await expect(publicAdminLinks).toHaveCount(0);
+
+    // Direct access to separate Admin portal route remains functional and protected
+    await page.goto('/admin');
     await expect(page).toHaveURL(/\/admin/);
 
     // Verify no fatal console errors during navigation (ignoring expected 401 on unauthenticated admin visit and favicon/404)

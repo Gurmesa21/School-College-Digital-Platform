@@ -474,7 +474,7 @@ export default async function PublicNewsPage({ searchParams }: NewsPageProps) {
                       }}
                       aria-label={`Read Full Story - ${article.title}`}
                     >
-                      Read Full Story &rarr;
+                      Read Full Story<span className="sr-only">: {article.title}</span> &rarr;
                     </Link>
                   </div>
                 </div>

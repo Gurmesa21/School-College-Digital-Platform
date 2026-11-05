@@ -174,7 +174,7 @@ export default async function PublicDocumentsPage() {
                     style={{ textDecoration: 'none' }}
                     aria-label={`Download File - ${doc.title}`}
                   >
-                    Download File &darr;
+                    Download File<span className="sr-only">: {doc.title}</span> &darr;
                   </a>
                 </div>
               </article>

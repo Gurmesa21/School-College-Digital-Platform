@@ -223,7 +223,7 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
         >
           ✓
         </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-main)' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
           Submission Successful
         </h2>
         {submissionRef && (
@@ -238,13 +238,13 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
               border: '1px solid rgba(16, 185, 129, 0.3)',
             }}
           >
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Reference Code: </span>
-            <strong style={{ fontSize: '1rem', color: 'var(--text-main)', letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Reference Code: </span>
+            <strong style={{ fontSize: '1rem', color: 'var(--text-primary)', letterSpacing: '0.05em' }}>
               {submissionRef}
             </strong>
           </div>
         )}
-        <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '2rem' }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '2rem' }}>
           {submitSuccess}
         </p>
         <button
@@ -273,24 +273,24 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
         maxWidth: '720px',
         margin: '2rem auto',
         padding: '2.5rem',
-        boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
         borderRadius: '16px',
-        border: '1px solid var(--border-color)',
-        backgroundColor: 'var(--card-bg, #ffffff)',
+        border: '1px solid var(--border-subtle)',
+        backgroundColor: 'var(--bg-surface)',
       }}
     >
       <header style={{ marginBottom: '2rem' }}>
         {isEmbedded ? (
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
             {form.title}
           </h2>
         ) : (
-          <h1 style={{ fontSize: '1.875rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+          <h1 style={{ fontSize: '1.875rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
             {form.title}
           </h1>
         )}
         {form.description && (
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', lineHeight: '1.5' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.5' }}>
             {form.description}
           </p>
         )}
@@ -338,7 +338,7 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
               <div key={field.name} className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 <label
                   htmlFor={`field-${field.name}`}
-                  style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-main)' }}
+                  style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}
                 >
                   {field.label}{' '}
                   {field.isRequired && (
@@ -349,7 +349,7 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
                 </label>
 
                 {field.helpText && (
-                  <span id={helpId} style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  <span id={helpId} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                     {field.helpText}
                   </span>
                 )}
@@ -381,11 +381,11 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
                     style={{
                       padding: '0.75rem 1rem',
                       borderRadius: '8px',
-                      border: hasError ? '2px solid var(--danger, #ef4444)' : '1px solid var(--border-color)',
+                      border: hasError ? '2px solid var(--danger, #ef4444)' : '1px solid var(--border-subtle)',
                       fontSize: '1rem',
                       width: '100%',
-                      backgroundColor: 'var(--input-bg, #ffffff)',
-                      color: 'var(--text-main)',
+                      backgroundColor: 'var(--bg-input)',
+                      color: 'var(--text-primary)',
                     }}
                   />
                 ) : field.fieldType === 'TEXTAREA' ? (
@@ -404,12 +404,12 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
                     style={{
                       padding: '0.75rem 1rem',
                       borderRadius: '8px',
-                      border: hasError ? '2px solid var(--danger, #ef4444)' : '1px solid var(--border-color)',
+                      border: hasError ? '2px solid var(--danger, #ef4444)' : '1px solid var(--border-subtle)',
                       fontSize: '1rem',
                       width: '100%',
                       fontFamily: 'inherit',
-                      backgroundColor: 'var(--input-bg, #ffffff)',
-                      color: 'var(--text-main)',
+                      backgroundColor: 'var(--bg-input)',
+                      color: 'var(--text-primary)',
                     }}
                   />
                 ) : field.fieldType === 'SELECT' ? (
@@ -426,16 +426,16 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
                     style={{
                       padding: '0.75rem 1rem',
                       borderRadius: '8px',
-                      border: hasError ? '2px solid var(--danger, #ef4444)' : '1px solid var(--border-color)',
+                      border: hasError ? '2px solid var(--danger, #ef4444)' : '1px solid var(--border-subtle)',
                       fontSize: '1rem',
                       width: '100%',
-                      backgroundColor: 'var(--input-bg, #ffffff)',
-                      color: 'var(--text-main)',
+                      backgroundColor: 'var(--bg-input)',
+                      color: 'var(--text-primary)',
                     }}
                   >
-                    <option value="">-- Please Select --</option>
+                    <option value="" style={{ backgroundColor: '#1e293b', color: '#f8fafc' }}>-- Please Select --</option>
                     {(field.options || []).map((opt) => (
-                      <option key={opt.value} value={opt.value}>
+                      <option key={opt.value} value={opt.value} style={{ backgroundColor: '#1e293b', color: '#f8fafc' }}>
                         {opt.label}
                       </option>
                     ))}
@@ -456,6 +456,7 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
                             gap: '0.5rem',
                             cursor: 'pointer',
                             fontSize: '0.95rem',
+                            color: 'var(--text-primary)',
                           }}
                         >
                           <input
@@ -489,6 +490,7 @@ export default function DynamicPublicForm({ slug, tenantSlug = 'oxford', isEmbed
                               gap: '0.5rem',
                               cursor: 'pointer',
                               fontSize: '0.95rem',
+                              color: 'var(--text-primary)',
                             }}
                           >
                             <input

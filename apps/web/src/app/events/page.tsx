@@ -378,7 +378,7 @@ export default async function PublicEventsPage({ searchParams }: EventsPageProps
                     style={{ textDecoration: 'none' }}
                     aria-label={`View Details - ${event.title}`}
                   >
-                    View Details &rarr;
+                    View Details<span className="sr-only">: {event.title}</span> &rarr;
                   </Link>
                   <a
                     href={`/api/v1/tenant/public/events/${event.slug}/ics`}

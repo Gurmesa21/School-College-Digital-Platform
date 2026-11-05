@@ -334,7 +334,7 @@ export default async function PublicAcademicsCataloguePage({ searchParams }: Aca
                       style={{ textDecoration: 'none' }}
                       aria-label={`Curriculum & Details - ${p.title}`}
                     >
-                      Curriculum & Details &rarr;
+                      Curriculum & Details<span className="sr-only">: {p.title}</span> &rarr;
                     </Link>
                     <Link
                       href="/contact"

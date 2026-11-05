@@ -36,7 +36,9 @@ test.describe('Day 15: Public Website Frontends & Tenant-Aware Delivery', () => 
     // Verify internal engineering status section is removed from public view (Day 21 P0)
     const statusHeading = page.locator('#status-heading');
     await expect(statusHeading).not.toBeVisible();
-    await expect(page.locator('a[href="/admin"]').first()).toBeVisible();
+
+    // Verify Architectural Decision Two: zero admin/staff links on public pages
+    await expect(page.locator('a[href="/admin"]')).toHaveCount(0);
   });
 
   // 2. Strict Multi-Tenant Host-Based Branding & Content Isolation (SEC-TEN-001, BR-001)
@@ -59,7 +61,7 @@ test.describe('Day 15: Public Website Frontends & Tenant-Aware Delivery', () => 
     await expect(heroHeading).toContainText('Little Explorers Kindergarten');
 
     // Verify Kindergarten-specific content is presented
-    await expect(page.locator('text=Little Explorers Full-Day Kindergarten')).toBeVisible();
+    await expect(page.locator('h3:has-text("Little Explorers Full-Day Kindergarten")')).toBeVisible();
 
     // Strict Negative Isolation Check: Oxford's secondary programmes must NOT be present
     const oxfordProgramme = page.locator('text=Cambridge International A-Levels');
@@ -219,7 +221,7 @@ test.describe('Day 15: Public Website Frontends & Tenant-Aware Delivery', () => 
     await expect(page.locator('h1')).toContainText('Official Documents & Prospectuses');
 
     // Check for seeded prospectus document
-    const prospectusCard = page.locator('text=Official School Prospectus 2026-2027');
+    const prospectusCard = page.locator('h3:has-text("Official School Prospectus 2026-2027")');
     await expect(prospectusCard).toBeVisible();
 
     // Verify direct file download link

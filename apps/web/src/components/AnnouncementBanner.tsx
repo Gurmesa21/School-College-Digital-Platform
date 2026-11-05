@@ -5,6 +5,8 @@ import Link from 'next/link';
 import type { PublicAnnouncementDto } from '@school/shared';
 import { truncateWords } from '@/lib/formatters';
 
+const DISMISS_STORAGE_KEY = 'school_dismissed_announcements';
+
 interface AnnouncementBannerProps {
   initialAnnouncements?: PublicAnnouncementDto[];
 }
@@ -16,6 +18,21 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [collapsedUrgent, setCollapsedUrgent] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(!initialAnnouncements);
+
+  // Load persisted dismissed IDs on client mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(DISMISS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setDismissedIds(parsed);
+        }
+      }
+    } catch {
+      // LocalStorage access may fail in private mode or SSR
+    }
+  }, []);
 
   useEffect(() => {
     if (initialAnnouncements) {
@@ -58,7 +75,15 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
   }
 
   const handleDismiss = (id: string) => {
-    setDismissedIds((prev) => [...prev, id]);
+    setDismissedIds((prev) => {
+      const updated = prev.includes(id) ? prev : [...prev, id];
+      try {
+        localStorage.setItem(DISMISS_STORAGE_KEY, JSON.stringify(updated));
+      } catch {
+        // Ignore storage errors
+      }
+      return updated;
+    });
   };
 
   const toggleUrgentCollapse = (id: string) => {
@@ -137,8 +162,8 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
                 <span style={{ fontWeight: 600, color: '#f8fafc' }}>{item.title}</span>
 
                 {!isCollapsed && (
-                  <span style={{ color: '#e2e8f0', fontSize: '0.84rem' }}>
-                    {truncateWords(item.content, 95)}
+                  <span className="announcement-body-text">
+                    {truncateWords(item.content, 45)}
                   </span>
                 )}
 
@@ -168,17 +193,18 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
                       : `Minimize urgent announcement: ${item.title}`
                   }
                   title={isCollapsed ? 'Expand notice details' : 'Minimize notice'}
+                  className="announcement-btn"
                   style={{
                     background: 'transparent',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '4px',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    borderRadius: '6px',
                     color: '#fca5a5',
                     cursor: 'pointer',
-                    fontSize: '0.75rem',
+                    fontSize: '0.8rem',
                     fontWeight: 600,
-                    padding: '0.2rem 0.45rem',
-                    minHeight: '32px',
-                    minWidth: '32px',
+                    padding: '0.35rem 0.65rem',
+                    minHeight: '44px',
+                    minWidth: '44px',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -193,22 +219,23 @@ export default function AnnouncementBanner({ initialAnnouncements }: Announcemen
                   onClick={() => handleDismiss(item.id)}
                   aria-label={`Dismiss announcement: ${item.title}`}
                   title="Dismiss this notice"
+                  className="announcement-btn"
                   style={{
                     background: 'transparent',
-                    border: 'none',
-                    borderRadius: '4px',
+                    border: '1px solid transparent',
+                    borderRadius: '6px',
                     color: '#94a3b8',
                     cursor: 'pointer',
-                    fontSize: '1.25rem',
+                    fontSize: '1.4rem',
                     lineHeight: 1,
-                    minHeight: '32px',
-                    minWidth: '32px',
+                    minHeight: '44px',
+                    minWidth: '44px',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  &times;
+                  <span aria-hidden="true">&times;</span>
                 </button>
               )}
             </div>

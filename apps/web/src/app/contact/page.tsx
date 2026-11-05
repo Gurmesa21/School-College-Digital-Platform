@@ -60,10 +60,10 @@ export default async function ContactPage() {
         </nav>
 
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '1rem' }}>
+          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1rem' }}>
             Get in Touch With Us &mdash; {name}
           </h1>
-          <p style={{ fontSize: '1.15rem', color: 'var(--text-muted)', maxWidth: '650px', margin: '0 auto' }}>
+          <p style={{ fontSize: '1.15rem', color: 'var(--text-secondary)', maxWidth: '650px', margin: '0 auto' }}>
             Whether you have questions about admissions, our curriculum frameworks, or campus visits, our dedicated team is here to assist you.
           </p>
         </div>
@@ -82,13 +82,13 @@ export default async function ContactPage() {
             style={{
               padding: '1.5rem',
               borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--card-bg, #ffffff)',
+              border: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--bg-surface)',
             }}
           >
             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>📍</div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Campus Address</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Campus Address</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
               {tenant?.address || `${name}\nBole Sub-City, Kebele 03/05\nAddis Ababa, Ethiopia`}
             </p>
           </div>
@@ -98,13 +98,13 @@ export default async function ContactPage() {
             style={{
               padding: '1.5rem',
               borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--card-bg, #ffffff)',
+              border: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--bg-surface)',
             }}
           >
             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>📞</div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Telephone & Enquiries</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Telephone & Enquiries</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
               {tenant?.contactPhone ? `Campus Desk: ${tenant.contactPhone}` : 'Main Office: +44 1865 200100'}
               <br />
               Hours: Mon - Fri (8:00 AM - 4:30 PM)
@@ -116,13 +116,13 @@ export default async function ContactPage() {
             style={{
               padding: '1.5rem',
               borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--card-bg, #ffffff)',
+              border: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--bg-surface)',
             }}
           >
             <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>✉️</div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Direct Communications</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Direct Communications</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
               {tenant?.contactEmail && !tenant.contactEmail.includes('.example') ? (
                 <>Official: {tenant.contactEmail}<br /></>
               ) : (

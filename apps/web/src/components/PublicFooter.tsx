@@ -93,30 +93,45 @@ export default function PublicFooter({ tenant, initialNav }: PublicFooterProps) 
           <div className="public-footer-links-col">
             <h4 className="footer-links-title">Institutional Navigation</h4>
             <ul className="footer-links-list">
-              {footerItems.map((item) => (
-                <li key={item.id}>
-                  <Link href={item.url} target={item.target || '_self'} className="footer-nav-link">
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
+              {footerItems
+                .filter((item) => !item.url.startsWith('/admin'))
+                .map((item) => (
+                  <li key={item.id}>
+                    <Link href={item.url} target={item.target || '_self'} className="footer-nav-link">
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
             </ul>
           </div>
 
           <div className="public-footer-links-col">
-            <h4 className="footer-links-title">Compliance & Security</h4>
-            <p className="footer-compliance-text">
-              WCAG 2.2 Level AA accessibility verified. Dedicated institutional campus platform with strict role-based access control.
+            <h4 className="footer-links-title">Governance &amp; Policies</h4>
+            <ul className="footer-links-list">
+              <li>
+                <Link href="/privacy" className="footer-nav-link">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" className="footer-nav-link">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link href="/admissions" className="footer-nav-link">
+                  Admissions Guidelines
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact" className="footer-nav-link">
+                  Campus Directory
+                </Link>
+              </li>
+            </ul>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.75rem', lineHeight: '1.45' }}>
+              Dedicated to academic excellence, student pastoral care, and global leadership.
             </p>
-            <div className="footer-badges">
-              <span className="badge badge-active">WCAG 2.2 AA</span>
-              <span className="badge badge-level">Secure Campus</span>
-            </div>
-            <div style={{ marginTop: '1rem' }}>
-              <Link href="/admin" className="btn btn-secondary btn-sm" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
-                Staff & Admin Sign-in &rarr;
-              </Link>
-            </div>
           </div>
         </div>
 
@@ -125,7 +140,7 @@ export default function PublicFooter({ tenant, initialNav }: PublicFooterProps) 
             &copy; {new Date().getFullYear()} {brandName}. All rights reserved.
           </p>
           <p className="footer-powered">
-            Accredited Institutional Digital Platform &bull; Student Privacy Protected
+            Accredited International Education &bull; Holistic Student Development
           </p>
         </div>
       </div>

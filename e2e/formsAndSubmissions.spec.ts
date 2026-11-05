@@ -44,7 +44,7 @@ test.describe('Day 7: Dynamic Forms, Public Submissions & Admissions Review Life
     // ------------------------------------------------------------------------
     await page.goto('/admissions');
     await expect(page).toHaveTitle(/Admissions/i);
-    await expect(page.locator('h1')).toContainText('Admissions & Student Applications');
+    await expect(page.locator('h1')).toContainText('Admissions Inquiries & Campus Consultations');
 
     // Verify admissions form is rendered
     const admissionsForm = page.locator('#public-form-admissions-application');

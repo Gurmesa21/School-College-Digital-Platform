@@ -525,7 +525,7 @@ export default async function PublicStaffDirectoryPage({ searchParams }: StaffDi
                   }}
                   aria-label={`View Profile - ${staff.fullName}`}
                 >
-                  View Profile &rarr;
+                  View Profile<span className="sr-only">: {staff.fullName}</span> &rarr;
                 </Link>
               </div>
             </article>

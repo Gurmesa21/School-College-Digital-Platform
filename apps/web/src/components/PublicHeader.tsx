@@ -103,7 +103,9 @@ export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) 
           className={`public-nav-menu ${mobileMenuOpen ? 'is-open open' : ''}`}
         >
           <ul className="public-nav-list" role="menubar">
-            {navItems.map((item) => {
+            {navItems
+              .filter((item) => !item.url.startsWith('/admin'))
+              .map((item) => {
               const hasChildren = Boolean(item.children && item.children.length > 0);
               const isDropdownOpen = activeDropdown === item.id;
               const isActive = item.url === '/' ? pathname === '/' : pathname.startsWith(item.url);
@@ -186,15 +188,7 @@ export default function PublicHeader({ tenant, initialNav }: PublicHeaderProps) 
               className="btn btn-primary btn-sm public-admissions-btn public-header-apply-cta"
               style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}
             >
-              Apply / Inquire &rarr;
-            </Link>
-            <Link
-              href="/admin"
-              className="public-staff-portal-link"
-              aria-label="Staff Portal - Institutional Administration"
-              title="Staff and Institutional Admin Sign-in"
-            >
-              Staff Portal
+              Admissions Inquiry &rarr;
             </Link>
           </div>
         </nav>

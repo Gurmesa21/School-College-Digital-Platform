@@ -127,7 +127,7 @@ export default async function HomePage() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <span className="badge badge-active">{institutionTypeLabel}</span>
-          <span className="badge badge-level">Admissions Open</span>
+          <span className="badge badge-level">Admissions Inquiries Open &bull; 2026–2027</span>
         </div>
 
         <h1
@@ -144,14 +144,14 @@ export default async function HomePage() {
           <span
             style={{
               display: 'block',
-              fontSize: '1.2rem',
+              fontSize: '1.15rem',
               fontWeight: 600,
               color: 'var(--accent-primary)',
               marginTop: '0.35rem',
               letterSpacing: '0.01em',
             }}
           >
-            {institutionTypeLabel}
+            Empowering Minds, Shaping Global Leaders
           </span>
         </h1>
 
@@ -320,7 +320,7 @@ export default async function HomePage() {
                     style={{ textDecoration: 'none' }}
                     aria-label={`Programme Details for ${prog.title}`}
                   >
-                    Programme Details &rarr;
+                    Programme Details<span className="sr-only">: {prog.title}</span> &rarr;
                   </Link>
                 </div>
               </article>
@@ -381,7 +381,7 @@ export default async function HomePage() {
                     style={{ textDecoration: 'none' }}
                     aria-label={`Read Story - ${item.title}`}
                   >
-                    Read Story &rarr;
+                    Read Story<span className="sr-only">: {item.title}</span> &rarr;
                   </Link>
                 </div>
               </article>
@@ -440,7 +440,7 @@ export default async function HomePage() {
                     style={{ textDecoration: 'none' }}
                     aria-label={`Event Details & iCal - ${evt.title}`}
                   >
-                    Event Details &amp; iCal &rarr;
+                    Event Details &amp; iCal<span className="sr-only">: {evt.title}</span> &rarr;
                   </Link>
                 </div>
               </article>
@@ -514,7 +514,7 @@ export default async function HomePage() {
                   style={{ color: 'var(--accent-primary)', fontSize: '0.85rem', textDecoration: 'none', fontWeight: 600 }}
                   aria-label={`View Profile - ${person.fullName}`}
                 >
-                  View Profile &rarr;
+                  View Profile<span className="sr-only">: {person.fullName}</span> &rarr;
                 </Link>
               </div>
             ))}

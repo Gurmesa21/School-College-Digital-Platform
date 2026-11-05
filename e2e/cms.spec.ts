@@ -17,9 +17,8 @@ test.describe('CMS Content Model, Page Publishing Lifecycle & Public Delivery', 
     // Step 1: Sign in using controlled development administrator account
     // ------------------------------------------------------------------------
     await page.goto('/');
-    const adminLink = page.locator('a[href="/admin"]').first();
-    await expect(adminLink).toBeVisible();
-    await adminLink.click();
+    await expect(page.locator('a[href="/admin"]')).toHaveCount(0);
+    await page.goto('/admin');
     await expect(page).toHaveURL(/\/admin/);
     await expect(page.locator('h1')).toContainText('Tenant User Administration');
 

@@ -16,9 +16,8 @@ test.describe('Day 6: Dynamic Navigation Menus, Media Library Asset Management &
     // Step 1: Sign in as Tenant Administrator
     // ------------------------------------------------------------------------
     await page.goto('/');
-    const adminLink = page.locator('a[href="/admin"]').first();
-    await expect(adminLink).toBeVisible();
-    await adminLink.click();
+    await expect(page.locator('a[href="/admin"]')).toHaveCount(0);
+    await page.goto('/admin');
     await expect(page).toHaveURL(/\/admin/);
     await expect(page.locator('h1')).toContainText('Tenant User Administration');
 
